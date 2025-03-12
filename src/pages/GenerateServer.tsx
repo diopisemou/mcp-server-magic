@@ -15,6 +15,37 @@ import { clientLogger } from '@/lib/logger';
 import { useLogging } from '@/contexts/LogContext';
 import LogViewer from '@/components/LogViewer';
 
+import { 
+  Card, CardHeader, CardTitle, CardDescription, 
+  CardContent, CardFooter 
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { LogViewer } from "@/components/LogViewer";
+import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
+import { useLogging } from "@/contexts/LogContext";
+
+interface Project {
+  id: string;
+  name: string;
+  description: string;
+  // Add other project fields as needed
+}
+
+interface ServerConfiguration {
+  id: string;
+  project_id: string;
+  // Add other configuration fields as needed
+}
+
+interface GenerationResult {
+  serverUrl?: string;
+  downloadUrl?: string;
+  error?: string;
+}
+
 const GenerateServer = () => { 
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -57,6 +88,114 @@ const GenerateServer = () => {
         });
         throw error;
       }
+      
+      logInfo('Project fetched successfully', { 
+        projectId, 
+        projectName: data.name 
+      });
+      setProject(data);
+    } catch (error) {
+      logError('Failed to load project data', { error });
+      toast.error('Failed to load project data');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const fetchServerConfiguration = async () => {
+    if (!projectId) {
+      logWarning('No projectId provided for server configuration');
+      return;
+    }
+    
+    try {
+      logInfo(`Fetching server configuration for projectId: ${projectId}`);
+      const { data, error } = await supabase
+        .from('server_configurations')
+        .select('*')
+        .eq('project_id', projectId)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Record not found is okay
+          logInfo('No server configuration found for this project');
+          return;
+        }
+        
+        logError('Error fetching server configuration', { 
+          projectId, 
+          error: error.message,
+          code: error.code 
+        });
+        throw error;
+      }
+      
+      logInfo('Server configuration fetched successfully');
+      setServerConfiguration(data);
+    } catch (error) {
+      logError('Failed to load server configuration', { error });
+      toast.error('Failed to load server configuration');
+    }
+  };
+  
+  const generateServer = async () => {
+    if (!project || !serverConfiguration) {
+      logError('Cannot generate server: missing project or configuration');
+      toast.error('Project or server configuration not found');
+      return;
+    }
+    
+    setIsGenerating(true);
+    setGenerationProgress(0);
+    setGenerationError(null);
+    
+    try {
+      logInfo('Starting server generation', { projectId, configId: serverConfiguration.id });
+      
+      // Mock progress updates
+      const progressInterval = setInterval(() => {
+        setGenerationProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 5;
+        });
+      }, 1000);
+      
+      // Make API call to generate server
+      const response = await fetch('/api/generate-server', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId,
+          configId: serverConfiguration.id
+        }),
+      });
+      
+      clearInterval(progressInterval);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to generate server');
+      }
+      
+      const result = await response.json();
+      logInfo('Server generation completed successfully', { result });
+      
+      setGenerationProgress(100);
+      setGenerationResult(result);
+    } catch (error) {
+      logError('Server generation failed', { error });
+      setGenerationError(error instanceof Error ? error.message : 'Unknown error occurred');
+      toast.error('Failed to generate server');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
       logInfo('Project fetched successfully', { 
         projectId, 
@@ -494,9 +633,93 @@ const GenerateServer = () => {
                 <AlertDescription>{generationError}</AlertDescription>
               </Alert>
             )}
+            
+            {showLogs && (
+              <div className="mt-4">
+                <LogViewer />
+              </div>
+            )}
           </div>
         </CardFooter>
       </Card>
+      
+      {generationResult && (
+        <div className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Generation Result</CardTitle>
+              <CardDescription>
+                Your server has been generated successfully.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium mb-1">Server URL</h3>
+                  <div className="flex items-center gap-2">
+                    <code className="bg-muted p-2 rounded flex-1 overflow-hidden overflow-ellipsis">
+                      {generationResult.serverUrl || 'No URL available'}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (generationResult.serverUrl) {
+                          navigator.clipboard.writeText(generationResult.serverUrl);
+                          toast.success('URL copied to clipboard');
+                        }
+                      }}
+                      disabled={!generationResult.serverUrl}
+                    >
+                      <ClipboardCopy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="text-sm font-medium mb-1">Actions</h3>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (generationResult.serverUrl) {
+                          window.open(generationResult.serverUrl, '_blank');
+                        }
+                      }}
+                      disabled={!generationResult.serverUrl}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open Server
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (generationResult.downloadUrl) {
+                          window.open(generationResult.downloadUrl, '_blank');
+                        }
+                      }}
+                      disabled={!generationResult.downloadUrl}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download Code
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      
+      <div className="fixed bottom-4 right-4">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setShowLogs(!showLogs)}
+        >
+          {showLogs ? 'Hide Logs' : 'Show Logs'}
+        </Button>
+      </div>
     </div>
   );
 };
