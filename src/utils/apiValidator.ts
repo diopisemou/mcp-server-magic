@@ -87,7 +87,7 @@ const detectContentType = (content: string | Buffer | object, filename?: string)
   } else if (trimmedContent.startsWith('# ') || trimmedContent.startsWith('FORMAT:')) {
     return 'markdown'; // Potential API Blueprint
   } 
-  
+
   // Use the file utils to detect JSON/YAML
   return detectFileType(trimmedContent, filename);
 };
@@ -229,11 +229,11 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
   const endpoints: Endpoint[] = [];
   console.log('Extracting endpoints from format:', format);
   console.log('API Definition (sample):', JSON.stringify(apiDefinition).substring(0, 300) + '...');
-  
+
   try {
     // Handle case where API definition might be nested in different ways
     let definition;
-    
+
     if (apiDefinition.parsedDefinition) {
       definition = apiDefinition.parsedDefinition;
     } else if (apiDefinition.content) {
@@ -247,12 +247,12 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
     } else {
       definition = apiDefinition;
     }
-    
+
     if (!definition) {
       console.error('No valid definition found in:', apiDefinition);
       return endpoints;
     }
-    
+
     if ((format === 'OpenAPI2' || format === 'OpenAPI3') && definition.paths) {
       const paths = definition.paths || {};
 
@@ -269,17 +269,17 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
 
             // Extract parameters
             const parameters = [];
-            
+
             // Add path parameters if they exist
             if (Array.isArray(pathObj.parameters)) {
               parameters.push(...pathObj.parameters);
             }
-            
+
             // Add operation parameters if they exist
             if (Array.isArray(operation.parameters)) {
               parameters.push(...operation.parameters);
             }
-            
+
             const formattedParameters = parameters.map(param => ({
               name: param.name,
               type: (param.schema?.type || param.type || 'string'),
@@ -370,7 +370,7 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
         });
       }
     }
-    
+
     // Fallback for simple/custom API definitions
     if (endpoints.length === 0 && typeof definition === 'object') {
       // Try to extract from top-level endpoints array if it exists
@@ -404,7 +404,7 @@ export const validateApiDefinition = async (
   filename?: string
 ): Promise<ValidationResult> => {
   console.log(`Validating API definition, content type: ${typeof content}, filename: ${filename}`);
-  
+
   // If content is already an object (pre-parsed), use it directly
   if (content !== null && typeof content === 'object' && !BufferImpl.isBuffer(content)) {
     const format = determineFormatFromObject(content);
@@ -472,7 +472,7 @@ export const validateApiDefinition = async (
     errors: errors.length > 0 ? errors : undefined,
     parsedDefinition: parsedContent
   };
-  
+
   console.log(`Validation result: ${result.isValid ? 'Valid' : 'Invalid'}, format: ${result.format}`);
   return result;
 };
@@ -516,11 +516,13 @@ export const extractEndpointsFromUrl = (apiDefinition: any, format: ApiFormat) =
           }));
 
           endpoints.push({
+            id: `${method.toUpperCase()}-${path}`.replace(/[^a-zA-Z0-9]/g, '-'),
             path,
             method: method.toUpperCase(),
             description: operation.summary || operation.description || '',
             parameters,
-            responses
+            responses,
+            mcpType: method.toLowerCase() === 'get' ? 'resource' : 'tool'
           });
         }
       });

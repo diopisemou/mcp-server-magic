@@ -20,47 +20,61 @@ export const parseApiDefinition = async (apiDefinition: ApiDefinitionRecord | nu
 
     // Check if content is already a string or needs parsing
     if (typeof apiDefinition.content === 'string') {
-      try {
-        // Try to parse as JSON first
-        parsedContent = JSON.parse(apiDefinition.content);
-
-        // If this is already a parsed validation result with format
-        if (parsedContent.format && parsedContent.parsedDefinition) {
-          format = parsedContent.format;
-          console.log("Found pre-parsed content with format:", format);
-
-          // Extract endpoints from the pre-parsed definition
-          extractedEndpoints = extractEndpoints(parsedContent, format);
-        } else {
-          // This is raw JSON API definition, validate it
-          console.log("Raw JSON content found, validating...");
-          const validationResult = await validateApiDefinition(parsedContent);
-          format = validationResult.format;
+      // First detect the file type without trying to parse
+      const fileType = detectFileType(apiDefinition.content);
+      console.log("Detected file type:", fileType);
+      
+      if (fileType === 'json') {
+        try {
+          // Parse as JSON
+          parsedContent = JSON.parse(apiDefinition.content);
+          
+          // If this is already a parsed validation result with format
+          if (parsedContent.format && parsedContent.parsedDefinition) {
+            format = parsedContent.format;
+            console.log("Found pre-parsed content with format:", format);
+            
+            // Extract endpoints from the pre-parsed definition
+            extractedEndpoints = extractEndpoints(parsedContent, format);
+          } else {
+            // This is raw JSON API definition, validate it
+            console.log("Raw JSON content found, validating...");
+            const validationResult = await validateApiDefinition(parsedContent);
+            format = validationResult.format;
 
           // Extract endpoints from the validated definition
           extractedEndpoints = extractEndpoints(validationResult, format);
         }
       } catch (jsonError) {
-        // Not JSON, might be YAML or other format
-        console.log("Content is not JSON, trying to validate as other format...");
-        const fileType = detectFileType(apiDefinition.content);
-
-        if (fileType === 'yaml') {
+        console.log("JSON parsing error:", jsonError);
+        console.log("Content is not valid JSON, trying as YAML...");
+      }
+      } else if (fileType === 'yaml') {
+        console.log("Content appears to be YAML, parsing...");
+        try {
           // Parse YAML content
           const yamlContent = parseFileContent(apiDefinition.content, 'yaml');
+          console.log("YAML parsed successfully:", typeof yamlContent);
+          
           const validationResult = await validateApiDefinition(yamlContent);
           format = validationResult.format;
-
+          console.log("YAML validation result format:", format);
+          
           // Extract endpoints from the validated definition
           extractedEndpoints = extractEndpoints(validationResult, format);
-        } else {
-          // Try direct validation
+        } catch (yamlError) {
+          console.error("Error parsing YAML:", yamlError);
+          // Fall back to direct validation
           const validationResult = await validateApiDefinition(apiDefinition.content);
           format = validationResult.format;
-
-          // Extract endpoints from the validated definition
           extractedEndpoints = extractEndpoints(validationResult, format);
         }
+      } else {
+        // Try direct validation for other formats
+        console.log("Content appears to be neither JSON nor YAML, trying direct validation...");
+        const validationResult = await validateApiDefinition(apiDefinition.content);
+        format = validationResult.format;
+        extractedEndpoints = extractEndpoints(validationResult, format);
       }
     } else {
       // Handle case where content might be an object already
@@ -73,7 +87,8 @@ export const parseApiDefinition = async (apiDefinition: ApiDefinitionRecord | nu
       ...endpoint,
       id: endpoint.id || `endpoint-${Math.random().toString(36).substring(2)}`,
       method: endpoint.method.toUpperCase() as Endpoint['method'],
-      mcpType: endpoint.method.toLowerCase() === 'get' ? 'resource' : 'tool',
+      // Ensure mcpType is always set correctly
+      mcpType: endpoint.mcpType || (endpoint.method.toLowerCase() === 'get' ? 'resource' : 'tool'),
       description: endpoint.description || '',
       parameters: endpoint.parameters || [],
       responses: endpoint.responses || []

@@ -7,63 +7,39 @@ import yaml from 'js-yaml';
  * @returns The detected content type
  */
 export const detectFileType = (content: string, filename?: string): 'json' | 'yaml' | 'raml' | 'markdown' | 'unknown' => {
-  if (!content || typeof content !== 'string') {
-    return 'unknown';
-  }
-
-  const trimmedContent = content.trim();
-
-  // Check for file extension first
+  // Check file extension first if available
   if (filename) {
     const ext = filename.split('.').pop()?.toLowerCase();
     if (ext === 'json') return 'json';
     if (ext === 'yaml' || ext === 'yml') return 'yaml';
     if (ext === 'raml') return 'raml';
-    if (ext === 'md' || ext === 'markdown') return 'markdown';
+    if (ext === 'md' || ext === 'apib') return 'markdown';
   }
 
-  // Check content structure
-  if (trimmedContent.startsWith('{') || trimmedContent.startsWith('[')) {
-    try {
-      JSON.parse(trimmedContent);
-      return 'json';
-    } catch (e) {
-      // Not valid JSON
-    }
-  }
-
-  if (trimmedContent.startsWith('#%RAML')) {
-    return 'raml';
-  } else if (trimmedContent.startsWith('# ') || trimmedContent.startsWith('FORMAT:')) {
-    return 'markdown'; // Potential API Blueprint
-  }
-
-  // Check for YAML indicators
-  if (
-    trimmedContent.includes('openapi:') ||
-    trimmedContent.includes('swagger:') ||
-    trimmedContent.includes('info:') ||
-    trimmedContent.includes('paths:')
-  ) {
-    try {
-      yaml.load(trimmedContent);
-      return 'yaml';
-    } catch (e) {
-      // Not valid YAML
-    }
-  }
-
-  // Try to parse as JSON or YAML
-  try {
-    JSON.parse(trimmedContent);
+  // Try to guess from content
+  content = content.trim();
+  if (content.startsWith('{') || content.startsWith('[')) {
     return 'json';
-  } catch (jsonError) {
-    try {
-      yaml.load(trimmedContent);
-      return 'yaml';
-    } catch (yamlError) {
-      return 'unknown';
-    }
+  } else if (content.startsWith('#%RAML')) {
+    return 'raml';
+  } else if ((content.startsWith('FORMAT:') || content.startsWith('# FORMAT:')) && content.includes('API Blueprint')) {
+    return 'markdown';
+  } else if (
+    content.includes('swagger:') || 
+    content.includes('openapi:') || 
+    content.startsWith('openapi:') || 
+    content.startsWith('swagger:')
+  ) {
+    return 'yaml';
+  }
+
+  // Try to parse as JSON as a final check
+  try {
+    JSON.parse(content);
+    return 'json';
+  } catch (e) {
+    // If it's not valid JSON, default to YAML
+    return 'yaml';
   }
 };
 
