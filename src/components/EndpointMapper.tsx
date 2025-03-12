@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { ApiDefinition, Endpoint, Parameter, Response } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -35,7 +34,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
           method: endpoint.method.toUpperCase() as Endpoint['method'],
           mcpType: suggestMcpType(endpoint.method.toUpperCase() as Endpoint['method'])
         }));
-      
+
       setEndpoints(extractedEndpoints as Endpoint[]);
     }
   }, [apiDefinition]);
@@ -51,8 +50,8 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
 
   const toggleEndpointType = (id: string | undefined, type: 'resource' | 'tool' | 'none') => {
     if (!id) return;
-    
-    const updated = endpoints.map(endpoint => 
+
+    const updated = endpoints.map(endpoint =>
       endpoint.id === id ? { ...endpoint, mcpType: type } : endpoint
     );
     setEndpoints(updated);
@@ -76,16 +75,16 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
 
   const handleSaveEndpoint = () => {
     if (!editingEndpoint) return;
-    
+
     if (!editingEndpoint.path.trim()) {
       toast.error("Endpoint path cannot be empty");
       return;
     }
-    
-    const updatedEndpoints = endpoints.map(endpoint => 
+
+    const updatedEndpoints = endpoints.map(endpoint =>
       endpoint.id === editingEndpoint.id ? editingEndpoint : endpoint
     );
-    
+
     setEndpoints(updatedEndpoints);
     setIsEditDialogOpen(false);
     setEditingEndpoint(null);
@@ -94,14 +93,14 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
 
   const addParameter = () => {
     if (!editingEndpoint) return;
-    
+
     const newParam: Parameter = {
       name: '',
       type: 'string',
       required: false,
       description: ''
     };
-    
+
     setEditingEndpoint({
       ...editingEndpoint,
       parameters: [...editingEndpoint.parameters, newParam]
@@ -110,13 +109,13 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
 
   const updateParameter = (index: number, field: keyof Parameter, value: any) => {
     if (!editingEndpoint) return;
-    
+
     const updatedParams = [...editingEndpoint.parameters];
     updatedParams[index] = {
       ...updatedParams[index],
       [field]: value
     };
-    
+
     setEditingEndpoint({
       ...editingEndpoint,
       parameters: updatedParams
@@ -125,10 +124,10 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
 
   const removeParameter = (index: number) => {
     if (!editingEndpoint) return;
-    
+
     const updatedParams = [...editingEndpoint.parameters];
     updatedParams.splice(index, 1);
-    
+
     setEditingEndpoint({
       ...editingEndpoint,
       parameters: updatedParams
@@ -137,12 +136,12 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
 
   const addResponse = () => {
     if (!editingEndpoint) return;
-    
+
     const newResponse: Response = {
       statusCode: 200,
       description: 'Success response'
     };
-    
+
     setEditingEndpoint({
       ...editingEndpoint,
       responses: [...editingEndpoint.responses, newResponse]
@@ -151,13 +150,13 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
 
   const updateResponse = (index: number, field: keyof Response, value: any) => {
     if (!editingEndpoint) return;
-    
+
     const updatedResponses = [...editingEndpoint.responses];
     updatedResponses[index] = {
       ...updatedResponses[index],
       [field]: field === 'statusCode' ? parseInt(value, 10) : value
     };
-    
+
     setEditingEndpoint({
       ...editingEndpoint,
       responses: updatedResponses
@@ -166,10 +165,10 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
 
   const removeResponse = (index: number) => {
     if (!editingEndpoint) return;
-    
+
     const updatedResponses = [...editingEndpoint.responses];
     updatedResponses.splice(index, 1);
-    
+
     setEditingEndpoint({
       ...editingEndpoint,
       responses: updatedResponses
@@ -184,7 +183,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
 
   const handleDeleteEndpoint = () => {
     if (!endpointToDelete) return;
-    
+
     const updatedEndpoints = endpoints.filter(endpoint => endpoint.id !== endpointToDelete);
     setEndpoints(updatedEndpoints);
     setIsDeleteDialogOpen(false);
@@ -207,17 +206,17 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
       ],
       mcpType: 'resource'
     };
-    
+
     setEditingEndpoint(newEndpoint);
     setIsEditDialogOpen(true);
   };
 
   const handleAddEndpoint = () => {
     if (!editingEndpoint) return;
-    
+
     // Check if it's a new endpoint (not already in the list)
     const isNew = !endpoints.some(endpoint => endpoint.id === editingEndpoint.id);
-    
+
     if (isNew) {
       setEndpoints([...endpoints, editingEndpoint]);
     } else {
@@ -225,11 +224,16 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
       handleSaveEndpoint();
       return;
     }
-    
+
     setIsEditDialogOpen(false);
     setEditingEndpoint(null);
     toast.success("New endpoint added successfully");
   };
+
+  const handleContinue = () => {
+    onContinue(endpoints);
+  };
+
 
   return (
     <section className="py-24 bg-white relative">
@@ -247,7 +251,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
               GET endpoints typically map to resources, while POST, PUT, and DELETE endpoints map to tools.
             </p>
           </div>
-          
+
           <div className="bg-white rounded-xl shadow-lg border border-border overflow-hidden">
             <div className="p-6 border-b border-border flex items-center justify-between">
               <div>
@@ -261,7 +265,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                 Add Endpoint
               </Button>
             </div>
-            
+
             {endpoints.length === 0 ? (
               <div className="p-12 text-center">
                 <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -291,57 +295,23 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                           </code>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {endpoint.description}
-                        </p>
+                          {endpoint.descriptio</p>
                       </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center mr-2">
-                          <p className="text-xs text-muted-foreground mr-2 whitespace-nowrap">Map as:</p>
-                          <Toggle
-                            pressed={endpoint.mcpType === 'resource'}
-                            onPressedChange={() => toggleEndpointType(endpoint.id, 'resource')}
-                            className={cn(
-                              endpoint.mcpType === 'resource' ? 'bg-green-100 text-green-700 hover:bg-green-200' : ''
-                            )}
-                          >
-                            Resource
-                          </Toggle>
-                          <Toggle
-                            pressed={endpoint.mcpType === 'tool'}
-                            onPressedChange={() => toggleEndpointType(endpoint.id, 'tool')}
-                            className={cn(
-                              endpoint.mcpType === 'tool' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : ''
-                            )}
-                          >
-                            Tool
-                          </Toggle>
-                          <Toggle
-                            pressed={endpoint.mcpType === 'none'}
-                            onPressedChange={() => toggleEndpointType(endpoint.id, 'none')}
-                            className={cn(
-                              endpoint.mcpType === 'none' ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : ''
-                            )}
-                          >
-                            Skip
-                          </Toggle>
-                        </div>
-                        
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleEditEndpoint(endpoint)}
-                          className="h-8 w-8"
                         >
-                          <Edit className="h-4 w-4" />
+                          Edit
                         </Button>
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => confirmDeleteEndpoint(endpoint.id)}
-                          className="h-8 w-8 text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                          className="text-destructive border-destructive/20 hover:bg-destructive/10"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          Delete
                         </Button>
                       </div>
                     </div>
@@ -349,16 +319,15 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                 ))}
               </div>
             )}
-          </div>
-          
-          <div className="mt-8 flex justify-end">
-            <Button 
-              onClick={() => onContinue(endpoints)} 
-              size="lg" 
-              disabled={endpoints.length === 0}
-            >
-              Continue to Server Configuration
-            </Button>
+
+            <div className="p-6 border-t border-border">
+              <Button
+                onClick={handleContinue}
+                className="w-full"
+              >
+                Continue Server Configuration
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -374,7 +343,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
               }
             </DialogTitle>
           </DialogHeader>
-          
+
           {editingEndpoint && (
             <div className="space-y-4">
               <div className="grid grid-cols-4 gap-4">
@@ -407,7 +376,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
                 <Textarea
@@ -417,7 +386,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                   rows={2}
                 />
               </div>
-              
+
               <Accordion type="single" collapsible defaultValue="parameters">
                 <AccordionItem value="parameters">
                   <AccordionTrigger>Parameters</AccordionTrigger>
@@ -481,7 +450,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                           </div>
                         ))
                       )}
-                      
+
                       <Button
                         variant="outline"
                         onClick={addParameter}
@@ -490,7 +459,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                         <Plus className="h-4 w-4" />
                         Add Parameter
                       </Button>
-                      
+
                       {editingEndpoint.parameters.length > 0 && (
                         <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground">
                           <div className="col-span-3">Name</div>
@@ -503,7 +472,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                     </div>
                   </AccordionContent>
                 </AccordionItem>
-                
+
                 <AccordionItem value="responses">
                   <AccordionTrigger>Responses</AccordionTrigger>
                   <AccordionContent>
@@ -547,7 +516,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                           </div>
                         ))
                       )}
-                      
+
                       <Button
                         variant="outline"
                         onClick={addResponse}
@@ -556,7 +525,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                         <Plus className="h-4 w-4" />
                         Add Response
                       </Button>
-                      
+
                       {editingEndpoint.responses.length > 0 && (
                         <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground">
                           <div className="col-span-2">Status</div>
@@ -570,14 +539,14 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
               </Accordion>
             </div>
           )}
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              onClick={editingEndpoint?.id && endpoints.some(e => e.id === editingEndpoint.id) 
-                ? handleSaveEndpoint 
+            <Button
+              onClick={editingEndpoint?.id && endpoints.some(e => e.id === editingEndpoint.id)
+                ? handleSaveEndpoint
                 : handleAddEndpoint
               }
             >
@@ -589,7 +558,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="max-w-md">
@@ -601,8 +570,8 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={handleDeleteEndpoint}
             >
               Delete
