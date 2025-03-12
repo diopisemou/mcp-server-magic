@@ -3,8 +3,8 @@ import yaml from 'js-yaml';
 // Polyfill for Buffer in browser environments
 const BufferPolyfill = {
   isBuffer: (obj: any): boolean => {
-    return obj && typeof obj === 'object' && 
-           typeof obj.byteLength === 'number';
+    return obj && typeof obj === 'object' &&
+      typeof obj.byteLength === 'number';
   },
   from: (data: string): { toString: () => string } => {
     return {
@@ -295,7 +295,7 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
                   required: !!param.required,
                   description: param.description || ''
                 })),
-                responses: (action.examples || []).flatMap(example => 
+                responses: (action.examples || []).flatMap(example =>
                   (example.responses || []).map(response => ({
                     statusCode: response.status || 200,
                     description: response.description || '',
@@ -318,11 +318,11 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
 
 // Main validation function
 export const validateApiDefinition = async (
-  content: string | Buffer | object, 
+  content: string | Buffer | object,
   filename: string
 ): Promise<ValidationResult> => {
   // If content is already an object (pre-parsed), use it directly
-  if (content !== null && typeof content === 'object' && !Buffer.isBuffer(content)) {
+  if (content !== null && typeof content === 'object' && !BufferImpl.isBuffer(content)) {
     const format = determineFormatFromObject(content);
     return {
       isValid: true,
