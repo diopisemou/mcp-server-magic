@@ -213,28 +213,24 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
 
     try {
       if (sourceType === 'raw' && !content) {
-        setError('Please enter an API definition');
+        setError('Please enter API definition content');
         setIsValidating(false);
         return;
       }
 
-      // Determine proper file extension based on content
-      let contentType = 'yaml';
-      const trimmedContent = content.trim();
-      
-      if (trimmedContent.startsWith('{') || trimmedContent.startsWith('[')) {
-        contentType = 'json';
-      } else if (trimmedContent.startsWith('#%RAML')) {
-        contentType = 'raml';
-      } else if (trimmedContent.startsWith('# ') || trimmedContent.startsWith('FORMAT:')) {
-        contentType = 'markdown';
-      }
-      
-      console.log(`Content appears to be ${contentType}`);
-      const fileName = `api-definition.${contentType}`;
+      // Determine file name to use for validation
+      let inputContent = content || '';
+      let fileName = selectedFile?.name || 'api-definition.yaml';
 
-      const result = await validateApiDefinition(content, fileName);
-      console.log("Validation result:", result);
+      // Logging for debugging
+      console.log("Processing API upload:", { 
+        sourceType, 
+        fileName,
+        contentPreview: inputContent.substring(0, 100),
+        isJson: inputContent.trim().startsWith('{')
+      });
+
+      const result = await validateApiDefinition(inputContent, fileName);
 
       if (!result.isValid) {
         setError(`Invalid API definition: ${result.errors?.join(', ')}`);
@@ -361,7 +357,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   const extractEndpoints = (apiDef: any, format: string): Endpoint[] => {
     console.log("Extracting endpoints:", { format, apiDef });
     const endpoints: Endpoint[] = [];
-    
+
     try {
       if (!apiDef || !format) {
         console.error("Missing API definition or format");
@@ -371,16 +367,16 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
       // Extract endpoints from OpenAPI (both v2 and v3)
       if (format === 'OpenAPI2' || format === 'OpenAPI3') {
         const paths = apiDef.paths || {};
-        
+
         Object.entries(paths).forEach(([path, pathObj]: [string, any]) => {
           Object.entries(pathObj || {}).forEach(([method, operation]: [string, any]) => {
             if (!operation) return;
-            
+
             // Skip non-HTTP method properties
             if (!['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)) {
               return;
             }
-            
+
             const parameters = (operation.parameters || []).map((param: any) => ({
               name: param.name,
               in: param.in,
@@ -388,12 +384,12 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
               type: param.schema?.type || param.type || 'string',
               description: param.description || ''
             }));
-            
+
             // Add request body params for non-GET methods
             if (method !== 'get' && operation.requestBody) {
               const contentType = Object.keys(operation.requestBody.content || {})[0] || 'application/json';
               const schema = operation.requestBody.content?.[contentType]?.schema;
-              
+
               if (schema) {
                 if (schema.properties) {
                   Object.entries(schema.properties).forEach(([name, propSchema]: [string, any]) => {
@@ -408,14 +404,14 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                 }
               }
             }
-            
+
             const responses: Record<string, string> = {};
             if (operation.responses) {
               Object.entries(operation.responses).forEach(([code, response]: [string, any]) => {
                 responses[code] = response.description || `Response ${code}`;
               });
             }
-            
+
             endpoints.push({
               id: `${path}-${method}`,
               path,
@@ -428,7 +424,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
           });
         });
       }
-      
+
       console.log("Extracted endpoints:", endpoints);
       return endpoints;
     } catch (error) {

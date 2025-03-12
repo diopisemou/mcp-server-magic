@@ -2,177 +2,197 @@ import yaml from 'js-yaml';
 
 type ApiFormat = 'OpenAPI2' | 'OpenAPI3' | 'RAML' | 'APIBlueprint';
 
-interface ValidationResult {
-  isValid: boolean;
-  format: ApiFormat;
-  errors?: string[];
-  parsedDefinition?: any;
-}
+// Validate API definition from different formats
+export const validateApiDefinition = async (content: string, fileName: string) => {
+  console.log("Validating API definition:", { fileName, contentPreview: content.substring(0, 100) });
 
-// Helper function to determine if content is JSON or YAML
-const detectContentType = (content: string): 'json' | 'yaml' | 'raml' | 'markdown' => {
-  content = content.trim();
-  if (content.startsWith('{') || content.startsWith('[')) {
-    return 'json';
-  } else if (content.startsWith('#%RAML')) {
-    return 'raml';
-  } else if (content.startsWith('# ') || content.startsWith('FORMAT:')) {
-    return 'markdown'; // Potential API Blueprint
-  } else {
-    return 'yaml';
+  try {
+    const contentType = getContentType(fileName);
+    console.log("Detected content type:", contentType);
+
+    // Parse the content based on its type
+    const parsedDefinition = parseContent(content, contentType);
+    console.log("Content parsed successfully");
+
+    if (!parsedDefinition) {
+      return { isValid: false, errors: ['Failed to parse definition'] };
+    }
+
+    // Detect API format
+    const format = detectApiFormat(parsedDefinition);
+    console.log("Detected API format:", format);
+
+    if (!format) {
+      return { isValid: false, errors: ['Unsupported API definition format'] };
+    }
+
+    // Extract API basic info
+    const info = extractApiInfo(parsedDefinition, format);
+    console.log("Extracted API info:", info);
+
+    return {
+      isValid: true,
+      format,
+      info,
+      parsedDefinition
+    };
+  } catch (error: any) {
+    console.error("API validation error:", error);
+    return {
+      isValid: false,
+      errors: [error.message || 'Invalid API definition']
+    };
   }
 };
 
-// Parse content based on detected type
-const parseContent = (content: string, contentType: 'json' | 'yaml' | 'raml' | 'markdown'): any => {
+// Determine content type from file extension
+const getContentType = (fileName: string): string => {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+
+  if (extension === 'json') {
+    return 'json';
+  } else if (['yaml', 'yml'].includes(extension || '')) {
+    return 'yaml';
+  } else if (extension === 'raml') {
+    return 'raml';
+  } else if (extension === 'apib') {
+    return 'apib';
+  }
+
+  // Try to guess from content if no file extension
+  return 'yaml'; // Default to yaml for OpenAPI
+};
+
+// Parse content based on its type
+const parseContent = (content: string, contentType: string): any => {
   try {
-    console.log(`Parsing content as ${contentType}`);
-    if (contentType === 'json') {
-      const parsed = JSON.parse(content);
-      console.log("Successfully parsed JSON:", parsed);
-      return parsed;
+    // First, detect if it's JSON by checking if it starts with curly brace
+    if (content.trim().startsWith('{')) {
+      return JSON.parse(content);
+    } 
+    // If it starts with 'openapi:' or 'swagger:', it's likely YAML
+    else if (content.trim().startsWith('openapi:') || content.trim().startsWith('swagger:')) {
+      return yaml.load(content);
+    }
+    // Otherwise, use the detected content type
+    else if (contentType === 'json') {
+      return JSON.parse(content);
     } else if (contentType === 'yaml') {
-      try {
-        const parsedYaml = yaml.load(content);
-        console.log("Successfully parsed YAML:", parsedYaml);
-        return parsedYaml;
-      } catch (yamlError) {
-        console.error("YAML parsing failed:", yamlError);
-        // Try JSON as fallback
-        try {
-          const parsed = JSON.parse(content);
-          console.log("Fallback to JSON parsing succeeded:", parsed);
-          return parsed;
-        } catch (jsonError) {
-          console.error("Fallback to JSON parsing failed:", jsonError);
-          throw yamlError; // Throw the original YAML error
-        }
-      }
+      return yaml.load(content);
     } else if (contentType === 'raml') {
       // Basic RAML parsing - in a real app, use raml-parser
       // For now, extract basic info from RAML header
-      console.log("Parsing RAML");
       const lines = content.split('\n');
-      const ramlVersion = lines[0].replace('#%RAML ', '');
-      const ramlObj: any = { ramlVersion, isRaml: true };
+      const ramlObj: any = { title: '', version: '', baseUri: '' };
 
-      lines.slice(1).forEach(line => {
-        if (line.includes(':')) {
-          const [key, ...valueParts] = line.split(':');
-          const value = valueParts.join(':').trim();
-          if (key && key.trim()) {
-            ramlObj[key.trim()] = value;
-          }
-        }
+      lines.forEach(line => {
+        if (line.startsWith('title:')) ramlObj.title = line.replace('title:', '').trim();
+        if (line.startsWith('version:')) ramlObj.version = line.replace('version:', '').trim();
+        if (line.startsWith('baseUri:')) ramlObj.baseUri = line.replace('baseUri:', '').trim();
       });
 
-      console.log("Parsed RAML:", ramlObj);
       return ramlObj;
-    } else if (contentType === 'markdown') {
-      // Simplified API Blueprint parsing
-      console.log("Parsing API Blueprint/Markdown");
-      return {
-        isApiBlueprint: true,
-        content
-      };
+    } else if (contentType === 'apib') {
+      // Basic API Blueprint parsing - in a real app, use a full parser
+      const lines = content.split('\n');
+      const apibObj: any = { title: '', description: '' };
+
+      // Try to extract FORMAT and title
+      for (let i = 0; i < Math.min(lines.length, 10); i++) {
+        const line = lines[i];
+        if (line.startsWith('# ')) {
+          apibObj.title = line.replace('# ', '').trim();
+        } else if (line.trim() !== '' && !apibObj.description) {
+          apibObj.description = line.trim();
+        }
+      }
+
+      return apibObj;
     }
+
+    throw new Error('Unsupported content type');
   } catch (error) {
     console.error('Error parsing content:', error);
-    return null;
+    throw error;
   }
 };
 
-// Determine API format from parsed content
-const determineApiFormat = (parsedContent: any): ApiFormat => {
-  if (parsedContent.swagger && parsedContent.swagger.startsWith('2.')) {
+// Detect API format from parsed definition
+const detectApiFormat = (parsedDefinition: any): ApiFormat | null => {
+  if (parsedDefinition.swagger === '2.0') {
     return 'OpenAPI2';
-  } else if (parsedContent.openapi && parsedContent.openapi.startsWith('3.')) {
+  } else if (parsedDefinition.openapi && parsedDefinition.openapi.startsWith('3.')) {
     return 'OpenAPI3';
-  } else if (parsedContent.isRaml) {
+  } else if (parsedDefinition['#%RAML']) {
     return 'RAML';
-  } else if (parsedContent.isApiBlueprint) {
+  } else if (parsedDefinition.FORMAT && parsedDefinition.FORMAT.includes('API Blueprint')) {
     return 'APIBlueprint';
   }
 
-  // Default to OpenAPI3 if unknown
-  return 'OpenAPI3';
+  // If we can't definitively determine the format but it has common OpenAPI fields
+  if (parsedDefinition.info && parsedDefinition.paths) {
+    // Guess based on structure
+    return 'OpenAPI3';
+  }
+
+  return null;
 };
 
-// Validate OpenAPI 2.0 (Swagger)
-const validateOpenAPI2 = (parsedContent: any): string[] => {
-  const errors: string[] = [];
+// Extract basic API info
+const extractApiInfo = (parsedDefinition: any, format: ApiFormat) => {
+  const info: { title: string; description: string; version: string } = {
+    title: 'Untitled API',
+    description: '',
+    version: '1.0.0'
+  };
 
-  if (!parsedContent.swagger || parsedContent.swagger !== '2.0') {
-    errors.push('Invalid Swagger version. Must be 2.0');
-  }
-
-  if (!parsedContent.info) {
-    errors.push('Missing info object');
-  } else {
-    if (!parsedContent.info.title) {
-      errors.push('Missing API title');
+  try {
+    if (format === 'OpenAPI2' || format === 'OpenAPI3') {
+      if (parsedDefinition.info) {
+        info.title = parsedDefinition.info.title || info.title;
+        info.description = parsedDefinition.info.description || info.description;
+        info.version = parsedDefinition.info.version || info.version;
+      }
+    } else if (format === 'RAML') {
+      info.title = parsedDefinition.title || info.title;
+      info.version = parsedDefinition.version || info.version;
+      info.description = parsedDefinition.documentation?.[0]?.content || '';
+    } else if (format === 'APIBlueprint') {
+      info.title = parsedDefinition.title || info.title;
+      info.description = parsedDefinition.description || info.description;
     }
-    if (!parsedContent.info.version) {
-      errors.push('Missing API version');
-    }
+  } catch (error) {
+    console.error('Error extracting API info:', error);
   }
 
-  if (!parsedContent.paths || Object.keys(parsedContent.paths).length === 0) {
-    errors.push('No paths defined in the API');
-  }
-
-  return errors;
+  return info;
 };
 
-// Validate OpenAPI 3.0
-const validateOpenAPI3 = (parsedContent: any): string[] => {
-  const errors: string[] = [];
+// Mock API fetching (for URL inputs)
+export const fetchApiDefinition = async (url: string) => {
+  try {
+    const response = await fetch(url);
+    const contentType = response.headers.get('content-type') || '';
+    let content = await response.text();
 
-  if (!parsedContent.openapi || !parsedContent.openapi.startsWith('3.')) {
-    errors.push('Invalid OpenAPI version. Must start with 3.');
+    return {
+      content,
+      contentType: contentType.includes('json') ? 'json' : 'yaml'
+    };
+  } catch (error) {
+    console.error('Error fetching API definition:', error);
+    throw new Error('Failed to fetch API definition');
   }
-
-  if (!parsedContent.info) {
-    errors.push('Missing info object');
-  } else {
-    if (!parsedContent.info.title) {
-      errors.push('Missing API title');
-    }
-    if (!parsedContent.info.version) {
-      errors.push('Missing API version');
-    }
-  }
-
-  if (!parsedContent.paths || Object.keys(parsedContent.paths).length === 0) {
-    errors.push('No paths defined in the API');
-  }
-
-  return errors;
 };
 
-// Basic validation for RAML
-const validateRAML = (parsedContent: any): string[] => {
-  const errors: string[] = [];
-
-  if (!parsedContent.ramlVersion) {
-    errors.push('Could not determine RAML version');
-  }
-
-  if (!parsedContent.title) {
-    errors.push('Missing API title');
-  }
-
-  return errors;
-};
-
-const validateAPIBlueprint = (parsedContent: any): string[] => {
-  const errors: string[] = [];
-
-  if (!parsedContent.content) {
-    errors.push('Missing API Blueprint content');
-  }
-
-  return errors;
+// Test an API endpoint (mocked for demo)
+export const testApiEndpoint = async (url: string, method: string, headers: any, body: any) => {
+  console.log('Testing endpoint:', { url, method, headers, body });
+  // In a real app, make an actual request to the endpoint
+  return {
+    status: 200,
+    data: { message: 'Endpoint test successful' }
+  };
 };
 
 interface ApiEndpoint {
@@ -195,7 +215,7 @@ interface ApiEndpoint {
 // Extract endpoints from different API definition formats
 export const extractEndpoints = (parsedDefinition: any, format: ApiFormat): ApiEndpoint[] => {
   const endpoints: ApiEndpoint[] = [];
-  console.log("Extracting endpoints from parsed definition:", { format, parsedDefinition });
+  console.log("Extracting endpoints from parsed definition:", { format, definitionKeys: Object.keys(parsedDefinition) });
 
   try {
     if (format === 'OpenAPI2' || format === 'OpenAPI3') {
@@ -203,6 +223,8 @@ export const extractEndpoints = (parsedDefinition: any, format: ApiFormat): ApiE
       console.log("Processing paths:", Object.keys(paths));
 
       Object.entries(paths).forEach(([path, pathObj]: [string, any]) => {
+        console.log(`Processing path: ${path}, methods:`, Object.keys(pathObj || {}));
+
         Object.entries(pathObj || {}).forEach(([method, operation]: [string, any]) => {
           // Skip non-HTTP method properties like 'parameters'
           if (!['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method.toLowerCase())) {
@@ -213,30 +235,58 @@ export const extractEndpoints = (parsedDefinition: any, format: ApiFormat): ApiE
             console.log(`Processing endpoint: ${method.toUpperCase()} ${path}`);
 
             // Extract parameters
-            let parameters = (operation.parameters || []).map((param: any) => ({
-              name: param.name,
-              in: param.in,
-              required: !!param.required,
-              type: param.schema?.type || param.type || 'string',
-              description: param.description || ''
-            }));
+            const parameters: ApiEndpoint['parameters'] = [];
 
-            // For OpenAPI 3.0, also handle requestBody
+            // Add path parameters from the path object level
+            if (pathObj.parameters) {
+              pathObj.parameters.forEach((param: any) => {
+                parameters.push({
+                  name: param.name,
+                  in: param.in,
+                  required: !!param.required,
+                  type: param.schema?.type || param.type || 'string',
+                  description: param.description || ''
+                });
+              });
+            }
+
+            // Add operation specific parameters
+            if (operation.parameters) {
+              operation.parameters.forEach((param: any) => {
+                parameters.push({
+                  name: param.name,
+                  in: param.in,
+                  required: !!param.required,
+                  type: param.schema?.type || param.type || 'string',
+                  description: param.description || ''
+                });
+              });
+            }
+
+            // OpenAPI 3 - Add request body as parameters
             if (format === 'OpenAPI3' && operation.requestBody) {
               const contentType = Object.keys(operation.requestBody.content || {})[0] || 'application/json';
               const schema = operation.requestBody.content?.[contentType]?.schema;
 
               if (schema) {
-                console.log(`Processing request body schema for ${method} ${path}`);
                 if (schema.properties) {
-                  Object.entries(schema.properties).forEach(([name, propSchema]: [string, any]) => {
+                  Object.entries(schema.properties).forEach(([propName, propSchema]: [string, any]) => {
                     parameters.push({
-                      name,
+                      name: propName,
                       in: 'body',
-                      required: schema.required?.includes(name) || false,
-                      type: propSchema.type || 'string',
+                      required: schema.required?.includes(propName) || false,
+                      type: propSchema.type || 'object',
                       description: propSchema.description || ''
                     });
+                  });
+                } else {
+                  // Handle non-object schemas
+                  parameters.push({
+                    name: 'body',
+                    in: 'body',
+                    required: operation.requestBody.required || false,
+                    type: schema.type || 'object',
+                    description: operation.requestBody.description || ''
                   });
                 }
               }
@@ -260,7 +310,8 @@ export const extractEndpoints = (parsedDefinition: any, format: ApiFormat): ApiE
               description: operation.summary || operation.description || '',
               parameters,
               responses,
-              tags: operation.tags || []
+              tags: operation.tags || [],
+              operationId: operation.operationId
             });
           }
         });
@@ -280,57 +331,6 @@ export const extractEndpoints = (parsedDefinition: any, format: ApiFormat): ApiE
 
   return endpoints;
 };
-
-// Main validation function
-export const validateApiDefinition = async (content: string, filename: string): Promise<ValidationResult> => {
-  try {
-    const contentType = detectContentType(content);
-    const parsedContent = parseContent(content, contentType);
-
-    if (!parsedContent) {
-      return { 
-        isValid: false, 
-        format: 'OpenAPI3', 
-        errors: ['Failed to parse API definition'] 
-      };
-    }
-
-    const format = determineApiFormat(parsedContent);
-    let errors: string[] = [];
-
-    // Validate based on format
-    switch (format) {
-      case 'OpenAPI2':
-        errors = validateOpenAPI2(parsedContent);
-        break;
-      case 'OpenAPI3':
-        errors = validateOpenAPI3(parsedContent);
-        break;
-      case 'RAML':
-        errors = validateRAML(parsedContent);
-        break;
-      case 'APIBlueprint':
-        errors = validateAPIBlueprint(parsedContent);
-        break;
-    }
-
-    return {
-      isValid: errors.length === 0,
-      format,
-      errors: errors.length > 0 ? errors : undefined,
-      parsedDefinition: parsedContent
-    };
-  } catch (error) {
-    console.error('Validation error:', error);
-    return {
-      isValid: false,
-      format: 'OpenAPI3',
-      errors: [(error as Error).message]
-    };
-  }
-};
-
-
 
 /**
  * Fetches an API definition from a URL
