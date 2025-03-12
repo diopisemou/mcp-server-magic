@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -51,17 +50,17 @@ export const GenerateServer = () => {
       if (data.api_definition_id) {
         await fetchApiDefinition(data.api_definition_id);
       }
-      
+
       // Fetch server config
       if (data.server_config_id) {
         await fetchServerConfig(data.server_config_id);
       }
-      
+
       // Set server URL if available
       if (data.deployment_url) {
         setServerUrl(data.deployment_url);
       }
-      
+
     } catch (error: any) {
       toast.error('Error fetching project: ' + error.message);
     }
@@ -75,16 +74,16 @@ export const GenerateServer = () => {
         .download(`${projectId}/${definitionId}.json`);
 
       if (error) throw error;
-      
+
       const definition = JSON.parse(await data.text()) as ApiDefinition;
       setApiDefinition(definition);
-      
+
       // Extract endpoints from the API definition
       if (definition.parsedDefinition) {
         const extractedEndpoints = extractEndpointsFromDefinition(definition.parsedDefinition);
         setEndpoints(extractedEndpoints);
       }
-      
+
     } catch (error: any) {
       toast.error('Error fetching API definition: ' + error.message);
     }
@@ -98,10 +97,10 @@ export const GenerateServer = () => {
         .download(`${projectId}/${configId}.json`);
 
       if (error) throw error;
-      
+
       const config = JSON.parse(await data.text()) as ServerConfig;
       setServerConfig(config);
-      
+
     } catch (error: any) {
       toast.error('Error fetching server configuration: ' + error.message);
     }
@@ -110,7 +109,7 @@ export const GenerateServer = () => {
   const extractEndpointsFromDefinition = (parsedDefinition: any): Endpoint[] => {
     // This is a placeholder function - implement actual extraction logic based on your API format
     const extractedEndpoints: Endpoint[] = [];
-    
+
     try {
       // Example for OpenAPI format
       if (parsedDefinition.paths) {
@@ -124,7 +123,7 @@ export const GenerateServer = () => {
               responses: [],
               mcpType: 'none'
             };
-            
+
             // Extract parameters
             if (operation.parameters) {
               endpoint.parameters = operation.parameters.map((param: any) => ({
@@ -134,7 +133,7 @@ export const GenerateServer = () => {
                 description: param.description || ''
               }));
             }
-            
+
             // Extract responses
             if (operation.responses) {
               endpoint.responses = Object.entries(operation.responses).map(([statusCode, response]: [string, any]) => ({
@@ -143,7 +142,7 @@ export const GenerateServer = () => {
                 schema: response.schema || response.content
               }));
             }
-            
+
             extractedEndpoints.push(endpoint);
           });
         });
@@ -151,7 +150,7 @@ export const GenerateServer = () => {
     } catch (error) {
       console.error('Error extracting endpoints:', error);
     }
-    
+
     return extractedEndpoints;
   };
 
@@ -177,43 +176,43 @@ export const GenerateServer = () => {
           },
           endpoints: endpoints
         };
-        
+
         setServerConfig(config);
       }
-      
+
       if (!config) {
         throw new Error('Server configuration is missing');
       }
 
       // Generate server code
       const result = await generateServer(config);
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Failed to generate server');
       }
-      
+
       setLogs(prevLogs => [...prevLogs, { type: 'success', message: 'Server code generated successfully' }]);
-      
+
       // Save generated files to storage
       if (result.files && result.files.length > 0) {
         setServerFiles(result.files);
-        
+
         // Save the first code file content preview
         const mainCodeFile = result.files.find(file => file.type === 'code');
         if (mainCodeFile) {
           await saveGeneratedCode(mainCodeFile.content);
         }
       }
-      
+
       // Update project with server URL
       if (result.serverUrl) {
         setServerUrl(result.serverUrl);
         await updateProjectServerUrl(result.serverUrl);
         setLogs(prevLogs => [...prevLogs, { type: 'info', message: `Server deployed at: ${result.serverUrl}` }]);
       }
-      
+
       setActiveTab('logs');
-      
+
     } catch (error: any) {
       setError(error.message);
       setLogs(prevLogs => [...prevLogs, { type: 'error', message: `Error generating server: ${error.message}` }]);
@@ -227,14 +226,14 @@ export const GenerateServer = () => {
     try {
       const timestamp = new Date().toISOString();
       const fileName = `server_${timestamp}.txt`;
-      
+
       const { error } = await supabase
         .storage
         .from('generated_code')
         .upload(`${projectId}/${fileName}`, new Blob([codeContent], { type: 'text/plain' }));
-      
+
       if (error) throw error;
-      
+
       // Update project record with reference to the code file
       await supabase
         .from('mcp_projects')
@@ -243,7 +242,7 @@ export const GenerateServer = () => {
           updated_at: new Date().toISOString()
         })
         .eq('id', projectId);
-        
+
     } catch (error: any) {
       console.error('Error saving generated code:', error);
     }
@@ -258,7 +257,7 @@ export const GenerateServer = () => {
           updated_at: new Date().toISOString()
         })
         .eq('id', projectId);
-      
+
       if (error) throw error;
     } catch (error: any) {
       console.error('Error updating project server URL:', error);
@@ -274,13 +273,13 @@ export const GenerateServer = () => {
     // Create a zip file with all generated files
     import('jszip').then(({ default: JSZip }) => {
       const zip = new JSZip();
-      
+
       serverFiles.forEach(file => {
         // Create directory structure if needed
         const filePath = file.path === '/' ? file.name : `${file.path}${file.name}`;
         zip.file(filePath, file.content);
       });
-      
+
       zip.generateAsync({ type: 'blob' }).then(content => {
         const element = document.createElement('a');
         element.href = URL.createObjectURL(content);
@@ -300,9 +299,9 @@ export const GenerateServer = () => {
       toast.error('No server available to test');
       return;
     }
-    
+
     setLogs(prevLogs => [...prevLogs, { type: 'info', message: `Testing server at ${serverUrl}...` }]);
-    
+
     try {
       // For now just simulate a test
       await new Promise(resolve => setTimeout(resolve, 1500));

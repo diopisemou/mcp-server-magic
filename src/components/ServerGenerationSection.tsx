@@ -1,8 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ServerConfigRecord, ApiDefinitionRecord, Endpoint } from '@/types';
-import { Download, ExternalLink } from 'lucide-react';
+import { ApiDefinitionRecord, Endpoint, ServerConfigRecord } from '@/types';
 
 interface ServerGenerationSectionProps {
   serverUrl: string | null;
@@ -67,22 +66,21 @@ const ServerGenerationSection: React.FC<ServerGenerationSectionProps> = ({
               variant="outline" 
               className="w-full"
             >
-              <Download className="mr-2 h-4 w-4" />
               Download Server Code
             </Button>
             <Button 
               onClick={onTestServer}
               className="w-full"
             >
-              <ExternalLink className="mr-2 h-4 w-4" />
               Test Server
             </Button>
           </>
         )}
         
         {error && (
-          <div className="text-red-500 text-sm mt-2">
-            Error: {error}
+          <div className="text-red-500 bg-red-50 p-4 rounded-md">
+            <p className="font-medium">Error generating server:</p>
+            <p>{error}</p>
           </div>
         )}
       </div>
@@ -90,4 +88,5 @@ const ServerGenerationSection: React.FC<ServerGenerationSectionProps> = ({
   );
 };
 
-export default ServerGenerationSection;
+// Fix the export to use a named export
+export { ServerGenerationSection };
