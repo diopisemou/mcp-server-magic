@@ -1,5 +1,5 @@
 import yaml from 'js-yaml';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../integrations/supabase/client';
 import type { ApiDefinition, EndpointDefinition, Endpoint } from '../types';
 
 // Polyfill for Buffer in browser environments

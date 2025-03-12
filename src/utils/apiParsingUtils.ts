@@ -1,4 +1,4 @@
-import { ApiDefinitionRecord, Endpoint } from "@/types";
+import { ApiDefinitionRecord, Endpoint } from "../types";
 import { extractEndpoints, validateApiDefinition } from "./apiValidator";
 
 /**
