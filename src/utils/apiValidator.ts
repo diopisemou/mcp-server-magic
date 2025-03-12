@@ -55,8 +55,10 @@ interface ValidationResult {
   parsedDefinition?: any;
 }
 
+import { detectFileType, parseFileContent } from './fileUtils';
+
 // Helper function to determine if content is JSON or YAML
-const detectContentType = (content: string | Buffer | object): 'json' | 'yaml' | 'raml' | 'markdown' | 'unknown' => {
+const detectContentType = (content: string | Buffer | object, filename?: string): 'json' | 'yaml' | 'raml' | 'markdown' | 'unknown' => {
   // Handle Buffer or non-string content
   if (BufferImpl.isBuffer(content)) {
     content = content.toString();
@@ -80,46 +82,46 @@ const detectContentType = (content: string | Buffer | object): 'json' | 'yaml' |
 
   const trimmedContent = content.trim();
 
-  if (trimmedContent.startsWith('{') || trimmedContent.startsWith('[')) {
-    return 'json';
-  } else if (trimmedContent.startsWith('#%RAML')) {
+  if (trimmedContent.startsWith('#%RAML')) {
     return 'raml';
   } else if (trimmedContent.startsWith('# ') || trimmedContent.startsWith('FORMAT:')) {
     return 'markdown'; // Potential API Blueprint
-  } else if (trimmedContent.includes('openapi:') || trimmedContent.includes('swagger:')) {
-    return 'yaml';
-  } else {
-    // Try to determine if it's YAML
-    try {
-      yaml.load(trimmedContent);
-      return 'yaml';
-    } catch (e) {
-      return 'unknown';
-    }
-  }
+  } 
+  
+  // Use the file utils to detect JSON/YAML
+  return detectFileType(trimmedContent, filename);
 };
 
 // Parse content based on detected type
-const parseContent = (content: string, contentType: 'json' | 'yaml' | 'raml' | 'markdown'): any => {
+const parseContent = (content: string, contentType: 'json' | 'yaml' | 'raml' | 'markdown' | 'unknown'): any => {
   try {
-    if (contentType === 'json') {
-      return JSON.parse(content);
-    } else if (contentType === 'yaml') {
-      return yaml.load(content);
+    if (contentType === 'json' || contentType === 'yaml') {
+      return parseFileContent(content, contentType);
     } else if (contentType === 'raml') {
       // Basic RAML parsing - in a real app, use raml-parser
       // For now, extract basic info from RAML header
       const lines = content.split('\n');
       const version = lines.find(line => line.trim().startsWith('#%RAML'))?.split(' ')[1] || '';
-      const title = lines.find(line => line.trim().startsWith('title:'))?.split('title:')[1].trim() || '';
+      const title = lines.find(line => line.trim().startsWith('title:'))?.split('title:')[1]?.trim() || '';
       return { ramlVersion: version, title, isRaml: true };
     } else if (contentType === 'markdown') {
       // Basic API Blueprint parsing - in a real app, use a proper parser
       return { isApiBlueprint: true, content };
+    } else if (contentType === 'unknown') {
+      // Try both formats
+      try {
+        return parseFileContent(content, 'json');
+      } catch (e1) {
+        try {
+          return parseFileContent(content, 'yaml');
+        } catch (e2) {
+          throw new Error('Could not parse content as JSON or YAML');
+        }
+      }
     }
   } catch (error) {
     console.error('Error parsing content:', error);
-    throw new Error('Failed to parse content');
+    throw new Error(`Failed to parse content: ${(error as Error).message}`);
   }
   return null;
 };
@@ -384,8 +386,10 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
 // Main validation function
 export const validateApiDefinition = async (
   content: string | Buffer | object,
-  filename: string
+  filename?: string
 ): Promise<ValidationResult> => {
+  console.log(`Validating API definition, content type: ${typeof content}, filename: ${filename}`);
+  
   // If content is already an object (pre-parsed), use it directly
   if (content !== null && typeof content === 'object' && !BufferImpl.isBuffer(content)) {
     const format = determineFormatFromObject(content);
@@ -396,7 +400,7 @@ export const validateApiDefinition = async (
     };
   }
 
-  const contentType = detectContentType(content);
+  let contentType: 'json' | 'yaml' | 'raml' | 'markdown' | 'unknown';
   let parsedContent: any;
   let format: ApiFormat = 'OpenAPI3';
   let errors: string[] = [];
@@ -413,6 +417,10 @@ export const validateApiDefinition = async (
     }
   }
 
+  // Detect content type using the filename if available
+  contentType = detectContentType(content, filename);
+  console.log(`Detected content type: ${contentType}`);
+
   try {
     parsedContent = parseContent(content, contentType);
 
@@ -420,6 +428,7 @@ export const validateApiDefinition = async (
       errors.push('Failed to parse API definition');
     } else {
       format = determineApiFormat(parsedContent);
+      console.log(`Determined API format: ${format}`);
 
       // Validate based on format
       switch (format) {
@@ -442,12 +451,15 @@ export const validateApiDefinition = async (
     errors.push((error as Error).message);
   }
 
-  return {
+  const result = {
     isValid: errors.length === 0,
     format,
     errors: errors.length > 0 ? errors : undefined,
     parsedDefinition: parsedContent
   };
+  
+  console.log(`Validation result: ${result.isValid ? 'Valid' : 'Invalid'}, format: ${result.format}`);
+  return result;
 };
 
 // Extract endpoints from URL (this is different from extractEndpoints above)
