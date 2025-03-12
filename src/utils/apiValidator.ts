@@ -1,4 +1,3 @@
-
 import yaml from 'js-yaml';
 
 type ApiFormat = 'OpenAPI2' | 'OpenAPI3' | 'RAML' | 'APIBlueprint';
@@ -24,7 +23,7 @@ export const extractSwaggerUrl = (htmlContent: string, baseUrl: string): string 
       }
     }
   }
-  
+
   return null;
 };
 
@@ -39,13 +38,30 @@ interface ValidationResult {
 }
 
 // Helper function to determine if content is JSON or YAML
-const detectContentType = (content: string): 'json' | 'yaml' | 'raml' | 'markdown' => {
-  content = content.trim();
-  if (content.startsWith('{') || content.startsWith('[')) {
+const detectContentType = (content: string | Buffer | object): string => {
+  // Handle Buffer or non-string content
+  if (Buffer.isBuffer(content)) {
+    content = content.toString('utf-8');
+  } else if (typeof content !== 'string') {
+    // If content is an object (already parsed JSON), return 'json'
+    if (typeof content === 'object') {
+      return 'json';
+    }
+    // Convert to string if possible, otherwise return unknown
+    try {
+      content = String(content);
+    } catch (e) {
+      return 'unknown';
+    }
+  }
+
+  const trimmedContent = content.trim();
+
+  if (trimmedContent.startsWith('{') || trimmedContent.startsWith('[')) {
     return 'json';
-  } else if (content.startsWith('#%RAML')) {
+  } else if (trimmedContent.startsWith('#%RAML')) {
     return 'raml';
-  } else if (content.startsWith('# ') || content.startsWith('FORMAT:')) {
+  } else if (trimmedContent.startsWith('# ') || trimmedContent.startsWith('FORMAT:')) {
     return 'markdown'; // Potential API Blueprint
   } else {
     return 'yaml';
@@ -88,7 +104,7 @@ const determineApiFormat = (parsedContent: any): ApiFormat => {
   } else if (parsedContent.isApiBlueprint) {
     return 'APIBlueprint';
   }
-  
+
   // Default to OpenAPI3 if unknown
   return 'OpenAPI3';
 };
@@ -96,11 +112,11 @@ const determineApiFormat = (parsedContent: any): ApiFormat => {
 // Validate OpenAPI 2.0 (Swagger)
 const validateOpenAPI2 = (parsedContent: any): string[] => {
   const errors: string[] = [];
-  
+
   if (!parsedContent.swagger || parsedContent.swagger !== '2.0') {
     errors.push('Invalid Swagger version. Must be 2.0');
   }
-  
+
   if (!parsedContent.info) {
     errors.push('Missing info object');
   } else {
@@ -111,22 +127,22 @@ const validateOpenAPI2 = (parsedContent: any): string[] => {
       errors.push('Missing API version');
     }
   }
-  
+
   if (!parsedContent.paths || Object.keys(parsedContent.paths).length === 0) {
     errors.push('No paths defined in the API');
   }
-  
+
   return errors;
 };
 
 // Validate OpenAPI 3.0
 const validateOpenAPI3 = (parsedContent: any): string[] => {
   const errors: string[] = [];
-  
+
   if (!parsedContent.openapi || !parsedContent.openapi.startsWith('3.')) {
     errors.push('Invalid OpenAPI version. Must start with 3.');
   }
-  
+
   if (!parsedContent.info) {
     errors.push('Missing info object');
   } else {
@@ -137,41 +153,41 @@ const validateOpenAPI3 = (parsedContent: any): string[] => {
       errors.push('Missing API version');
     }
   }
-  
+
   if (!parsedContent.paths || Object.keys(parsedContent.paths).length === 0) {
     errors.push('No paths defined in the API');
   }
-  
+
   return errors;
 };
 
 // Basic validation for RAML
 const validateRAML = (parsedContent: any): string[] => {
   const errors: string[] = [];
-  
+
   if (!parsedContent.ramlVersion) {
     errors.push('Could not determine RAML version');
   }
-  
+
   if (!parsedContent.title) {
     errors.push('Missing API title');
   }
-  
+
   return errors;
 };
 
 // Basic validation for API Blueprint
 const validateAPIBlueprint = (parsedContent: any): string[] => {
   const errors: string[] = [];
-  
+
   if (!parsedContent.content || parsedContent.content.trim() === '') {
     errors.push('Empty API Blueprint document');
   }
-  
+
   if (!parsedContent.content.includes('# ') && !parsedContent.content.includes('FORMAT:')) {
     errors.push('Missing API Blueprint header or format specification');
   }
-  
+
   return errors;
 };
 
@@ -180,21 +196,21 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
   const endpoints: Endpoint[] = [];
   console.log('Extracting endpoints from format:', format);
   console.log('API Definition:', JSON.stringify(apiDefinition, null, 2).substring(0, 500) + '...');
-  
+
   try {
     if (format === 'OpenAPI2' || format === 'OpenAPI3') {
       const paths = apiDefinition.paths || {};
-      
+
       Object.keys(paths).forEach(path => {
         const pathObj = paths[path];
-        
+
         // Common HTTP methods
         const methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'];
-        
+
         methods.forEach(method => {
           if (pathObj[method]) {
             const operation = pathObj[method];
-            
+
             // Extract parameters
             const parameters = [...(pathObj.parameters || []), ...(operation.parameters || [])].map(param => ({
               name: param.name,
@@ -202,14 +218,14 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
               required: !!param.required,
               description: param.description || ''
             }));
-            
+
             // Extract responses
             const responses = Object.keys(operation.responses || {}).map(statusCode => ({
               statusCode: parseInt(statusCode, 10) || statusCode,
               description: operation.responses[statusCode].description || '',
               schema: operation.responses[statusCode].schema || operation.responses[statusCode].content
             }));
-            
+
             endpoints.push({
               id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, '-'),
               path,
@@ -225,7 +241,7 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
       if (apiDefinition.resources) {
         apiDefinition.resources.forEach(resource => {
           const basePath = resource.relativeUri || '';
-          
+
           (resource.methods || []).forEach(method => {
             endpoints.push({
               id: `${method.method}-${basePath}`.replace(/[^a-zA-Z0-9]/g, '-'),
@@ -279,58 +295,78 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
   } catch (error) {
     console.error('Error extracting endpoints:', error);
   }
-  
+
   console.log(`Extracted ${endpoints.length} endpoints`);
   return endpoints;
 };
 
 // Main validation function
-export const validateApiDefinition = async (content: string, filename: string): Promise<ValidationResult> => {
-  try {
-    const contentType = detectContentType(content);
-    const parsedContent = parseContent(content, contentType);
-    
-    if (!parsedContent) {
-      return { 
-        isValid: false, 
-        format: 'OpenAPI3', 
-        errors: ['Failed to parse API definition'] 
-      };
-    }
-    
-    const format = determineApiFormat(parsedContent);
-    let errors: string[] = [];
-    
-    // Validate based on format
-    switch (format) {
-      case 'OpenAPI2':
-        errors = validateOpenAPI2(parsedContent);
-        break;
-      case 'OpenAPI3':
-        errors = validateOpenAPI3(parsedContent);
-        break;
-      case 'RAML':
-        errors = validateRAML(parsedContent);
-        break;
-      case 'APIBlueprint':
-        errors = validateAPIBlueprint(parsedContent);
-        break;
-    }
-    
+export const validateApiDefinition = async (
+  content: string | Buffer | object, 
+  filename: string
+): Promise<ValidationResult> => {
+  // If content is already an object (pre-parsed), use it directly
+  if (content !== null && typeof content === 'object' && !Buffer.isBuffer(content)) {
+    const format = determineFormatFromObject(content);
     return {
-      isValid: errors.length === 0,
+      isValid: true,
       format,
-      errors: errors.length > 0 ? errors : undefined,
-      parsedDefinition: parsedContent
-    };
-  } catch (error) {
-    console.error('Validation error:', error);
-    return {
-      isValid: false,
-      format: 'OpenAPI3',
-      errors: [(error as Error).message]
+      parsedDefinition: content
     };
   }
+
+  const contentType = detectContentType(content);
+  let parsedContent: any;
+  let format: ApiFormat = 'OpenAPI3';
+  let errors: string[] = [];
+
+  // Convert Buffer to string if needed
+  if (Buffer.isBuffer(content)) {
+    content = content.toString('utf-8');
+  } else if (typeof content !== 'string') {
+    try {
+      content = String(content);
+    } catch (e) {
+      errors.push('Content could not be converted to string');
+      return { isValid: false, format, errors };
+    }
+  }
+
+  try {
+    parsedContent = parseContent(content, contentType);
+
+    if (!parsedContent) {
+      errors.push('Failed to parse API definition');
+    } else {
+      format = determineApiFormat(parsedContent);
+
+      // Validate based on format
+      switch (format) {
+        case 'OpenAPI2':
+          errors = validateOpenAPI2(parsedContent);
+          break;
+        case 'OpenAPI3':
+          errors = validateOpenAPI3(parsedContent);
+          break;
+        case 'RAML':
+          errors = validateRAML(parsedContent);
+          break;
+        case 'APIBlueprint':
+          errors = validateAPIBlueprint(parsedContent);
+          break;
+      }
+    }
+  } catch (error) {
+    console.error('Validation error:', error);
+    errors.push((error as Error).message);
+  }
+
+  return {
+    isValid: errors.length === 0,
+    format,
+    errors: errors.length > 0 ? errors : undefined,
+    parsedDefinition: parsedContent
+  };
 };
 
 // Extract endpoints from URL (this is different from extractEndpoints above)
@@ -345,17 +381,17 @@ export const extractEndpointsFromUrl = (apiDefinition: any, format: ApiFormat) =
 
   if (format === 'OpenAPI2' || format === 'OpenAPI3') {
     const paths = apiDefinition.paths || {};
-    
+
     Object.keys(paths).forEach(path => {
       const pathObj = paths[path];
-      
+
       // Common HTTP methods
       const methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'];
-      
+
       methods.forEach(method => {
         if (pathObj[method]) {
           const operation = pathObj[method];
-          
+
           // Extract parameters
           const parameters = [...(pathObj.parameters || []), ...(operation.parameters || [])].map(param => ({
             name: param.name,
@@ -363,14 +399,14 @@ export const extractEndpointsFromUrl = (apiDefinition: any, format: ApiFormat) =
             required: !!param.required,
             description: param.description || ''
           }));
-          
+
           // Extract responses
           const responses = Object.keys(operation.responses || {}).map(statusCode => ({
             statusCode: parseInt(statusCode, 10),
             description: operation.responses[statusCode].description || '',
             schema: operation.responses[statusCode].schema || operation.responses[statusCode].content
           }));
-          
+
           endpoints.push({
             path,
             method: method.toUpperCase(),
@@ -409,3 +445,29 @@ export const extractEndpointsFromUrl = (apiDefinition: any, format: ApiFormat) =
 
   return endpoints;
 };
+
+// Helper function to determine API format from an object
+function determineFormatFromObject(obj: any): ApiFormat {
+  if (!obj) return 'OpenAPI3';
+
+  if (obj.swagger === '2.0') {
+    return 'OpenAPI2';
+  } else if (obj.openapi && obj.openapi.startsWith('3.')) {
+    return 'OpenAPI3';
+  } else if (obj.raml) {
+    return 'RAML';
+  } else if (obj.format && obj.format.toLowerCase().includes('blueprint')) {
+    return 'APIBlueprint';
+  }
+
+  return 'OpenAPI3';
+}
+
+interface Endpoint {
+  id: string;
+  path: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
+  description: string;
+  parameters: Array<{ name: string; type: string; required: boolean; description: string }>;
+  responses: Array<{ statusCode: number | string; description: string; schema?: any }>;
+}
