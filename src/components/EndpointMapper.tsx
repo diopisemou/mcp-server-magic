@@ -31,10 +31,12 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
         .map(endpoint => ({
           ...endpoint,
           id: uuidv4(),
-          mcpType: suggestMcpType(endpoint.method as any)
+          // Ensure method is cast to the correct union type
+          method: endpoint.method.toUpperCase() as Endpoint['method'],
+          mcpType: suggestMcpType(endpoint.method.toUpperCase() as Endpoint['method'])
         }));
       
-      setEndpoints(extractedEndpoints);
+      setEndpoints(extractedEndpoints as Endpoint[]);
     }
   }, [apiDefinition]);
 
