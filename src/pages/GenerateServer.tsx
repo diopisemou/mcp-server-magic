@@ -173,18 +173,17 @@ const GenerateServer: React.FC = () => {
           setIsGenerating(false);
         }
       }, 3000);
-    })
-      .catch((error) => {
-        console.error('Error generating server:', error);
-        setGenerationError('Failed to start server generation');
-        setIsGenerating(false);
+    } catch (error) {
+      console.error('Error generating server:', error);
+      setGenerationError('Failed to start server generation');
+      setIsGenerating(false);
 
-        // Create a failed generation result
-        setGenerationResult({
-          success: false,
-          error: 'Failed to start server generation'
-        });
+      // Create a failed generation result
+      setGenerationResult({
+        success: false,
+        error: 'Failed to start server generation'
       });
+    }
   };
 
   const handleRestart = () => {
