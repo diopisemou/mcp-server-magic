@@ -230,6 +230,12 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
   console.log('Extracting endpoints from format:', format);
   console.log('API Definition (sample):', JSON.stringify(apiDefinition).substring(0, 300) + '...');
 
+  // Ensure we have valid spec object
+  if (!apiDefinition) {
+    console.error("Invalid API specification provided");
+    return endpoints;
+  }
+
   try {
     // Handle case where API definition might be nested in different ways
     let definition;
@@ -581,4 +587,15 @@ interface Endpoint {
   parameters: Array<{ name: string; type: string; required: boolean; description: string }>;
   responses: Array<{ statusCode: number | string; description: string; schema?: any }>;
   mcpType?: 'resource' | 'tool' | 'none';
+}
+interface Parameter {
+  name: string;
+  type: string;
+  required: boolean;
+  description: string;
+}
+
+interface Response {
+  statusCode: number;
+  description: string;
 }

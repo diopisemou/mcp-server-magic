@@ -298,22 +298,52 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                         <p className="text-sm text-muted-foreground">
                           {endpoint.description}</p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditEndpoint(endpoint)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => confirmDeleteEndpoint(endpoint.id)}
-                          className="text-destructive border-destructive/20 hover:bg-destructive/10"
-                        >
-                          Delete
-                        </Button>
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex space-x-2 justify-end">
+                          <Button 
+                            variant={endpoint.mcpType === 'resource' ? 'default' : 'outline'} 
+                            size="sm"
+                            onClick={() => toggleEndpointType(endpoint.id, 'resource')}
+                            className={endpoint.mcpType === 'resource' ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                          >
+                            Resource
+                          </Button>
+                          <Button 
+                            variant={endpoint.mcpType === 'tool' ? 'default' : 'outline'} 
+                            size="sm"
+                            onClick={() => toggleEndpointType(endpoint.id, 'tool')}
+                            className={endpoint.mcpType === 'tool' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                          >
+                            Tool
+                          </Button>
+                          <Button 
+                            variant={endpoint.mcpType === 'none' ? 'default' : 'outline'} 
+                            size="sm"
+                            onClick={() => toggleEndpointType(endpoint.id, 'none')}
+                            className={endpoint.mcpType === 'none' ? 'bg-gray-600 hover:bg-gray-700' : ''}
+                          >
+                            Skip
+                          </Button>
+                        </div>
+                        <div className="flex flex-row gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleEditEndpoint(endpoint)}
+                          >
+                            <Edit className="h-3.5 w-3.5 mr-1.5" />
+                            Edit
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => confirmDeleteEndpoint(endpoint.id)}
+                            className="text-destructive border-destructive/20 hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
