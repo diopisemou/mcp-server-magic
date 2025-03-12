@@ -580,7 +580,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+    </div>
   );
 };
 

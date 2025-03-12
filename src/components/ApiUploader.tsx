@@ -1,11 +1,10 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { ApiDefinition } from '@/types';
-import { useState } from 'react';
 import { 
   Upload, 
   FileJson, 
@@ -31,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from '@/components/ui/textarea';
-import { validateApiDefinition } from '@/utils/apiValidator';
+import { validateApiDefinition, extractEndpoints } from '@/utils/apiValidator';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -63,7 +62,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const [isUrl, setIsUrl] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
@@ -200,7 +198,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
     e.preventDefault();
     await handleUrlUpload();
   };
-
 
   const handleUrlUpload = async () => {
     setUploadError(null);
@@ -377,19 +374,10 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
 
   const handleUpload = () => {
     if (uploadMethod === 'file' && selectedFile) {
-      handleFiles(new DataTransfer().items.add(selectedFile)); //Simulate FileList
+      handleFiles(new DataTransfer().items.add(selectedFile)); // Simulate FileList
     } else if (uploadMethod === 'url') {
       handleUrlUpload();
     }
-  }
-
-  const extractEndpoints = (definition: any, format: string): any[] => {
-    // Implement endpoint extraction logic based on format (JSON, YAML, etc.)
-    if (format === 'json' || format === 'yaml') {
-      // Extract endpoints from JSON or YAML
-      return Object.keys(definition).map(key => ({path: key, methods: definition[key]}));
-    }
-    return [];
   };
 
   return (
@@ -693,7 +681,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                         <ul>
                           {endpoints.map((endpoint, index) => (
                             <li key={index}>
-                              {endpoint.path} ({endpoint.methods.join(', ')})
+                              {endpoint.path} ({endpoint.methods?.join(', ')})
                             </li>
                           ))}
                         </ul>
@@ -706,227 +694,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-
-import React, { useState, useRef } from 'react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { useToast } from './ui/use-toast';
-import { extractEndpoints } from '../utils/apiValidator';
-import { Card } from './ui/card';
-import { useNavigate } from 'react-router-dom';
-import { saveApiDefinition } from '../utils/apiService';
-import { EndpointMapper } from './EndpointMapper';
-import { ProjectCreationModal } from './ProjectCreationModal';
-
-export default function ApiUploader() {
-  const [file, setFile] = useState<File | null>(null);
-  const [url, setUrl] = useState('');
-  const [apiDefinition, setApiDefinition] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedEndpoints, setSelectedEndpoints] = useState<any[]>([]);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
-  const navigate = useNavigate();
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-    }
-  };
-
-  const handleUpload = async () => {
-    setIsLoading(true);
-    try {
-      if (!file) {
-        toast({
-          title: "Error",
-          description: "Please select a file first",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const text = await file.text();
-      let data;
-      const fileFormat = file.name.endsWith('.json') ? 'json' : 'yaml';
-      
-      if (fileFormat === 'json') {
-        data = JSON.parse(text);
-      } else {
-        // In a production app, use proper YAML parser
-        toast({
-          title: "Error",
-          description: "YAML parsing not implemented in this demo",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const endpoints = extractEndpoints(data, fileFormat);
-      const definition = {
-        name: file.name,
-        format: fileFormat.toUpperCase(),
-        endpoints,
-        content: data
-      };
-      
-      setApiDefinition(definition);
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: "Error",
-        description: "Failed to parse API definition",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleUrlUpload = async () => {
-    setIsLoading(true);
-    try {
-      // Implement URL fetching logic
-      toast({
-        title: "URL upload",
-        description: "URL upload not implemented in this demo",
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch API definition",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleContinue = (endpoints: any[]) => {
-    setSelectedEndpoints(endpoints);
-    setIsModalOpen(true);
-  };
-
-  const handleProjectCreation = async (projectData: { name: string; description: string }) => {
-    try {
-      // Save the API definition with selected endpoints
-      const savedDefinition = await saveApiDefinition({
-        name: projectData.name,
-        description: projectData.description,
-        format: apiDefinition.format,
-        endpoint_definition: selectedEndpoints
-      });
-
-      toast({
-        title: "Success",
-        description: "Project created successfully",
-      });
-
-      // Navigate to server configuration page with the new API definition ID
-      navigate(`/server-configuration/${savedDefinition.id}`);
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: "Error",
-        description: "Failed to create project",
-        variant: "destructive"
-      });
-    }
-  };
-
-  return (
-    <div className="py-24 relative overflow-hidden" id="start">
-      <div className="content-container">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Start Building Your Server</h2>
-            <p className="text-muted-foreground text-lg">
-              Upload your API definition or provide a URL to get started
-            </p>
-          </div>
-
-          {!apiDefinition ? (
-            <Card className="p-6">
-              <Tabs defaultValue="file">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger value="file">Upload File</TabsTrigger>
-                  <TabsTrigger value="url">Provide URL</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="file" className="space-y-4">
-                  <div className="grid w-full items-center gap-1.5">
-                    <Label htmlFor="api-file">API Definition File (JSON, YAML)</Label>
-                    <Input 
-                      id="api-file" 
-                      type="file" 
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      accept=".json,.yaml,.yml"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      Upload OpenAPI, Swagger, RAML, or API Blueprint
-                    </p>
-                  </div>
-                  
-                  <Button 
-                    onClick={handleUpload} 
-                    className="w-full"
-                    disabled={!file || isLoading}
-                  >
-                    {isLoading ? "Processing..." : "Upload and Process"}
-                  </Button>
-                </TabsContent>
-                
-                <TabsContent value="url" className="space-y-4">
-                  <div className="grid w-full items-center gap-1.5">
-                    <Label htmlFor="api-url">API Definition URL</Label>
-                    <Input 
-                      id="api-url" 
-                      type="url" 
-                      placeholder="https://example.com/api-spec.json"
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      URL to a publicly accessible API definition
-                    </p>
-                  </div>
-                  
-                  <Button 
-                    onClick={handleUrlUpload} 
-                    className="w-full"
-                    disabled={!url || isLoading}
-                  >
-                    {isLoading ? "Processing..." : "Fetch and Process"}
-                  </Button>
-                </TabsContent>
-              </Tabs>
-            </Card>
-          ) : (
-            <EndpointMapper 
-              apiDefinition={apiDefinition}
-              onContinue={handleContinue}
-            />
-          )}
-        </div>
-      </div>
-      
-      {isModalOpen && (
-        <ProjectCreationModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onSave={handleProjectCreation}
-        />
-      )}
     </div>
   );
 }
