@@ -232,10 +232,21 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
   
   try {
     // Handle case where API definition might be nested in different ways
-    const definition = 
-      apiDefinition.parsedDefinition || // From validateApiDefinition result
-      (apiDefinition.content ? JSON.parse(apiDefinition.content).parsedDefinition : null) || // From DB content
-      apiDefinition; // Direct definition
+    let definition;
+    
+    if (apiDefinition.parsedDefinition) {
+      definition = apiDefinition.parsedDefinition;
+    } else if (apiDefinition.content) {
+      try {
+        const contentObj = JSON.parse(apiDefinition.content);
+        definition = contentObj.parsedDefinition || contentObj;
+      } catch (e) {
+        // If it's not valid JSON, use the content directly
+        definition = apiDefinition.content;
+      }
+    } else {
+      definition = apiDefinition;
+    }
     
     if (!definition) {
       console.error('No valid definition found in:', apiDefinition);
@@ -296,7 +307,8 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
               method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
               description: operation.summary || operation.description || '',
               parameters: formattedParameters,
-              responses
+              responses,
+              mcpType: method.toLowerCase() === 'get' ? 'resource' : 'tool'
             });
           }
         });
@@ -322,7 +334,8 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
                 statusCode: parseInt(statusCode, 10) || statusCode,
                 description: method.responses[statusCode].description || '',
                 schema: null
-              }))
+              })),
+              mcpType: method.method.toLowerCase() === 'get' ? 'resource' : 'tool'
             });
           });
         });
@@ -349,7 +362,8 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
                     description: response.description || '',
                     schema: response.body || null
                   }))
-                )
+                ),
+                mcpType: action.method.toLowerCase() === 'get' ? 'resource' : 'tool'
               });
             });
           });
@@ -369,7 +383,8 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
               method: endpoint.method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
               description: endpoint.description || '',
               parameters: Array.isArray(endpoint.parameters) ? endpoint.parameters : [],
-              responses: Array.isArray(endpoint.responses) ? endpoint.responses : []
+              responses: Array.isArray(endpoint.responses) ? endpoint.responses : [],
+              mcpType: endpoint.method.toLowerCase() === 'get' ? 'resource' : 'tool'
             });
           }
         });
@@ -563,4 +578,5 @@ interface Endpoint {
   description: string;
   parameters: Array<{ name: string; type: string; required: boolean; description: string }>;
   responses: Array<{ statusCode: number | string; description: string; schema?: any }>;
+  mcpType?: 'resource' | 'tool' | 'none';
 }

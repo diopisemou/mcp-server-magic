@@ -1,4 +1,3 @@
-
 import yaml from 'js-yaml';
 
 /**
@@ -7,43 +6,62 @@ import yaml from 'js-yaml';
  * @param filename Optional filename with extension
  * @returns The detected content type
  */
-export const detectFileType = (content: string, filename?: string): 'json' | 'yaml' | 'unknown' => {
-  // Check by file extension first
-  if (filename) {
-    const lowerFilename = filename.toLowerCase();
-    if (lowerFilename.endsWith('.json')) return 'json';
-    if (lowerFilename.endsWith('.yaml') || lowerFilename.endsWith('.yml')) return 'yaml';
+export const detectFileType = (content: string, filename?: string): 'json' | 'yaml' | 'raml' | 'markdown' | 'unknown' => {
+  if (!content || typeof content !== 'string') {
+    return 'unknown';
   }
 
-  // Check content patterns
-  try {
-    const trimmedContent = content.trim();
-    if (trimmedContent.startsWith('{') || trimmedContent.startsWith('[')) {
-      // Try parsing as JSON to confirm
+  const trimmedContent = content.trim();
+
+  // Check for file extension first
+  if (filename) {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    if (ext === 'json') return 'json';
+    if (ext === 'yaml' || ext === 'yml') return 'yaml';
+    if (ext === 'raml') return 'raml';
+    if (ext === 'md' || ext === 'markdown') return 'markdown';
+  }
+
+  // Check content structure
+  if (trimmedContent.startsWith('{') || trimmedContent.startsWith('[')) {
+    try {
       JSON.parse(trimmedContent);
       return 'json';
-    } else if (
-      trimmedContent.includes('swagger:') || 
-      trimmedContent.includes('openapi:') ||
-      trimmedContent.includes('title:')
-    ) {
-      // Try parsing as YAML to confirm
-      yaml.load(trimmedContent);
-      return 'yaml';
+    } catch (e) {
+      // Not valid JSON
     }
-  } catch (e) {
-    // Parsing failed, continue with other checks
   }
 
-  // More aggressive checking
-  try {
-    JSON.parse(content);
-    return 'json';
-  } catch (e) {
+  if (trimmedContent.startsWith('#%RAML')) {
+    return 'raml';
+  } else if (trimmedContent.startsWith('# ') || trimmedContent.startsWith('FORMAT:')) {
+    return 'markdown'; // Potential API Blueprint
+  }
+
+  // Check for YAML indicators
+  if (
+    trimmedContent.includes('openapi:') ||
+    trimmedContent.includes('swagger:') ||
+    trimmedContent.includes('info:') ||
+    trimmedContent.includes('paths:')
+  ) {
     try {
-      yaml.load(content);
+      yaml.load(trimmedContent);
       return 'yaml';
     } catch (e) {
+      // Not valid YAML
+    }
+  }
+
+  // Try to parse as JSON or YAML
+  try {
+    JSON.parse(trimmedContent);
+    return 'json';
+  } catch (jsonError) {
+    try {
+      yaml.load(trimmedContent);
+      return 'yaml';
+    } catch (yamlError) {
       return 'unknown';
     }
   }
