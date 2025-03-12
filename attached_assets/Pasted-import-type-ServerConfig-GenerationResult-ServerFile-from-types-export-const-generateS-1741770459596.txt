@@ -1,0 +1,256 @@
+import type { ServerConfig, GenerationResult, ServerFile } from '@/types';
+
+export const generateServer = async (
+  config: ServerConfig
+): Promise<GenerationResult> => {
+  try {
+    console.log('Generating MCP server with config:', config);
+    
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    const files: ServerFile[] = [];
+    
+    files.push({
+      name: 'mcp_server.py',
+      path: '/',
+      content: generatePythonServerCode(config),
+      type: 'code'
+    });
+
+    files.push({
+      name: 'requirements.txt',
+      path: '/',
+      content: `fastapi==0.110.0
+uvicorn==0.29.0
+pydantic==2.6.4
+anthropic-mcp==1.0.0
+python-dotenv==1.0.1
+gunicorn==21.2.0`,
+      type: 'config'
+    });
+
+    files.push({
+      name: '.env.example',
+      path: '/',
+      content: `PORT=8000
+${config.authentication.type !== 'None' ? 'API_KEY=your-api-key-here' : ''}`,
+      type: 'config'
+    });
+
+    files.push({
+      name: 'README.md',
+      path: '/',
+      content: generateReadme(config),
+      type: 'documentation'
+    });
+
+    return {
+      success: true,
+      serverUrl: `https://mcp-${config.name.toLowerCase().replace(/\s+/g, '-')}.example.com`,
+      files
+    };
+  } catch (error) {
+    console.error('Error generating server:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+};
+
+const generatePythonServerCode = (config: ServerConfig): string => {
+  const hasAuth = config.authentication.type !== 'None';
+
+  const imports = `
+import os
+import sys
+from typing import Optional, Dict, Any
+from fastapi import FastAPI, Query, HTTPException, Request, Depends
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from anthropic_mcp import MCPServer, Resource, Tool
+from dotenv import load_dotenv
+import uvicorn
+
+load_dotenv()
+`;
+
+  const authCode = hasAuth ? `
+# Authentication dependency
+async def verify_api_key(request: Request):
+    api_key = request.headers.get('x-api-key') or request.query_params.get('api_key')
+    if not api_key or api_key != os.getenv('API_KEY'):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return True
+` : '';
+
+  const endpoints = config.endpoints.map(endpoint => {
+    const params = endpoint.parameters.map(param => 
+      `${param.name}: ${param.type}${param.required ? '' : ' = Query(default=None)'}${hasAuth ? ' , _: bool = Depends(verify_api_key)' : ''}`
+    ).join(', ');
+    
+    const param_validations = endpoint.parameters
+      .filter(p => p.required)
+      .map(p => `    if ${p.name} is None:\n        raise HTTPException(status_code=400, detail="Missing required parameter: ${p.name}")`)
+      .join('\n');
+
+    return `
+@app.${endpoint.method.toLowerCase()}("${endpoint.path}"${hasAuth ? ', dependencies=[Depends(verify_api_key)]' : ''})
+async def ${endpoint.path.replace(/\//g, '_').replace(/-/g, '_').substring(1)}(${params}) -> Dict[str, Any]:
+    """
+    ${endpoint.description}
+    """
+    try:
+${param_validations}
+        # Add your implementation logic here
+        return {
+            "status": "success",
+            "endpoint": "${endpoint.path}",
+            "data": {${endpoint.parameters.map(p => `"${p.name}": ${p.name}`).join(', ')}}
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+`;
+  }).join('\n');
+
+  return `${imports}
+
+# Server configuration
+app = FastAPI(
+    title="${config.name} MCP Server",
+    description="${config.description}",
+    version="1.0.0"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# MCP Server Setup
+mcp_server = MCPServer(app)
+
+${authCode}
+
+# Health check endpoint
+@app.get("/health")
+async def health_check() -> Dict[str, Any]:
+    return {"status": "healthy", "timestamp": os.getenv("TIMESTAMP", "N/A")}
+
+# API Endpoints
+${endpoints}
+
+# Register MCP resources and tools
+${config.endpoints.filter(e => e.mcpType === 'resource').map(e => 
+  `mcp_server.register_resource(Resource(name="${e.path.substring(1)}", description="${e.description}", endpoint="${e.path}"))`
+).join('\n')}
+
+${config.endpoints.filter(e => e.mcpType === 'tool').map(e => 
+  `mcp_server.register_tool(Tool(name="${e.path.substring(1)}", description="${e.description}", endpoint="${e.path}"))`
+).join('\n')}
+
+# Error handling
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Internal Server Error", "detail": str(exc)}
+    )
+
+# Server startup
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8000"))
+    host = "0.0.0.0"
+    
+    # Configure logging
+    import logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    try:
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            log_level="info",
+            reload=False
+        )
+    except KeyboardInterrupt:
+        print("Server shutting down gracefully...")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Server failed to start: {str(e)}")
+        sys.exit(1)
+`;
+};
+
+const generateReadme = (config: ServerConfig): string => {
+  return `# ${config.name} MCP Server
+
+${config.description}
+
+## Features
+
+- Built with FastAPI and Python
+- MCP (Model Context Protocol) integration
+- CORS support
+- Type hints and validation
+${config.authentication.type !== 'None' ? '- API Key Authentication' : ''}
+
+## Endpoints
+
+${config.endpoints.map(e => 
+  `- \`${e.method} ${e.path}\` - ${e.description} (${e.mcpType !== 'none' ? e.mcpType : 'standard'})`
+).join('\n')}
+
+## Prerequisites
+
+- Python 3.9+
+- pip
+
+## Setup
+
+1. Install dependencies:
+\`\`\`bash
+pip install -r requirements.txt
+\`\`\`
+
+2. Copy \`.env.example\` to \`.env\` and configure:
+\`\`\`bash
+cp .env.example .env
+\`\`\`
+
+3. Run the server:
+\`\`\`bash
+python mcp_server.py
+\`\`\`
+
+Or use gunicorn for production:
+\`\`\`bash
+gunicorn -w 4 -k uvicorn.workers.UvicornWorker mcp_server:app
+\`\`\`
+
+## MCP Integration
+
+Connect to this server using:
+\`\`\`
+URL: http://localhost:8000/mcp
+${config.authentication.type !== 'None' ? 'Authentication: X-API-KEY header with your API key' : ''}
+Capabilities:
+${config.endpoints.filter(e => e.mcpType !== 'none').map(e => 
+  `- ${e.mcpType === 'resource' ? 'Resource' : 'Tool'}: ${e.path.substring(1)}`
+).join('\n')}
+\`\`\`
+`;
+};
+
+export default {
+  generateServer
+};

@@ -1,0 +1,273 @@
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { useParams, useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ApiDefinitionEditor } from '@/components/ApiDefinitionEditor';
+import { LogViewer } from '@/components/LogViewer';
+import { Download, ExternalLink } from 'lucide-react';
+
+export const GenerateServer = () => {
+  const { projectId } = useParams();
+  const navigate = useNavigate();
+  const [project, setProject] = useState(null);
+  const [apiDefinition, setApiDefinition] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState('');
+  const [logs, setLogs] = useState([]);
+  const [deploymentUrl, setDeploymentUrl] = useState('');
+  const [activeTab, setActiveTab] = useState('config');
+
+  useEffect(() => {
+    fetchProject();
+  }, [projectId]);
+
+  const fetchProject = async () => {
+    try {
+      if (!projectId) return;
+
+      const { data, error } = await supabase
+        .from('mcp_projects')
+        .select('*')
+        .eq('id', projectId)
+        .single();
+
+      if (error) throw error;
+      setProject(data);
+
+      if (data.api_definition) {
+        setApiDefinition(data.api_definition);
+      }
+    } catch (error) {
+      toast.error('Error fetching project: ' + error.message);
+    }
+  };
+
+  const handleApiDefinitionChange = (newDefinition) => {
+    setApiDefinition(newDefinition);
+  };
+
+  const updateApiDefinition = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('mcp_projects')
+        .update({ api_definition: apiDefinition })
+        .eq('id', projectId);
+
+      if (error) throw error;
+      toast.success('API definition updated successfully');
+    } catch (error) {
+      toast.error('Error updating API definition: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateCode = async () => {
+    try {
+      setLoading(true);
+      setLogs(prevLogs => [...prevLogs, { type: 'info', message: 'Generating server code...' }]);
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const mockCode = `
+import express from 'express';
+import { MCPServer } from '@anthropic-ai/mcp';
+
+const app = express();
+const mcpServer = new MCPServer();
+
+app.use('/mcp', mcpServer.router);
+
+app.listen(3000, () => {
+  console.log('MCP Server running on port 3000');
+});`;
+
+      setGeneratedCode(mockCode);
+      setLogs(prevLogs => [...prevLogs, { type: 'success', message: 'Server code generated successfully' }]);
+      setActiveTab('logs');
+
+      const { error } = await supabase
+        .from('mcp_projects')
+        .update({
+          generated_code: mockCode,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', projectId);
+
+      if (error) throw error;
+    } catch (error) {
+      setLogs(prevLogs => [...prevLogs, { type: 'error', message: `Error generating code: ${error.message}` }]);
+      toast.error('Error generating code: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deployCode = async () => {
+    try {
+      setLoading(true);
+      setLogs(prevLogs => [...prevLogs, { type: 'info', message: 'Deploying server...' }]);
+
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      const mockDeploymentUrl = `https://mcp-server-${projectId}.example.com`;
+      setDeploymentUrl(mockDeploymentUrl);
+      setLogs(prevLogs => [...prevLogs, { type: 'success', message: `Server deployed at: ${mockDeploymentUrl}` }]);
+
+      const { error } = await supabase
+        .from('mcp_projects')
+        .update({
+          deployment_url: mockDeploymentUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', projectId);
+
+      if (error) throw error;
+
+      toast.success('Server deployed successfully');
+    } catch (error) {
+      setLogs(prevLogs => [...prevLogs, { type: 'error', message: `Error deploying server: ${error.message}` }]);
+      toast.error('Error deploying server: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadCode = () => {
+    if (!generatedCode) {
+      toast.error('No code generated to download');
+      return;
+    }
+
+    const element = document.createElement('a');
+    const file = new Blob([generatedCode], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `mcp-server-${projectId}.js`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
+  return (
+    <div className="container mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Generate MCP Server</h1>
+        <Button variant="outline" onClick={() => navigate('/dashboard')}>
+          Back to Projects
+        </Button>
+      </div>
+
+      <Separator className="my-6" />
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="config">Configuration</TabsTrigger>
+          <TabsTrigger value="logs">Logs</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="config">
+          <Card>
+            <CardHeader>
+              <CardTitle>API Definition</CardTitle>
+              <CardDescription>
+                Edit your API definition that will be used to generate your MCP server
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ApiDefinitionEditor
+                value={apiDefinition}
+                onChange={handleApiDefinitionChange}
+              />
+            </CardContent>
+            <CardFooter className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={updateApiDefinition}
+                disabled={loading}
+              >
+                Update Definition
+              </Button>
+              <Button
+                onClick={generateCode}
+                disabled={loading || !apiDefinition}
+              >
+                Generate Server Code
+              </Button>
+            </CardFooter>
+          </Card>
+
+          {generatedCode && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Deployment Options</CardTitle>
+                <CardDescription>
+                  Deploy your MCP server or download the code
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex flex-col space-y-2">
+                    <h3 className="text-lg font-medium">Docker Image Options</h3>
+                    <p className="text-sm text-gray-500">
+                      You can deploy this server as a Docker image. Configure your Docker repository in your profile settings.
+                    </p>
+                  </div>
+
+                  {deploymentUrl && (
+                    <div className="flex flex-col space-y-2">
+                      <h3 className="text-lg font-medium">Deployed URL</h3>
+                      <div className="flex items-center space-x-2">
+                        <code className="bg-gray-100 p-2 rounded text-sm flex-1">{deploymentUrl}</code>
+                        <Button variant="outline" size="sm" onClick={() => window.open(deploymentUrl, '_blank')}>
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={downloadCode}
+                  disabled={loading}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download as ZIP
+                </Button>
+                <Button
+                  onClick={deployCode}
+                  disabled={loading || !generatedCode}
+                >
+                  Deploy Server
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="logs">
+          <Card>
+            <CardHeader>
+              <CardTitle>Logs</CardTitle>
+              <CardDescription>
+                View the logs from the generation and deployment process
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <LogViewer logs={logs && logs.length > 0 ? logs : []} /> {/* Added check for logs length */}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+export default GenerateServer;

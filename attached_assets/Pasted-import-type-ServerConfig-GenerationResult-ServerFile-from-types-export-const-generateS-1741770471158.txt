@@ -1,0 +1,295 @@
+import type { ServerConfig, GenerationResult, ServerFile } from '@/types';
+
+export const generateServer = async (
+  config: ServerConfig
+): Promise<GenerationResult> => {
+  try {
+    console.log('Generating MCP server with config:', config);
+    
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    const files: ServerFile[] = [];
+    
+    // Generate TypeScript server files (focusing on TS for this improvement)
+    files.push({
+      name: 'server.ts',
+      path: '/src/',
+      content: generateTypeScriptServerCode(config),
+      type: 'code'
+    });
+
+    files.push({
+      name: 'tsconfig.json',
+      path: '/',
+      content: JSON.stringify({
+        "compilerOptions": {
+          "target": "es2018",
+          "module": "commonjs",
+          "outDir": "./dist",
+          "rootDir": "./src",
+          "strict": true,
+          "esModuleInterop": true,
+          "skipLibCheck": true,
+          "forceConsistentCasingInFileNames": true
+        },
+        "include": ["src/**/*"]
+      }, null, 2),
+      type: 'config'
+    });
+
+    files.push({
+      name: '.env.example',
+      path: '/',
+      content: `PORT=3000
+API_KEY=${config.authentication.type !== 'None' ? 'your-api-key-here' : ''}`,
+      type: 'config'
+    });
+
+    files.push({
+      name: 'package.json',
+      path: '/',
+      content: JSON.stringify({
+        "name": config.name.toLowerCase().replace(/\s+/g, '-'),
+        "version": "1.0.0",
+        "description": config.description,
+        "main": "dist/server.js",
+        "scripts": {
+          "build": "tsc",
+          "start": "node dist/server.js",
+          "dev": "ts-node src/server.ts",
+          "lint": "eslint . --ext .ts"
+        },
+        "dependencies": {
+          "express": "^4.18.2",
+          "dotenv": "^16.3.1",
+          "helmet": "^7.0.0",
+          "cors": "^2.8.5",
+          "@anthropic-ai/mcp": "^1.0.0"
+        },
+        "devDependencies": {
+          "@types/express": "^4.17.17",
+          "@types/node": "^20.4.2",
+          "@types/cors": "^2.8.13",
+          "typescript": "^5.1.6",
+          "ts-node": "^10.9.1",
+          "eslint": "^8.44.0",
+          "@typescript-eslint/parser": "^5.61.0",
+          "@typescript-eslint/eslint-plugin": "^5.61.0"
+        }
+      }, null, 2),
+      type: 'config'
+    });
+
+    files.push({
+      name: 'README.md',
+      path: '/',
+      content: generateReadme(config),
+      type: 'documentation'
+    });
+
+    return {
+      success: true,
+      serverUrl: `https://mcp-${config.name.toLowerCase().replace(/\s+/g, '-')}.example.com`,
+      files
+    };
+  } catch (error) {
+    console.error('Error generating server:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+};
+
+const generateTypeScriptServerCode = (config: ServerConfig): string => {
+  const hasAuth = config.authentication.type !== 'None';
+
+  const paramInterfaces = config.endpoints.map(endpoint => {
+    return `
+interface ${endpoint.path.replace(/\//g, '').replace(/-/g, '')}Params {
+${endpoint.parameters.map(param => 
+  `  ${param.name}${param.required ? '' : '?'}: ${param.type};`
+).join('\n')}
+}`;
+  }).join('\n');
+
+  const endpoints = config.endpoints.map(endpoint => {
+    const paramList = endpoint.parameters.map(param => param.name).join(', ');
+    const paramTypes = endpoint.parameters.map(param => 
+      `${param.name}${param.required ? '' : '?'}: ${param.type}`).join(', ');
+
+    return `
+app.${endpoint.method.toLowerCase()}('${endpoint.path}', ${hasAuth ? 'authenticate, ' : ''}async (req: Request, res: Response) => {
+  try {
+    const { ${paramList} } = req.query as { ${paramTypes} };
+    ${endpoint.parameters.map(param => 
+      param.required ? `if (!${param.name}) throw new Error('Missing required parameter: ${param.name}');` : ''
+    ).join('\n    ')}
+    
+    // ${endpoint.description}
+    // Add your implementation logic here
+    const result = {
+      status: 'success',
+      endpoint: '${endpoint.path}',
+      data: { ${paramList ? `${paramList}` : ''} }
+    };
+    
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      status: 'error',
+      message: error instanceof Error ? error.message : 'An error occurred'
+    });
+  }
+});
+`;
+  }).join('\n');
+
+  return `
+import express, { Request, Response, NextFunction } from 'express';
+import { MCPServer, Resource, Tool } from '@anthropic-ai/mcp';
+import dotenv from 'dotenv';
+import helmet from 'helmet';
+import cors from 'cors';
+
+dotenv.config();
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Middleware
+app.use(helmet());
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// MCP Server Setup
+const mcpServer = new MCPServer();
+app.use('/mcp', mcpServer.router);
+
+// Authentication Middleware
+${hasAuth ? `
+const authenticate = (req: Request, res: Response, next: NextFunction) => {
+  const apiKey = req.headers['x-api-key'] || req.query.apiKey;
+  if (!apiKey || apiKey !== process.env.API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
+` : ''}
+
+// Parameter Interfaces
+${paramInterfaces}
+
+// Health Check
+app.get('/health', (req: Request, res: Response) => {
+  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+// API Endpoints
+${endpoints}
+
+// MCP Resources and Tools Registration
+${config.endpoints.filter(e => e.mcpType === 'resource').map(e => 
+  `mcpServer.registerResource(new Resource({ 
+    name: "${e.path.substring(1)}", 
+    description: "${e.description}",
+    endpoint: "${e.path}"
+  }));`
+).join('\n')}
+
+${config.endpoints.filter(e => e.mcpType === 'tool').map(e => 
+  `mcpServer.registerTool(new Tool({ 
+    name: "${e.path.substring(1)}", 
+    description: "${e.description}",
+    endpoint: "${e.path}"
+  }));`
+).join('\n')}
+
+// Error Handling
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal Server Error' });
+});
+
+// Server Start
+app.listen(port, () => {
+  console.log(\`${config.name} MCP Server running on port \${port}\`);
+});
+
+// Graceful Shutdown
+process.on('SIGTERM', () => {
+  console.log('Shutting down server...');
+  process.exit(0);
+});
+`;
+};
+
+const generateReadme = (config: ServerConfig): string => {
+  return `# ${config.name} MCP Server
+
+${config.description}
+
+## Features
+
+- Built with TypeScript and Express
+- MCP (Model Context Protocol) integration
+- Security with Helmet
+- CORS support
+${config.authentication.type !== 'None' ? '- API Key Authentication' : ''}
+
+## Endpoints
+
+${config.endpoints.map(e => 
+  `- \`${e.method} ${e.path}\` - ${e.description} (${e.mcpType !== 'none' ? e.mcpType : 'standard'})`
+).join('\n')}
+
+## Prerequisites
+
+- Node.js 18+
+- npm 8+
+
+## Setup
+
+1. Install dependencies:
+\`\`\`bash
+npm install
+\`\`\`
+
+2. Copy \`.env.example\` to \`.env\` and configure:
+\`\`\`bash
+cp .env.example .env
+\`\`\`
+
+3. Build the project:
+\`\`\`bash
+npm run build
+\`\`\`
+
+4. Start the server:
+\`\`\`bash
+npm start
+\`\`\`
+
+Or run in development mode:
+\`\`\`bash
+npm run dev
+\`\`\`
+
+## MCP Integration
+
+Connect to this server using:
+\`\`\`
+URL: http://localhost:3000/mcp
+${config.authentication.type !== 'None' ? 'Authentication: X-API-KEY header with your API key' : ''}
+Capabilities:
+${config.endpoints.filter(e => e.mcpType !== 'none').map(e => 
+  `- ${e.mcpType === 'resource' ? 'Resource' : 'Tool'}: ${e.path.substring(1)}`
+).join('\n')}
+\`\`\`
+`;
+};
+
+export default {
+  generateServer
+};
