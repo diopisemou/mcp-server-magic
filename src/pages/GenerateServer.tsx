@@ -5,7 +5,7 @@ import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from 
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ApiDefinitionEditor } from '@/components/ApiDefinitionEditor';
 import { LogViewer } from '@/components/LogViewer';
