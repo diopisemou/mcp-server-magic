@@ -29,7 +29,8 @@ const parseContent = (content: string, contentType: 'json' | 'yaml' | 'raml' | '
     if (contentType === 'json') {
       return JSON.parse(content);
     } else if (contentType === 'yaml') {
-      return yaml.load(content);
+      const parsedYaml = yaml.load(content);
+      return parsedYaml;
     } else if (contentType === 'raml') {
       // Basic RAML parsing - in a real app, use raml-parser
       // For now, extract basic info from RAML header

@@ -209,6 +209,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
 
   const handleUpload = async () => {
     setIsValidating(true);
+    setError(null); // Clear any previous errors
 
     try {
       if (sourceType === 'raw' && !content) {
@@ -217,7 +218,12 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         return;
       }
 
-      const result = await validateApiDefinition(content, selectedFile?.name || 'api-definition');
+      // Determine proper file extension based on content
+      const contentType = content.trim().startsWith('{') ? 'json' : 'yaml';
+      const fileName = `api-definition.${contentType}`;
+
+
+      const result = await validateApiDefinition(content, fileName);
 
       if (!result.isValid) {
         setError(`Invalid API definition: ${result.errors?.join(', ')}`);
