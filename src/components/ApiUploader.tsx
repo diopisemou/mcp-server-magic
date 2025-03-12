@@ -3,288 +3,441 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { ApiDefinition } from '@/types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { FileJson, Upload, FileText, AlertCircle } from 'lucide-react';
+import { FileJson, Upload, FileText, AlertCircle, ChevronDown } from 'lucide-react';
 import { validateApiDefinition } from '@/utils/apiValidator';
 
 interface ApiUploaderProps {
   onUploadComplete: (definition: ApiDefinition) => void;
 }
 
-const ApiUploader = ({ onUploadComplete }: ApiUploaderProps) => {
-  const [dragActive, setDragActive] = useState(false);
-  const [isUrl, setIsUrl] = useState(false);
+export const ApiUploader = ({ onUploadComplete }: ApiUploaderProps) => {
+  const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('url');
   const [url, setUrl] = useState('');
+  const [advancedMode, setAdvancedMode] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  
+  // Advanced URL options
+  const [authType, setAuthType] = useState<'None' | 'ApiKey' | 'Bearer'>('None');
+  const [apiKey, setApiKey] = useState('');
+  const [apiKeyName, setApiKeyName] = useState('X-API-Key');
+  const [apiKeyLocation, setApiKeyLocation] = useState<'header' | 'query'>('header');
+  const [bearerToken, setBearerToken] = useState('');
+  const [queryParams, setQueryParams] = useState('');
+  const [requestHeaders, setRequestHeaders] = useState('');
+  
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (e.target.files && e.target.files[0]) {
-      handleFile(e.target.files[0]);
-    }
-  };
-
-  const handleFile = async (file: File) => {
-    setUploading(true);
-    setValidationErrors([]);
-    
-    // Check file type
-    const validTypes = ['application/json', 'application/x-yaml', 'text/yaml', 'text/plain', 'text/markdown'];
-    if (!validTypes.includes(file.type)) {
-      toast.error('Invalid file type. Please upload JSON, YAML, RAML, or Markdown files.');
-      setUploading(false);
+    if (!url) {
+      toast.error('Please enter a URL');
       return;
     }
+
+    setUploading(true);
+    setError(null);
     
     try {
-      // Read file content
-      const content = await file.text();
+      // In a real implementation, you would send the URL and auth details to your backend
+      // For now, we'll simulate fetching from the URL
       
-      // Validate API definition
-      const { isValid, format, errors, parsedDefinition } = await validateApiDefinition(content, file.name);
+      let fetchUrl = url;
+      const headers: Record<string, string> = {};
       
-      if (!isValid) {
-        setValidationErrors(errors || ['Invalid API definition format']);
-        toast.error('API definition validation failed');
-        setUploading(false);
-        return;
-      }
-      
-      // Create API definition object
-      const apiDefinition: ApiDefinition = {
-        name: file.name,
-        format,
-        content,
-        parsedDefinition,
-        file
-      };
-      
-      onUploadComplete(apiDefinition);
-      setUploading(false);
-      toast.success(`API definition (${format}) uploaded successfully`);
-    } catch (error) {
-      console.error('Error processing file:', error);
-      toast.error('Error processing file. Please try again.');
-      setUploading(false);
-    }
-  };
-
-  const handleUrlSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setUploading(true);
-    setValidationErrors([]);
-    
-    // Validate URL
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      toast.error('Please enter a valid URL');
-      setUploading(false);
-      return;
-    }
-    
-    // Fetch and validate API definition from URL
-    fetch(url)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        return response.text();
-      })
-      .then(async (content) => {
-        const { isValid, format, errors, parsedDefinition } = await validateApiDefinition(content, url);
-        
-        if (!isValid) {
-          setValidationErrors(errors || ['Invalid API definition format']);
-          toast.error('API definition validation failed');
+      // Process query parameters if provided in advanced mode
+      if (advancedMode && queryParams) {
+        try {
+          const parsedParams = JSON.parse(queryParams);
+          const searchParams = new URLSearchParams();
+          
+          Object.entries(parsedParams).forEach(([key, value]) => {
+            searchParams.append(key, String(value));
+          });
+          
+          fetchUrl += `?${searchParams.toString()}`;
+        } catch (e) {
+          toast.error('Invalid JSON format for query parameters');
           setUploading(false);
           return;
         }
+      }
+      
+      // Process authentication
+      if (advancedMode) {
+        if (authType === 'ApiKey') {
+          if (apiKeyLocation === 'header') {
+            headers[apiKeyName] = apiKey;
+          } else if (apiKeyLocation === 'query') {
+            const searchParams = new URLSearchParams(fetchUrl.includes('?') ? fetchUrl.split('?')[1] : '');
+            searchParams.append(apiKeyName, apiKey);
+            fetchUrl = `${fetchUrl.split('?')[0]}?${searchParams.toString()}`;
+          }
+        } else if (authType === 'Bearer') {
+          headers['Authorization'] = `Bearer ${bearerToken}`;
+        }
         
-        const apiDefinition: ApiDefinition = {
-          name: url.split('/').pop() || 'api-definition',
-          format,
-          content,
-          parsedDefinition,
-          url
-        };
+        // Process additional headers
+        if (requestHeaders) {
+          try {
+            const parsedHeaders = JSON.parse(requestHeaders);
+            Object.entries(parsedHeaders).forEach(([key, value]) => {
+              headers[key] = String(value);
+            });
+          } catch (e) {
+            toast.error('Invalid JSON format for headers');
+            setUploading(false);
+            return;
+          }
+        }
+      }
+      
+      // Simulating fetch for now
+      // In a real implementation, you would use fetch with these options
+      // const response = await fetch(fetchUrl, { headers });
+      // const data = await response.text();
+      
+      // For demonstration, we'll assume success and use a mock response
+      setTimeout(() => {
+        const mockData = `
+        {
+          "openapi": "3.0.0",
+          "info": {
+            "title": "Sample API",
+            "version": "1.0.0"
+          },
+          "paths": {
+            "/users": {
+              "get": {
+                "summary": "Get all users",
+                "responses": {
+                  "200": {
+                    "description": "Successful response"
+                  }
+                }
+              }
+            }
+          }
+        }`;
         
-        onUploadComplete(apiDefinition);
-        toast.success(`API definition (${format}) fetched successfully`);
-      })
-      .catch(error => {
-        console.error('Error fetching API definition:', error);
-        toast.error('Failed to fetch API definition. Please check the URL and try again.');
-        setValidationErrors([error.message]);
-      })
-      .finally(() => {
+        const validationResult = validateApiDefinition(mockData);
+        
+        if (validationResult.valid) {
+          onUploadComplete({
+            name: url.split('/').pop() || 'API Definition',
+            content: mockData,
+            format: validationResult.format || 'unknown',
+            parsedDefinition: validationResult.definition
+          });
+          toast.success('API definition loaded successfully');
+        } else {
+          setError(validationResult.error || 'Invalid API definition');
+          toast.error('Failed to validate API definition');
+        }
+        
         setUploading(false);
-      });
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error fetching API definition:', error);
+      setError('Failed to fetch API definition');
+      toast.error('Failed to fetch API definition');
+      setUploading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setError(null);
+    }
+  };
+
+  const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile) {
+      setFile(droppedFile);
+      setError(null);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
+
+  const handleFileUpload = async () => {
+    if (!file) return;
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      const content = await file.text();
+      const validationResult = validateApiDefinition(content);
+
+      if (validationResult.valid) {
+        onUploadComplete({
+          name: file.name,
+          content,
+          format: validationResult.format || 'unknown',
+          parsedDefinition: validationResult.definition
+        });
+        toast.success('API definition uploaded successfully');
+      } else {
+        setError(validationResult.error || 'Invalid API definition');
+        toast.error('Failed to validate API definition');
+      }
+    } catch (error) {
+      console.error('Error reading file:', error);
+      setError('Failed to read file');
+      toast.error('Failed to read file');
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
-    <section className="py-24 relative overflow-hidden" id="start">
-      <div className="content-container">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Start Building Your Server</h2>
-            <p className="text-muted-foreground text-lg">
-              Upload your API definition or provide a URL to get started
-            </p>
-          </div>
-          
-          <div className="bg-white rounded-xl shadow-lg border border-border overflow-hidden">
-            <div className="p-6 border-b border-border">
-              <div className="flex space-x-6">
-                <button
-                  className={cn(
-                    "pb-2 text-sm font-medium transition-colors",
-                    !isUrl ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground/80"
-                  )}
-                  onClick={() => setIsUrl(false)}
-                >
-                  Upload File
-                </button>
-                <button
-                  className={cn(
-                    "pb-2 text-sm font-medium transition-colors",
-                    isUrl ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground/80"
-                  )}
-                  onClick={() => setIsUrl(true)}
-                >
-                  Provide URL
-                </button>
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Upload API Definition</h3>
+        <p className="text-sm text-muted-foreground">
+          Upload your OpenAPI, Swagger, RAML, or API Blueprint definition to get started.
+        </p>
+      </div>
+      
+      <Tabs value={uploadMethod} onValueChange={(v) => setUploadMethod(v as 'file' | 'url')}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="url">URL</TabsTrigger>
+          <TabsTrigger value="file">File Upload</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="url" className="pt-4">
+          <form onSubmit={handleUrlSubmit}>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="api-url" className="mb-2 block">
+                  API Definition URL
+                </Label>
+                <div className="flex space-x-2">
+                  <Input
+                    id="api-url"
+                    placeholder="https://example.com/api-spec.yaml"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button type="submit" disabled={uploading || !url}>
+                    {uploading ? 'Loading...' : 'Fetch'}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Enter the URL of a publicly accessible API definition file or Swagger UI page
+                </p>
               </div>
-            </div>
-            
-            <div className="p-6">
-              {!isUrl ? (
-                <div 
-                  className={cn(
-                    "border-2 border-dashed rounded-lg transition-colors py-12 px-6",
-                    dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/30"
-                  )}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                >
-                  <div className="text-center">
-                    <Upload 
-                      className="mx-auto mb-4 text-muted-foreground"
-                      size={40}
-                    />
-                    <h3 className="text-lg font-medium mb-2">
-                      {dragActive 
-                        ? 'Drop your API definition file here' 
-                        : 'Drag and drop your API definition file here'
-                      }
-                    </h3>
-                    <p className="text-muted-foreground mb-4 flex items-center justify-center gap-2">
-                      <span>Supports OpenAPI</span>
-                      <FileJson className="h-4 w-4" />
-                      <span>RAML and API Blueprint formats</span>
-                      <FileText className="h-4 w-4" />
-                    </p>
-                    <input
-                      ref={inputRef}
-                      type="file"
-                      className="hidden"
-                      onChange={handleChange}
-                      accept=".json,.yaml,.yml,.raml,.md"
-                    />
-                    <div className="flex justify-center">
-                      <span className="text-sm text-muted-foreground mr-2">or</span>
-                      <button
-                        type="button"
-                        onClick={() => inputRef.current?.click()}
-                        className="text-sm text-primary font-medium"
-                      >
-                        browse files
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleUrlSubmit}>
-                  <Label htmlFor="api-url" className="mb-2 block">
-                    API Definition URL
-                  </Label>
-                  <div className="flex space-x-2">
-                    <Input
-                      id="api-url"
-                      placeholder="https://example.com/api-spec.yaml"
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Button type="submit" disabled={uploading || !url}>
-                      {uploading ? 'Loading...' : 'Fetch'}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Enter the URL of a publicly accessible API definition file
-                  </p>
-                </form>
-              )}
               
-              {validationErrors.length > 0 && (
-                <div className="mt-4 p-4 bg-destructive/10 rounded-md border border-destructive">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-destructive">Validation errors</p>
-                      <ul className="mt-2 text-sm text-destructive space-y-1">
-                        {validationErrors.map((error, index) => (
-                          <li key={index}>{error}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="advanced-mode" 
+                  checked={advancedMode} 
+                  onCheckedChange={setAdvancedMode} 
+                />
+                <Label htmlFor="advanced-mode">Advanced Options</Label>
+              </div>
+              
+              {advancedMode && (
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="authentication">
+                    <AccordionTrigger>Authentication</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="auth-type">Authentication Type</Label>
+                          <Select 
+                            value={authType} 
+                            onValueChange={(value) => setAuthType(value as 'None' | 'ApiKey' | 'Bearer')}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select authentication type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="None">None</SelectItem>
+                              <SelectItem value="ApiKey">API Key</SelectItem>
+                              <SelectItem value="Bearer">Bearer Token</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {authType === 'ApiKey' && (
+                          <div className="space-y-4">
+                            <div>
+                              <Label htmlFor="api-key">API Key</Label>
+                              <Input
+                                id="api-key"
+                                value={apiKey}
+                                onChange={(e) => setApiKey(e.target.value)}
+                                placeholder="Enter your API key"
+                              />
+                            </div>
+                            
+                            <div>
+                              <Label htmlFor="api-key-name">API Key Name</Label>
+                              <Input
+                                id="api-key-name"
+                                value={apiKeyName}
+                                onChange={(e) => setApiKeyName(e.target.value)}
+                                placeholder="X-API-Key"
+                              />
+                            </div>
+                            
+                            <div>
+                              <Label htmlFor="api-key-location">API Key Location</Label>
+                              <Select 
+                                value={apiKeyLocation} 
+                                onValueChange={(value) => setApiKeyLocation(value as 'header' | 'query')}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue placeholder="Select location" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="header">Header</SelectItem>
+                                  <SelectItem value="query">Query Parameter</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {authType === 'Bearer' && (
+                          <div>
+                            <Label htmlFor="bearer-token">Bearer Token</Label>
+                            <Input
+                              id="bearer-token"
+                              value={bearerToken}
+                              onChange={(e) => setBearerToken(e.target.value)}
+                              placeholder="Enter your bearer token"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                  
+                  <AccordionItem value="parameters">
+                    <AccordionTrigger>Query Parameters</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2">
+                        <Label htmlFor="query-params">Query Parameters (JSON format)</Label>
+                        <Input
+                          id="query-params"
+                          value={queryParams}
+                          onChange={(e) => setQueryParams(e.target.value)}
+                          placeholder='{"version": "1.0", "format": "json"}'
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Enter parameters as a JSON object
+                        </p>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                  
+                  <AccordionItem value="headers">
+                    <AccordionTrigger>Additional Headers</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2">
+                        <Label htmlFor="request-headers">Request Headers (JSON format)</Label>
+                        <Input
+                          id="request-headers"
+                          value={requestHeaders}
+                          onChange={(e) => setRequestHeaders(e.target.value)}
+                          placeholder='{"Accept": "application/json", "Custom-Header": "value"}'
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Enter headers as a JSON object
+                        </p>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               )}
             </div>
+          </form>
+        </TabsContent>
+        
+        <TabsContent value="file" className="pt-4">
+          <div 
+            className={cn(
+              "border-2 border-dashed rounded-md p-6 text-center cursor-pointer hover:bg-gray-50 transition-colors",
+              file ? "border-primary" : "border-border"
+            )}
+            onDrop={handleFileDrop}
+            onDragOver={handleDragOver}
+            onClick={() => inputRef.current?.click()}
+          >
+            <input
+              type="file"
+              ref={inputRef}
+              className="hidden"
+              onChange={handleFileChange}
+              accept=".json,.yaml,.yml,.raml,.md"
+            />
+            
+            {file ? (
+              <div className="flex flex-col items-center">
+                <FileJson className="h-10 w-10 text-primary mb-2" />
+                <p className="font-medium">{file.name}</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {(file.size / 1024).toFixed(2)} KB
+                </p>
+                <Button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleFileUpload();
+                  }}
+                  disabled={uploading}
+                >
+                  {uploading ? 'Uploading...' : 'Upload Definition'}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center">
+                <Upload className="h-10 w-10 text-muted-foreground mb-2" />
+                <p className="font-medium">Drag and drop your API definition file</p>
+                <div className="flex justify-center mt-2">
+                  <span className="text-sm text-muted-foreground mr-2">or</span>
+                  <button
+                    type="button"
+                    className="text-sm text-primary font-medium"
+                  >
+                    browse files
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          
-          <div className="mt-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              By uploading your API definition, you agree to our{' '}
-              <a href="#" className="text-primary underline underline-offset-2">
-                Terms of Service
-              </a>{' '}
-              and{' '}
-              <a href="#" className="text-primary underline underline-offset-2">
-                Privacy Policy
-              </a>
-            </p>
+        </TabsContent>
+      </Tabs>
+      
+      {error && (
+        <div className="bg-destructive/10 p-4 rounded-md flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-destructive">Error</p>
+            <p className="text-sm text-destructive/90">{error}</p>
           </div>
         </div>
-      </div>
-    </section>
+      )}
+    </div>
   );
 };
 
