@@ -20,6 +20,8 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
+  AccordionItem,
+  AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
   Select,
