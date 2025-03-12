@@ -236,7 +236,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
 
 
   return (
-    <section className="py-24 bg-white relative">
+    <div className="py-24 bg-white relative">
       <div className="content-container">
         <div className="max-w-5xl mx-auto">
           <div className="mb-12">
@@ -331,7 +331,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
           </div>
         </div>
       </div>
-      </section>
+    </div>
 
       {/* Edit Endpoint Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
