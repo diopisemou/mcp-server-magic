@@ -113,39 +113,3 @@ export interface Deployment {
   created_at: string;
   updated_at: string;
 }
-export interface Parameter {
-  name: string;
-  type: string;
-  required: boolean;
-  description: string;
-}
-
-export interface Response {
-  statusCode: number;
-  description: string;
-  schema?: any;
-}
-
-export interface Endpoint {
-  id?: string;
-  path: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
-  description: string;
-  parameters: Parameter[];
-  responses: Response[];
-  mcpType?: 'resource' | 'tool' | 'none';
-}
-
-export interface ApiDefinition {
-  format: string;
-  content: string;
-  endpoints: Endpoint[];
-}
-
-export interface ApiDefinitionRecord {
-  id: string;
-  user_id: string;
-  content: string;
-  created_at: string;
-  updated_at: string;
-}

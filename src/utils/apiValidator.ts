@@ -1,18 +1,41 @@
+
 import yaml from 'js-yaml';
-import { Endpoint, Parameter, Response } from '@/types';
 
 type ApiFormat = 'OpenAPI2' | 'OpenAPI3' | 'RAML' | 'APIBlueprint';
+
+// Extract Swagger definition URL from HTML content
+export const extractSwaggerUrl = (htmlContent: string, baseUrl: string): string | null => {
+  // Look for common patterns in Swagger UI HTML
+  const patterns = [
+    /url:\s*['"](.*?)['"]/,                         // Standard Swagger UI config
+    /spec:\s*{"url":\s*['"](.*?)['"]}/,            // Alternative format
+    /"swagger-ui".*?["'].*?["'](.*\.json|.*\.yaml|.*\.yml)["']/i, // Script src referencing spec
+    /href=["'](.*\.json|.*\.yaml|.*\.yml)["']/i     // Direct link to spec
+  ];
+
+  for (const pattern of patterns) {
+    const matches = htmlContent.match(pattern);
+    if (matches && matches[1]) {
+      // Resolve relative URLs
+      try {
+        return new URL(matches[1], baseUrl).href;
+      } catch (e) {
+        console.error('Error resolving URL:', e);
+      }
+    }
+  }
+  
+  return null;
+};
+
+// Parse content based on detected type
+
 
 interface ValidationResult {
   isValid: boolean;
   format: ApiFormat;
   errors?: string[];
   parsedDefinition?: any;
-  apiInfo?: {
-    title: string;
-    version: string;
-    description?: string;
-  };
 }
 
 // Helper function to determine if content is JSON or YAML
@@ -41,7 +64,7 @@ const parseContent = (content: string, contentType: 'json' | 'yaml' | 'raml' | '
       // For now, extract basic info from RAML header
       const lines = content.split('\n');
       const version = lines.find(line => line.trim().startsWith('#%RAML'))?.split(' ')[1] || '';
-      const title = lines.find(line => line.trim().startsWith('title:'))?.split('title:')[1]?.trim() || '';
+      const title = lines.find(line => line.trim().startsWith('title:'))?.split('title:')[1].trim() || '';
       return { ramlVersion: version, title, isRaml: true };
     } else if (contentType === 'markdown') {
       // Basic API Blueprint parsing - in a real app, use a proper parser
@@ -65,7 +88,7 @@ const determineApiFormat = (parsedContent: any): ApiFormat => {
   } else if (parsedContent.isApiBlueprint) {
     return 'APIBlueprint';
   }
-
+  
   // Default to OpenAPI3 if unknown
   return 'OpenAPI3';
 };
@@ -73,11 +96,11 @@ const determineApiFormat = (parsedContent: any): ApiFormat => {
 // Validate OpenAPI 2.0 (Swagger)
 const validateOpenAPI2 = (parsedContent: any): string[] => {
   const errors: string[] = [];
-
+  
   if (!parsedContent.swagger || parsedContent.swagger !== '2.0') {
     errors.push('Invalid Swagger version. Must be 2.0');
   }
-
+  
   if (!parsedContent.info) {
     errors.push('Missing info object');
   } else {
@@ -88,22 +111,22 @@ const validateOpenAPI2 = (parsedContent: any): string[] => {
       errors.push('Missing API version');
     }
   }
-
-  if (!parsedContent.paths) {
-    errors.push('Missing paths object');
+  
+  if (!parsedContent.paths || Object.keys(parsedContent.paths).length === 0) {
+    errors.push('No paths defined in the API');
   }
-
+  
   return errors;
 };
 
 // Validate OpenAPI 3.0
 const validateOpenAPI3 = (parsedContent: any): string[] => {
   const errors: string[] = [];
-
+  
   if (!parsedContent.openapi || !parsedContent.openapi.startsWith('3.')) {
-    errors.push('Invalid OpenAPI version. Must be 3.x');
+    errors.push('Invalid OpenAPI version. Must start with 3.');
   }
-
+  
   if (!parsedContent.info) {
     errors.push('Missing info object');
   } else {
@@ -114,150 +137,166 @@ const validateOpenAPI3 = (parsedContent: any): string[] => {
       errors.push('Missing API version');
     }
   }
-
-  if (!parsedContent.paths) {
-    errors.push('Missing paths object');
+  
+  if (!parsedContent.paths || Object.keys(parsedContent.paths).length === 0) {
+    errors.push('No paths defined in the API');
   }
+  
+  return errors;
+};
 
+// Basic validation for RAML
+const validateRAML = (parsedContent: any): string[] => {
+  const errors: string[] = [];
+  
+  if (!parsedContent.ramlVersion) {
+    errors.push('Could not determine RAML version');
+  }
+  
+  if (!parsedContent.title) {
+    errors.push('Missing API title');
+  }
+  
+  return errors;
+};
+
+// Basic validation for API Blueprint
+const validateAPIBlueprint = (parsedContent: any): string[] => {
+  const errors: string[] = [];
+  
+  if (!parsedContent.content || parsedContent.content.trim() === '') {
+    errors.push('Empty API Blueprint document');
+  }
+  
+  if (!parsedContent.content.includes('# ') && !parsedContent.content.includes('FORMAT:')) {
+    errors.push('Missing API Blueprint header or format specification');
+  }
+  
   return errors;
 };
 
 // Main validation function
-export const validateApiDefinition = async (content: string, format?: ApiFormat): Promise<ValidationResult> => {
+export const validateApiDefinition = async (content: string, filename: string): Promise<ValidationResult> => {
   try {
     const contentType = detectContentType(content);
     const parsedContent = parseContent(content, contentType);
-
+    
     if (!parsedContent) {
       return { 
         isValid: false, 
         format: 'OpenAPI3', 
-        errors: ['Could not parse API definition'] 
+        errors: ['Failed to parse API definition'] 
       };
     }
-
+    
     const format = determineApiFormat(parsedContent);
     let errors: string[] = [];
-
+    
     // Validate based on format
-    if (format === 'OpenAPI2') {
-      errors = validateOpenAPI2(parsedContent);
-    } else if (format === 'OpenAPI3') {
-      errors = validateOpenAPI3(parsedContent);
-    } else if (format === 'RAML') {
-      // Basic RAML validation
-      if (!parsedContent.title) {
-        errors.push('Missing API title');
-      }
-    } else if (format === 'APIBlueprint') {
-      // Basic API Blueprint validation
-      if (!content.includes('FORMAT: 1A')) {
-        errors.push('Invalid API Blueprint format. Should include FORMAT: 1A');
-      }
+    switch (format) {
+      case 'OpenAPI2':
+        errors = validateOpenAPI2(parsedContent);
+        break;
+      case 'OpenAPI3':
+        errors = validateOpenAPI3(parsedContent);
+        break;
+      case 'RAML':
+        errors = validateRAML(parsedContent);
+        break;
+      case 'APIBlueprint':
+        errors = validateAPIBlueprint(parsedContent);
+        break;
     }
-
-    // Extract API information
-    const apiInfo = {
-      title: '',
-      version: '',
-      description: ''
-    };
-
-    if (format === 'OpenAPI2' || format === 'OpenAPI3') {
-      if (parsedContent.info) {
-        apiInfo.title = parsedContent.info.title || '';
-        apiInfo.version = parsedContent.info.version || '';
-        apiInfo.description = parsedContent.info.description || '';
-      }
-    } else if (format === 'RAML') {
-      apiInfo.title = parsedContent.title || '';
-      apiInfo.version = parsedContent.version || '';
-      apiInfo.description = parsedContent.description || '';
-    } else if (format === 'APIBlueprint') {
-      // Would need a proper parser for API Blueprint
-      apiInfo.title = 'API Blueprint Document';
-      apiInfo.version = '1.0';
-    }
-
+    
     return {
       isValid: errors.length === 0,
       format,
       errors: errors.length > 0 ? errors : undefined,
-      parsedDefinition: parsedContent,
-      apiInfo
+      parsedDefinition: parsedContent
     };
   } catch (error) {
     console.error('Validation error:', error);
     return {
       isValid: false,
       format: 'OpenAPI3',
-      errors: [`Failed to validate API: ${(error as Error).message}`]
+      errors: [(error as Error).message]
     };
   }
 };
 
-// Extract endpoints from an API definition
-export const extractEndpoints = (parsedDefinition: any, format: ApiFormat): Endpoint[] => {
-  if (!parsedDefinition) return [];
+// Extract endpoints from API definition
+export const extractEndpoints = (apiDefinition: any, format: ApiFormat) => {
+  let endpoints: Array<{
+    path: string;
+    method: string;
+    description?: string;
+    parameters: Array<any>;
+    responses: Array<any>;
+  }> = [];
 
-  // Extract endpoints based on format
   if (format === 'OpenAPI2' || format === 'OpenAPI3') {
-    // OpenAPI extraction
-    const paths = parsedDefinition.paths || {};
-    const endpoints: Endpoint[] = [];
-
-    for (const path in paths) {
-      for (const method in paths[path]) {
-        if (['get', 'post', 'put', 'delete', 'patch', 'head', 'options'].includes(method)) {
-          const operation = paths[path][method];
-          const parameters = [];
-
-          // Process parameters
-          if (operation.parameters) {
-            for (const param of operation.parameters) {
-              parameters.push({
-                name: param.name,
-                in: param.in,
-                required: param.required || false,
-                type: param.type || (param.schema?.type) || 'string',
-                description: param.description || ''
-              });
-            }
-          }
-
-          // Process responses
-          const responses = [];
-          if (operation.responses) {
-            for (const statusCode in operation.responses) {
-              responses.push({
-                statusCode,
-                description: operation.responses[statusCode].description || ''
-              });
-            }
-          }
-
+    const paths = apiDefinition.paths || {};
+    
+    Object.keys(paths).forEach(path => {
+      const pathObj = paths[path];
+      
+      // Common HTTP methods
+      const methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'];
+      
+      methods.forEach(method => {
+        if (pathObj[method]) {
+          const operation = pathObj[method];
+          
+          // Extract parameters
+          const parameters = [...(pathObj.parameters || []), ...(operation.parameters || [])].map(param => ({
+            name: param.name,
+            type: param.schema?.type || param.type || 'string',
+            required: !!param.required,
+            description: param.description || ''
+          }));
+          
+          // Extract responses
+          const responses = Object.keys(operation.responses || {}).map(statusCode => ({
+            statusCode: parseInt(statusCode, 10),
+            description: operation.responses[statusCode].description || '',
+            schema: operation.responses[statusCode].schema || operation.responses[statusCode].content
+          }));
+          
           endpoints.push({
-            id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, '-'),
             path,
-            method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS',
-            summary: operation.summary || '',
-            description: operation.description || '',
+            method: method.toUpperCase(),
+            description: operation.summary || operation.description || '',
             parameters,
-            responses,
-            mcpType: method.toLowerCase() === 'get' ? 'resource' : 'tool'
+            responses
           });
         }
-      }
-    }
-
-    return endpoints;
+      });
+    });
   } else if (format === 'RAML') {
-    // Basic RAML extraction
-    return [];
+    // In a real app, add RAML endpoint extraction logic
+    // This is a simplified placeholder
+    endpoints = [
+      {
+        path: '/api/example',
+        method: 'GET',
+        description: 'Example RAML endpoint',
+        parameters: [],
+        responses: [{ statusCode: 200, description: 'Success' }]
+      }
+    ];
   } else if (format === 'APIBlueprint') {
-    // Basic API Blueprint extraction
-    return [];
+    // In a real app, add API Blueprint endpoint extraction logic
+    // This is a simplified placeholder
+    endpoints = [
+      {
+        path: '/api/example',
+        method: 'GET',
+        description: 'Example API Blueprint endpoint',
+        parameters: [],
+        responses: [{ statusCode: 200, description: 'Success' }]
+      }
+    ];
   }
 
-  return [];
+  return endpoints;
 };
