@@ -7,7 +7,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { toast } from 'sonner';
 import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
 import { Badge } from '@/components/ui/badge';
