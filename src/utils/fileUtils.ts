@@ -1,70 +1,54 @@
-import yaml from 'js-yaml';
-
-/**
- * Detects the content type of a file based on content or extension
- * @param content The file content
- * @param filename Optional filename with extension
- * @returns The detected content type
- */
-export const detectFileType = (content: string, filename?: string): 'json' | 'yaml' | 'raml' | 'markdown' | 'unknown' => {
-  // Check file extension first if available
-  if (filename) {
-    const ext = filename.split('.').pop()?.toLowerCase();
-    if (ext === 'json') return 'json';
-    if (ext === 'yaml' || ext === 'yml') return 'yaml';
-    if (ext === 'raml') return 'raml';
-    if (ext === 'md' || ext === 'apib') return 'markdown';
+export const detectFileType = (content: string, filename?: string): 'json' | 'yaml' | 'unknown' => {
+  if (!content || typeof content !== 'string') {
+    return 'unknown';
   }
 
-  // Try to guess from content
   content = content.trim();
+
+  // Check for JSON format first
   if (content.startsWith('{') || content.startsWith('[')) {
     return 'json';
-  } else if (content.startsWith('#%RAML')) {
-    return 'raml';
-  } else if ((content.startsWith('FORMAT:') || content.startsWith('# FORMAT:')) && content.includes('API Blueprint')) {
-    return 'markdown';
-  } else if (
-    content.includes('swagger:') || 
-    content.includes('openapi:') || 
-    content.startsWith('openapi:') || 
-    content.startsWith('swagger:')
-  ) {
-    return 'yaml';
   }
 
-  // Try to parse as JSON as a final check
+  // Check file extension if available
+  if (filename) {
+    if (filename.endsWith('.json')) return 'json';
+    if (filename.endsWith('.yaml') || filename.endsWith('.yml')) return 'yaml';
+  }
+
+  // Try to parse as JSON
   try {
     JSON.parse(content);
     return 'json';
   } catch (e) {
-    // If it's not valid JSON, default to YAML
+    // If not JSON, assume YAML
     return 'yaml';
   }
 };
 
-/**
- * Parse file content based on detected type
- * @param content The file content as string
- * @param fileType The detected file type
- * @returns Parsed content as object
- */
 export const parseFileContent = (content: string, fileType: 'json' | 'yaml' | 'unknown'): any => {
+  if (!content) return null;
+
   try {
     if (fileType === 'json') {
       return JSON.parse(content);
     } else if (fileType === 'yaml') {
+      // This function relies on js-yaml which should be imported in the file that calls this
+      const yaml = require('js-yaml');
       return yaml.load(content);
-    } else {
-      // Try both formats
+    } else if (fileType === 'unknown') {
+      // Try JSON first, then YAML
       try {
         return JSON.parse(content);
       } catch (e) {
+        const yaml = require('js-yaml');
         return yaml.load(content);
       }
     }
   } catch (error) {
-    console.error('Error parsing file content:', error);
-    throw new Error(`Failed to parse ${fileType} content: ${(error as Error).message}`);
+    console.error(`Error parsing ${fileType} content:`, error);
+    throw new Error(`Failed to parse content as ${fileType}: ${(error as Error).message}`);
   }
+
+  return null;
 };
