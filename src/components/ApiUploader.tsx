@@ -57,10 +57,10 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   const [testResult, setTestResult] = useState<any>(null);
   const [isValidating, setIsValidating] = useState<boolean>(false);
   const [testLoading, setTestLoading] = useState<boolean>(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null); 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // When switching to URL mode, clear the content
     if (sourceType === 'url') {
       setContent('');
       setRawContent('');
@@ -70,7 +70,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setRawContent(e.target.value);
     try {
-      // Try to parse as JSON to validate
       if (e.target.value.trim()) {
         const parsed = JSON.parse(e.target.value);
         setContent(JSON.stringify(parsed));
@@ -162,7 +161,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         return;
       }
 
-      // Handle Swagger URL redirection
       if (apiDefinition.swaggerUrl) {
         const fullUrl = new URL(apiDefinition.swaggerUrl, apiUrl).href;
         const swaggerDef = await fetchApiDefinition(fullUrl);
@@ -191,7 +189,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   };
 
   const processApiDefinition = (apiDef: any) => {
-    // Try to determine the format automatically
     let detectedFormat = format;
 
     if (apiDef.swagger && apiDef.swagger.startsWith('2.')) {
@@ -206,12 +203,11 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
 
     setFormat(detectedFormat);
 
-    // Extract endpoints
     const extractedEndpoints = validateApiDefinition(apiDef, detectedFormat);
     setEndpoints(extractedEndpoints);
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     setIsValidating(true);
 
     try {
@@ -221,17 +217,15 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         return;
       }
 
-      let parsedDefinition;
-      try {
-        parsedDefinition = JSON.parse(content);
-      } catch (err) {
-        setError('Invalid JSON format');
+      const result = await validateApiDefinition(content, selectedFile?.name || 'api-definition');
+
+      if (!result.isValid) {
+        setError(`Invalid API definition: ${result.errors?.join(', ')}`);
         setIsValidating(false);
         return;
       }
 
-      // Extract endpoints from the parsed definition
-      const extractedEndpoints = validateApiDefinition(parsedDefinition, format);
+      const extractedEndpoints = extractEndpoints(result.parsedDefinition, result.format);
 
       if (extractedEndpoints.length === 0) {
         setError('No valid endpoints found in the API definition');
@@ -240,11 +234,11 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
       }
 
       const apiDefinition: ApiDefinition = {
-        format,
+        format: result.format,
         content: JSON.stringify({
-          parsedDefinition,
-          format,
-          source: sourceType === 'url' ? apiUrl : 'manual'
+          parsedDefinition: result.parsedDefinition,
+          format: result.format,
+          source: sourceType === 'url' ? apiUrl : (selectedFile ? 'file' : 'manual')
         }),
         endpoints: extractedEndpoints
       };
@@ -291,7 +285,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
       if (result.ok) {
         toast.success(`API test successful: ${result.status}`);
 
-        // Create an endpoint from the test
         const newEndpoint: Endpoint = {
           id: `endpoint-${Math.random().toString(36).substring(2)}`,
           path: new URL(testEndpoint.url).pathname,
@@ -319,26 +312,49 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
+    if (!e.target.files || e.target.files.length === 0) {
+      return;
+    }
 
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setRawContent(event.target.result as string);
-          try {
-            const parsed = JSON.parse(event.target.result as string);
-            setContent(JSON.stringify(parsed, null, 2));
-            setError(null);
-          } catch (err) {
-            setError('Invalid JSON format');
-          }
+    const file = e.target.files[0];
+    setSelectedFile(file);
+    setError('');
+
+    try {
+      const text = await file.text();
+      setContent(text);
+      setRawContent(text);
+
+      try {
+        const result = await validateApiDefinition(text, file.name);
+
+        if (!result.isValid) {
+          setError(`Invalid API definition: ${result.errors?.join(', ')}`);
+          return;
         }
-      };
 
-      reader.readAsText(file);
+        setFormat(result.format);
+
+        if (result.parsedDefinition) {
+          processApiDefinition(result.parsedDefinition);
+        }
+      } catch (parseError) {
+        setError(`Could not parse file: ${(parseError as Error).message}. Please ensure it's a valid API definition.`);
+      }
+    } catch (error) {
+      setError(`Error reading file: ${(error as Error).message}`);
     }
   };
+
+  const extractEndpoints = (apiDef: any, format: string): Endpoint[] => {
+    //Implementation to extract endpoints based on format.  This is a placeholder and needs actual implementation
+    if(apiDef && format){
+        //Add your logic here to extract endpoints based on the format.
+        return []; 
+    }
+    return [];
+  };
+
 
   return (
     <div className="py-24 relative overflow-hidden" id="start">
@@ -383,7 +399,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                     type="file"
                     ref={fileInputRef}
                     onChange={handleFileUpload}
-                    accept=".json,.yaml,.yml"
+                    accept=".json,.yaml,.yml,.raml,.md,.apib" 
                     className="hidden"
                   />
                 </div>
@@ -429,6 +445,8 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                         <SelectContent>
                           <SelectItem value="OpenAPI3">OpenAPI 3.0</SelectItem>
                           <SelectItem value="OpenAPI2">OpenAPI 2.0 (Swagger)</SelectItem>
+                          <SelectItem value="RAML">RAML</SelectItem>
+                          <SelectItem value="APIBlueprint">API Blueprint</SelectItem>
                           <SelectItem value="custom">Custom JSON</SelectItem>
                         </SelectContent>
                       </Select>
@@ -447,7 +465,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                           ) : (
                             <>
                               <p>Drag and drop your API definition file here, or click to select</p>
-                              <p className="text-xs mt-1">Supports JSON, YAML formats</p>
+                              <p className="text-xs mt-1">Supports JSON, YAML, RAML, API Blueprint formats</p>
                             </>
                           )}
                         </div>
@@ -513,7 +531,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
               </div>
             </CardContent>
           </Card>
-          {/* Rest of the component remains unchanged */}
           {sourceType === 'url' ? (
             <div className="space-y-4">
               <div className="space-y-2">
