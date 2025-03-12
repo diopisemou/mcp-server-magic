@@ -1,5 +1,10 @@
-
-
+declare global {
+  interface Window {
+    webkitSpeechRecognition: any;
+    SpeechRecognition: any;
+    recognition: any; // For storing the recognition instance
+  }
+}
 
 export type ApiFormat = 'OpenAPI2' | 'OpenAPI3' | 'RAML' | 'APIBlueprint';
 
