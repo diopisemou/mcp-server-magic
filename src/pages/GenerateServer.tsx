@@ -116,6 +116,41 @@ const GenerateServer = () => {
         .eq('project_id', projectId)
         .single();
 
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+        logError('Error fetching server configuration', { 
+          projectId, 
+          error: error.message,
+          code: error.code 
+        });
+        throw error;
+      }
+
+      if (data) {
+        logInfo('Server configuration fetched successfully', { configId: data.id });
+        setServerConfiguration(data);
+      } else {
+        logInfo('No server configuration found for project', { projectId });
+      }
+    } catch (error) {
+      console.error('Error fetching server configuration:', error);
+      toast.error('Failed to load server configuration');
+    }
+  };
+
+  const fetchServerConfiguration = async () => {
+    if (!projectId) {
+      logWarning('No projectId provided for server configuration');
+      return;
+    }
+
+    try {
+      logInfo(`Fetching server configuration for projectId: ${projectId}`);
+      const { data, error } = await supabase
+        .from('server_configurations')
+        .select('*')
+        .eq('project_id', projectId)
+        .single();
+
       if (error) {
         if (error.code === 'PGRST116') {
           // Record not found is okay
@@ -362,6 +397,26 @@ const GenerateServer = () => {
     }
   };
 
+  const handleDownloadCode = async () => {
+    if (!generationResult?.codeArchiveUrl) {
+      toast.error('No code archive available for download');
+      return;
+    }
+    
+    try {
+      logInfo('Downloading server code', { 
+        projectId, 
+        archiveUrl: generationResult.codeArchiveUrl 
+      });
+      
+      // Directly trigger download for the archive URL
+      window.open(generationResult.codeArchiveUrl, '_blank');
+    } catch (error) {
+      console.error('Error downloading code:', error);
+      toast.error('Failed to download code');
+    }
+  };
+  
   const handleRestart = () => {
     logInfo('Restarting server generation', { projectId });
     setGenerationResult(null);
@@ -400,6 +455,65 @@ const GenerateServer = () => {
       </div>
     );
   }
+
+  const generateServer = async () => {
+    if (!projectId || !serverConfiguration) {
+      logWarning('Cannot generate server without project ID or server configuration');
+      return;
+    }
+    
+    setIsGenerating(true);
+    setGenerationProgress(0);
+    setGenerationError(null);
+    
+    try {
+      logInfo('Starting server generation', { 
+        projectId, 
+        serverConfigId: serverConfiguration.id 
+      });
+      
+      // Mock progress updates
+      const progressInterval = setInterval(() => {
+        setGenerationProgress(prev => {
+          const newProgress = prev + Math.random() * 10;
+          return newProgress > 95 ? 95 : newProgress;
+        });
+      }, 1500);
+      
+      // Call your API endpoint for server generation
+      const response = await fetch('/api/servers/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId,
+          serverConfigId: serverConfiguration.id
+        }),
+      });
+      
+      clearInterval(progressInterval);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to generate server');
+      }
+      
+      const result = await response.json();
+      logInfo('Server generation completed successfully', { 
+        serverUrl: result.serverUrl 
+      });
+      
+      setGenerationProgress(100);
+      setGenerationResult(result);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      logError('Server generation failed', { error: errorMessage });
+      setGenerationError(errorMessage);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   if (!serverConfiguration) {
     logWarning('Server configuration not found for project', { 
@@ -710,6 +824,21 @@ const GenerateServer = () => {
       </div>
     </div>
   );
+  
+  const handleTestServer = () => {
+    if (!generationResult?.serverUrl) {
+      toast.error('No server URL available for testing');
+      return;
+    }
+    
+    logInfo('Testing generated server', { 
+      projectId, 
+      serverUrl: generationResult.serverUrl 
+    });
+    
+    // Open the server URL in a new tab
+    window.open(generationResult.serverUrl, '_blank');
+  };
 };
 
 export default GenerateServer;
