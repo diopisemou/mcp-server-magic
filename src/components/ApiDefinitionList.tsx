@@ -4,7 +4,7 @@ import { ApiDefinitionRecord } from '@/types';
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Code } from 'lucide-react';
+import { Code, Upload } from 'lucide-react';
 
 interface ApiDefinitionListProps {
   apiDefinitions: ApiDefinitionRecord[];
@@ -49,7 +49,13 @@ const ApiDefinitionList: React.FC<ApiDefinitionListProps> = ({
             <p className="text-sm text-muted-foreground">
               Imported on {new Date(api.created_at).toLocaleDateString()}
             </p>
-            <Button onClick={onConfigureServer}>Configure Server</Button>
+            <div className="space-x-2">
+              <Button variant="outline" onClick={onImportApi}>
+                <Upload className="h-4 w-4 mr-2" />
+                Update API
+              </Button>
+              <Button onClick={onConfigureServer}>Configure Server</Button>
+            </div>
           </CardFooter>
         </Card>
       ))}

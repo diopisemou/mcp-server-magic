@@ -6,13 +6,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { ServerConfigRecord, ApiDefinitionRecord, McpProject, Endpoint, ServerConfig, GenerationResult } from '@/types';
+import { ServerConfigRecord, ApiDefinitionRecord, McpProject, Endpoint, ServerConfig } from '@/types';
 import GenerationResultComponent from '@/components/GenerationResult';
 import ServerConfigDisplay from '@/components/ServerConfigDisplay';
 import ServerPreview from '@/components/ServerPreview';
 import ServerGenerationSection from '@/components/ServerGenerationSection';
 import { parseApiDefinition } from '@/utils/apiParsingUtils';
 
+// Break the page into smaller components to improve maintainability
 const GenerateServer = () => {
   const { projectId, configId } = useParams<{ projectId: string; configId: string }>();
   const { user, loading } = useAuth();
@@ -26,7 +27,17 @@ const GenerateServer = () => {
   const [deploymentId, setDeploymentId] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
+  const [generationResult, setGenerationResult] = useState<{
+    success: boolean;
+    serverUrl?: string;
+    error?: string;
+    files?: Array<{
+      name: string;
+      path: string;
+      content: string;
+      type: string;
+    }>;
+  } | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -97,8 +108,9 @@ const GenerateServer = () => {
       } else {
         setApiDefinition(apiData);
         
-        // Parse endpoints from API definition
+        // Parse endpoints from API definition using our utility
         const extractedEndpoints = parseApiDefinition(apiData);
+        console.log("Extracted endpoints:", extractedEndpoints);
         setEndpoints(extractedEndpoints);
       }
 
@@ -357,14 +369,7 @@ ${endpoints.map(endpoint => `- \`${endpoint.method} ${endpoint.path}\` - ${endpo
   };
 
   if (isLoading) {
-    return (
-      <div className="container py-8">
-        <h1 className="text-3xl font-bold mb-8">Generating MCP Server...</h1>
-        <div className="flex justify-center items-center h-64">
-          <p>Loading configuration...</p>
-        </div>
-      </div>
-    );
+    return <LoadingState projectId={projectId} />;
   }
   
   // If we have a generation result, show the GenerationResult component
@@ -430,6 +435,232 @@ ${endpoints.map(endpoint => `- \`${endpoint.method} ${endpoint.path}\` - ${endpo
       </div>
     </div>
   );
+  
+  // Helper functions to handle server generation
+  function generateServer() {
+    if (!config || !project) {
+      toast.error('Missing required configuration');
+      return;
+    }
+
+    try {
+      setIsGenerating(true);
+      setGenerationError(null);
+      
+      // Create a new deployment record
+      supabase
+        .from('deployments')
+        .insert([
+          {
+            project_id: projectId,
+            configuration_id: configId,
+            status: 'pending'
+          }
+        ])
+        .select()
+        .single()
+        .then(({ data: deploymentData, error: deploymentError }) => {
+          if (deploymentError) {
+            throw deploymentError;
+          }
+
+          setDeploymentId(deploymentData.id);
+          
+          // Simulate server generation (3-second delay)
+          setTimeout(async () => {
+            try {
+              // Generate a random server URL for demo purposes
+              const demoServerUrl = `https://mcp-server-${Math.random().toString(36).substring(2, 10)}.example.com`;
+              
+              // Update the deployment status
+              const { error: updateError } = await supabase
+                .from('deployments')
+                .update({
+                  status: 'success',
+                  server_url: demoServerUrl
+                })
+                .eq('id', deploymentData.id);
+
+              if (updateError) {
+                throw updateError;
+              }
+
+              setServerUrl(demoServerUrl);
+              
+              // Create a successful generation result
+              setGenerationResult({
+                success: true,
+                serverUrl: demoServerUrl,
+                files: [
+                  {
+                    name: 'mcp_server.py',
+                    path: '/src/',
+                    content: generateServerCode(config, endpoints),
+                    type: 'code'
+                  },
+                  {
+                    name: 'requirements.txt',
+                    path: '/',
+                    content: generateRequirementsFile(),
+                    type: 'config'
+                  },
+                  {
+                    name: 'README.md',
+                    path: '/',
+                    content: generateReadme(config, endpoints),
+                    type: 'documentation'
+                  }
+                ]
+              });
+              
+              toast.success('Server generated and deployed successfully');
+            } catch (error) {
+              console.error('Error updating deployment:', error);
+              setGenerationError('Failed to update deployment status');
+              
+              // Update deployment to failed status
+              await supabase
+                .from('deployments')
+                .update({
+                  status: 'failed',
+                  logs: JSON.stringify(error)
+                })
+                .eq('id', deploymentData.id);
+                
+              // Create a failed generation result
+              setGenerationResult({
+                success: false,
+                error: 'Failed to update deployment status'
+              });
+            } finally {
+              setIsGenerating(false);
+            }
+          }, 3000);
+        })
+        .catch((error) => {
+          console.error('Error generating server:', error);
+          setGenerationError('Failed to start server generation');
+          setIsGenerating(false);
+          
+          // Create a failed generation result
+          setGenerationResult({
+            success: false,
+            error: 'Failed to start server generation'
+          });
+        });
+    } catch (error) {
+      console.error('Error generating server:', error);
+      setGenerationError('Failed to start server generation');
+      setIsGenerating(false);
+      
+      // Create a failed generation result
+      setGenerationResult({
+        success: false,
+        error: 'Failed to start server generation'
+      });
+    }
+  }
+
+  function handleRestart() {
+    setGenerationResult(null);
+    setServerUrl(null);
+    setDeploymentId(null);
+    setGenerationError(null);
+  }
+
+  function downloadServerCode() {
+    // In a real app, this would download the generated server code
+    toast.success('Download functionality would be implemented here');
+  }
+
+  function testServer() {
+    // In a real app, this would open a test interface for the server
+    if (serverUrl) {
+      window.open(serverUrl, '_blank');
+    } else {
+      toast.error('No server URL available');
+    }
+  }
 };
+
+// Helper component for loading state
+const LoadingState = ({ projectId }: { projectId?: string }) => (
+  <div className="container py-8">
+    <h1 className="text-3xl font-bold mb-8">Generating MCP Server...</h1>
+    <div className="flex justify-center items-center h-64">
+      <p>Loading configuration...</p>
+    </div>
+  </div>
+);
+
+// Helper functions to generate code and content
+function generateServerCode(config: ServerConfigRecord, endpoints: Endpoint[]): string {
+  return `# Example MCP Server Code for ${config.name}
+from mcp_server import MCPServer
+from fastapi import FastAPI, HTTPException
+
+app = FastAPI()
+server = MCPServer(app)
+
+# Configuration
+server.set_name("${config.name}")
+server.set_description("${config.description || 'MCP Server for API integration'}")
+
+# Authentication
+auth_config = {
+    "type": "${config.authentication_type}",
+    ${config.authentication_details ? JSON.stringify(config.authentication_details, null, 2) : ''}
+}
+server.configure_auth(auth_config)
+
+# Endpoints
+${endpoints.map(endpoint => `
+@server.${endpoint.mcpType}("${endpoint.path}")
+async def ${endpoint.path.replace(/[^\w]/g, '_').toLowerCase()}(${endpoint.parameters.map(p => `${p.name}: ${p.type}${p.required ? '' : ' = None'}`).join(', ')}):
+    """${endpoint.description || ''}"""
+    # Implementation
+    return {"message": "This endpoint would call your API"}
+`).join('\n')}
+
+# Start the server
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)`;
+}
+
+function generateRequirementsFile(): string {
+  return `fastapi==0.95.0
+uvicorn==0.22.0
+pydantic==2.0.0
+mcp-server==1.0.0`;
+}
+
+function generateReadme(config: ServerConfigRecord, endpoints: Endpoint[]): string {
+  return `# ${config.name}
+
+This MCP server was generated by the MCP Server Generator.
+
+## Setup
+
+1. Install dependencies:
+   \`\`\`
+   pip install -r requirements.txt
+   \`\`\`
+
+2. Run the server:
+   \`\`\`
+   python src/mcp_server.py
+   \`\`\`
+
+3. The server will be available at \`http://localhost:8000\`
+
+## Authentication
+
+This server uses ${config.authentication_type} authentication.
+
+## Endpoints
+
+${endpoints.map(endpoint => `- \`${endpoint.method} ${endpoint.path}\` - ${endpoint.description || 'No description'}`).join('\n')}`;
+}
 
 export default GenerateServer;

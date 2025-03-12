@@ -19,6 +19,7 @@ export const parseApiDefinition = (apiDefinition: ApiDefinitionRecord | null): E
       extractedEndpoints = extractEndpoints(parsedContent.parsedDefinition, parsedContent.format)
         .map((endpoint) => ({
           ...endpoint,
+          id: endpoint.id || `endpoint-${Math.random().toString(36).substring(2)}`,
           method: endpoint.method.toUpperCase() as Endpoint['method'],
           mcpType: endpoint.method.toLowerCase() === 'get' ? 'resource' : 'tool',
           description: endpoint.description || '',
@@ -27,6 +28,7 @@ export const parseApiDefinition = (apiDefinition: ApiDefinitionRecord | null): E
         }));
     }
     
+    console.log("Parsed endpoints:", extractedEndpoints);
     return extractedEndpoints;
   } catch (error) {
     console.error('Error parsing API definition:', error);
