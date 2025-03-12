@@ -10,3 +10,7 @@ run = ["sh", "-c", "npm run dev"]
 [[ports]]
 localPort = 8080
 externalPort = 80
+
+[auth]
+pageEnabled = false
+buttonEnabled = false
