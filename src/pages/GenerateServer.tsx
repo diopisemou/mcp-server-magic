@@ -42,6 +42,7 @@ interface ServerConfiguration {
 
 interface GenerationResult {
   serverUrl?: string;
+  codeArchiveUrl?: string;
   downloadUrl?: string;
   error?: string;
 }
@@ -398,19 +399,20 @@ const GenerateServer = () => {
   };
 
   const handleDownloadCode = async () => {
-    if (!generationResult?.codeArchiveUrl) {
+    if (!generationResult?.downloadUrl && !generationResult?.codeArchiveUrl) {
       toast.error('No code archive available for download');
       return;
     }
     
     try {
+      const downloadUrl = generationResult.downloadUrl || generationResult.codeArchiveUrl;
       logInfo('Downloading server code', { 
         projectId, 
-        archiveUrl: generationResult.codeArchiveUrl 
+        downloadUrl 
       });
       
       // Directly trigger download for the archive URL
-      window.open(generationResult.codeArchiveUrl, '_blank');
+      window.open(downloadUrl, '_blank');
     } catch (error) {
       console.error('Error downloading code:', error);
       toast.error('Failed to download code');
