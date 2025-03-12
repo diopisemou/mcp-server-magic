@@ -1,0 +1,279 @@
+-- Create users table to store user information
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  username TEXT UNIQUE,
+  email TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+);
+
+-- Enable Row Level Security
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for users to view their own profile
+CREATE POLICY "Users can view their own profile" 
+ON public.profiles 
+FOR SELECT 
+USING (auth.uid() = id);
+
+-- Create policy for users to update their own profile
+CREATE POLICY "Users can update their own profile" 
+ON public.profiles 
+FOR UPDATE 
+USING (auth.uid() = id);
+
+-- Create function to handle new user registration
+CREATE OR REPLACE FUNCTION public.handle_new_user() 
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, username, email)
+  VALUES (new.id, new.raw_user_meta_data->>'username', new.email);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create trigger for new user registration
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Create MCP projects table
+CREATE TABLE IF NOT EXISTS public.mcp_projects (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+);
+
+-- Enable Row Level Security
+ALTER TABLE public.mcp_projects ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for users to view their own MCP projects
+CREATE POLICY "Users can view their own MCP projects" 
+ON public.mcp_projects 
+FOR SELECT 
+USING (auth.uid() = user_id);
+
+-- Create policy for users to create their own MCP projects
+CREATE POLICY "Users can create their own MCP projects" 
+ON public.mcp_projects 
+FOR INSERT 
+WITH CHECK (auth.uid() = user_id);
+
+-- Create policy for users to update their own MCP projects
+CREATE POLICY "Users can update their own MCP projects" 
+ON public.mcp_projects 
+FOR UPDATE 
+USING (auth.uid() = user_id);
+
+-- Create policy for users to delete their own MCP projects
+CREATE POLICY "Users can delete their own MCP projects" 
+ON public.mcp_projects 
+FOR DELETE 
+USING (auth.uid() = user_id);
+
+-- Create API definitions table
+CREATE TABLE IF NOT EXISTS public.api_definitions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES public.mcp_projects(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  format TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+);
+
+-- Enable Row Level Security
+ALTER TABLE public.api_definitions ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for users to view their own API definitions
+CREATE POLICY "Users can view their own API definitions" 
+ON public.api_definitions 
+FOR SELECT 
+USING (
+  EXISTS (
+    SELECT 1 
+    FROM public.mcp_projects 
+    WHERE public.mcp_projects.id = public.api_definitions.project_id 
+    AND public.mcp_projects.user_id = auth.uid()
+  )
+);
+
+-- Create policy for users to insert their own API definitions
+CREATE POLICY "Users can insert their own API definitions" 
+ON public.api_definitions 
+FOR INSERT 
+WITH CHECK (
+  EXISTS (
+    SELECT 1 
+    FROM public.mcp_projects 
+    WHERE public.mcp_projects.id = public.api_definitions.project_id 
+    AND public.mcp_projects.user_id = auth.uid()
+  )
+);
+
+-- Create policy for users to update their own API definitions
+CREATE POLICY "Users can update their own API definitions" 
+ON public.api_definitions 
+FOR UPDATE 
+USING (
+  EXISTS (
+    SELECT 1 
+    FROM public.mcp_projects 
+    WHERE public.mcp_projects.id = public.api_definitions.project_id 
+    AND public.mcp_projects.user_id = auth.uid()
+  )
+);
+
+-- Create policy for users to delete their own API definitions
+CREATE POLICY "Users can delete their own API definitions" 
+ON public.api_definitions 
+FOR DELETE 
+USING (
+  EXISTS (
+    SELECT 1 
+    FROM public.mcp_projects 
+    WHERE public.mcp_projects.id = public.api_definitions.project_id 
+    AND public.mcp_projects.user_id = auth.uid()
+  )
+);
+
+-- Create server configurations table
+CREATE TABLE IF NOT EXISTS public.server_configurations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES public.mcp_projects(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  language TEXT NOT NULL,
+  authentication_type TEXT NOT NULL,
+  authentication_details JSONB,
+  hosting_provider TEXT NOT NULL,
+  hosting_type TEXT NOT NULL,
+  hosting_region TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+);
+
+-- Enable Row Level Security
+ALTER TABLE public.server_configurations ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for users to view their own server configurations
+CREATE POLICY "Users can view their own server configurations" 
+ON public.server_configurations 
+FOR SELECT 
+USING (
+  EXISTS (
+    SELECT 1 
+    FROM public.mcp_projects 
+    WHERE public.mcp_projects.id = public.server_configurations.project_id 
+    AND public.mcp_projects.user_id = auth.uid()
+  )
+);
+
+-- Create policy for users to insert their own server configurations
+CREATE POLICY "Users can insert their own server configurations" 
+ON public.server_configurations 
+FOR INSERT 
+WITH CHECK (
+  EXISTS (
+    SELECT 1 
+    FROM public.mcp_projects 
+    WHERE public.mcp_projects.id = public.server_configurations.project_id 
+    AND public.mcp_projects.user_id = auth.uid()
+  )
+);
+
+-- Create policy for users to update their own server configurations
+CREATE POLICY "Users can update their own server configurations" 
+ON public.server_configurations 
+FOR UPDATE 
+USING (
+  EXISTS (
+    SELECT 1 
+    FROM public.mcp_projects 
+    WHERE public.mcp_projects.id = public.server_configurations.project_id 
+    AND public.mcp_projects.user_id = auth.uid()
+  )
+);
+
+-- Create policy for users to delete their own server configurations
+CREATE POLICY "Users can delete their own server configurations" 
+ON public.server_configurations 
+FOR DELETE 
+USING (
+  EXISTS (
+    SELECT 1 
+    FROM public.mcp_projects 
+    WHERE public.mcp_projects.id = public.server_configurations.project_id 
+    AND public.mcp_projects.user_id = auth.uid()
+  )
+);
+
+-- Create server deployments table
+CREATE TABLE IF NOT EXISTS public.deployments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES public.mcp_projects(id) ON DELETE CASCADE NOT NULL,
+  configuration_id UUID REFERENCES public.server_configurations(id) ON DELETE CASCADE NOT NULL,
+  status TEXT NOT NULL,
+  server_url TEXT,
+  logs TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+);
+
+-- Enable Row Level Security
+ALTER TABLE public.deployments ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for users to view their own deployments
+CREATE POLICY "Users can view their own deployments" 
+ON public.deployments 
+FOR SELECT 
+USING (
+  EXISTS (
+    SELECT 1 
+    FROM public.mcp_projects 
+    WHERE public.mcp_projects.id = public.deployments.project_id 
+    AND public.mcp_projects.user_id = auth.uid()
+  )
+);
+
+-- Create policy for users to insert their own deployments
+CREATE POLICY "Users can insert their own deployments" 
+ON public.deployments 
+FOR INSERT 
+WITH CHECK (
+  EXISTS (
+    SELECT 1 
+    FROM public.mcp_projects 
+    WHERE public.mcp_projects.id = public.deployments.project_id 
+    AND public.mcp_projects.user_id = auth.uid()
+  )
+);
+
+-- Create policy for users to update their own deployments
+CREATE POLICY "Users can update their own deployments" 
+ON public.deployments 
+FOR UPDATE 
+USING (
+  EXISTS (
+    SELECT 1 
+    FROM public.mcp_projects 
+    WHERE public.mcp_projects.id = public.deployments.project_id 
+    AND public.mcp_projects.user_id = auth.uid()
+  )
+);
+
+-- Create policy for users to delete their own deployments
+CREATE POLICY "Users can delete their own deployments" 
+ON public.deployments 
+FOR DELETE 
+USING (
+  EXISTS (
+    SELECT 1 
+    FROM public.mcp_projects 
+    WHERE public.mcp_projects.id = public.deployments.project_id 
+    AND public.mcp_projects.user_id = auth.uid()
+  )
+);
