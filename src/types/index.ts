@@ -1,3 +1,4 @@
+
 export interface ApiDefinition {
   name: string;
   format: 'OpenAPI2' | 'OpenAPI3' | 'RAML' | 'APIBlueprint';
@@ -94,7 +95,7 @@ export interface ServerConfigRecord {
   description?: string;
   language: 'Python' | 'TypeScript';
   authentication_type: string;
-  authentication_details: Record<string, any>;
+  authentication_details: Record<string, any> | null;
   hosting_provider: string;
   hosting_type: string;
   hosting_region?: string;

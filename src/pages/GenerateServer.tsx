@@ -1,14 +1,17 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { ServerConfigRecord, ApiDefinitionRecord, McpProject, Endpoint, ServerConfig, GenerationResult as GenerationResultType } from '@/types';
-import { Download, ExternalLink, Code, Server, Play, RefreshCw } from 'lucide-react';
+import { ServerConfigRecord, ApiDefinitionRecord, McpProject, Endpoint, ServerConfig, GenerationResult } from '@/types';
 import GenerationResultComponent from '@/components/GenerationResult';
+import ServerConfigDisplay from '@/components/ServerConfigDisplay';
+import ServerPreview from '@/components/ServerPreview';
+import ServerGenerationSection from '@/components/ServerGenerationSection';
+import { parseApiDefinition } from '@/utils/apiParsingUtils';
 
 const GenerateServer = () => {
   const { projectId, configId } = useParams<{ projectId: string; configId: string }>();
@@ -23,7 +26,7 @@ const GenerateServer = () => {
   const [deploymentId, setDeploymentId] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [generationResult, setGenerationResult] = useState<GenerationResultType | null>(null);
+  const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -90,49 +93,13 @@ const GenerateServer = () => {
 
       if (apiError) {
         console.error('Error fetching API definition:', apiError);
-        // Don't throw here, we'll just show a warning
         toast.warning('No API definition found for this project');
       } else {
         setApiDefinition(apiData);
         
-        // Parse endpoints from API definition content
-        if (apiData) {
-          try {
-            const parsedContent = JSON.parse(apiData.content);
-            if (parsedContent.parsedDefinition && parsedContent.parsedDefinition.paths) {
-              const extractedEndpoints: Endpoint[] = [];
-              
-              Object.entries(parsedContent.parsedDefinition.paths).forEach(([path, methods]: [string, any]) => {
-                Object.entries(methods).forEach(([method, details]: [string, any]) => {
-                  if (['get', 'post', 'put', 'delete', 'patch'].includes(method.toLowerCase())) {
-                    extractedEndpoints.push({
-                      path,
-                      method: method.toUpperCase() as Endpoint['method'],
-                      description: details.summary || details.description || '',
-                      parameters: details.parameters?.map((p: any) => ({
-                        name: p.name,
-                        type: p.schema?.type || p.type || 'string',
-                        required: !!p.required,
-                        description: p.description || ''
-                      })) || [],
-                      responses: Object.entries(details.responses || {}).map(([code, res]: [string, any]) => ({
-                        statusCode: parseInt(code, 10),
-                        description: res.description || '',
-                        schema: res.schema || res.content
-                      })),
-                      mcpType: method.toLowerCase() === 'get' ? 'resource' : 'tool'
-                    });
-                  }
-                });
-              });
-              
-              setEndpoints(extractedEndpoints);
-            }
-          } catch (error) {
-            console.error('Error parsing API definition:', error);
-            toast.error('Failed to parse API definition');
-          }
-        }
+        // Parse endpoints from API definition
+        const extractedEndpoints = parseApiDefinition(apiData);
+        setEndpoints(extractedEndpoints);
       }
 
       // Check if there's an existing deployment
@@ -279,7 +246,7 @@ server.configure_auth(auth_config)
 ${endpoints.map(endpoint => `
 @server.${endpoint.mcpType}("${endpoint.path}")
 async def ${endpoint.path.replace(/[^\w]/g, '_').toLowerCase()}(${endpoint.parameters.map(p => `${p.name}: ${p.type}${p.required ? '' : ' = None'}`).join(', ')}):
-    """${endpoint.description}"""
+    """${endpoint.description || ''}"""
     # Implementation
     return {"message": "This endpoint would call your API"}
 `).join('\n')}
@@ -435,228 +402,30 @@ ${endpoints.map(endpoint => `- \`${endpoint.method} ${endpoint.path}\` - ${endpo
         <div className="lg:col-span-1">
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">Server Configuration</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Name</h3>
-                <p>{config?.name}</p>
-              </div>
-              
-              {config?.description && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground">Description</h3>
-                  <p>{config.description}</p>
-                </div>
-              )}
-              
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Language</h3>
-                <p>{config?.language}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Authentication</h3>
-                <p>{config?.authentication_type}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Hosting</h3>
-                <p>{config?.hosting_provider} ({config?.hosting_type})</p>
-                {config?.hosting_region && <p className="text-sm text-muted-foreground">Region: {config.hosting_region}</p>}
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">API Definition</h3>
-                <p>{apiDefinition?.name || 'No API definition available'}</p>
-                <p className="text-sm text-muted-foreground">Format: {apiDefinition?.format}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">Endpoints</h3>
-                <p>{endpoints.length} endpoints configured</p>
-              </div>
-            </div>
-            
-            <div className="mt-6 pt-6 border-t space-y-4">
-              {!serverUrl && !isGenerating && (
-                <Button 
-                  onClick={generateServer} 
-                  className="w-full"
-                  disabled={isGenerating}
-                >
-                  Generate & Deploy Server
-                </Button>
-              )}
-              
-              {isGenerating && (
-                <div className="text-center space-y-2">
-                  <div className="animate-pulse">Generating server...</div>
-                  <p className="text-sm text-muted-foreground">
-                    This may take a few minutes
-                  </p>
-                </div>
-              )}
-              
-              {serverUrl && !isGenerating && (
-                <>
-                  <Button 
-                    onClick={downloadServerCode} 
-                    variant="outline" 
-                    className="w-full"
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Download Server Code
-                  </Button>
-                  <Button 
-                    onClick={testServer}
-                    className="w-full"
-                  >
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Test Server
-                  </Button>
-                </>
-              )}
-              
-              {generationError && (
-                <div className="text-red-500 text-sm mt-2">
-                  Error: {generationError}
-                </div>
-              )}
-            </div>
+            <ServerConfigDisplay config={config} />
+            <ServerGenerationSection
+              serverUrl={serverUrl}
+              isGenerating={isGenerating}
+              error={generationError}
+              config={config}
+              apiDefinition={apiDefinition}
+              endpoints={endpoints}
+              onGenerateServer={generateServer}
+              onDownloadCode={downloadServerCode}
+              onTestServer={testServer}
+            />
           </Card>
         </div>
         
         <div className="lg:col-span-2">
-          <Tabs defaultValue="endpoints">
-            <TabsList>
-              <TabsTrigger value="endpoints">Configured Endpoints</TabsTrigger>
-              <TabsTrigger value="code">Server Code</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="code" className="p-4 border rounded-md mt-4">
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">Generated Server Code</h3>
-                  <Button variant="outline" size="sm" onClick={downloadServerCode}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Download
-                  </Button>
-                </div>
-                
-                {serverUrl ? (
-                  <div className="bg-gray-50 p-4 rounded-md border overflow-auto max-h-[500px]">
-                    <pre className="text-sm">
-                      <code>
-{`# Example MCP Server Code for ${config?.name}
-from mcp_server import MCPServer
-from fastapi import FastAPI, HTTPException
-
-app = FastAPI()
-server = MCPServer(app)
-
-# Configuration
-server.set_name("${config?.name}")
-server.set_description("${config?.description || 'MCP Server for API integration'}")
-
-# Authentication
-auth_config = {
-    "type": "${config?.authentication_type}",
-    ${config?.authentication_details ? JSON.stringify(config.authentication_details, null, 2) : ''}
-}
-server.configure_auth(auth_config)
-
-# Endpoints
-${endpoints.map(endpoint => `
-@server.${endpoint.mcpType}("${endpoint.path}")
-async def ${endpoint.path.replace(/[^\w]/g, '_').toLowerCase()}(${endpoint.parameters.map(p => `${p.name}: ${p.type}${p.required ? '' : ' = None'}`).join(', ')}):
-    """${endpoint.description}"""
-    # Implementation
-    return {"message": "This endpoint would call your API"}
-`).join('\n')}
-
-# Start the server
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-`}
-                      </code>
-                    </pre>
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <Code className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No Code Generated Yet</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Generate the server to see the code
-                    </p>
-                    <Button onClick={generateServer} disabled={isGenerating}>
-                      {isGenerating ? 'Generating...' : 'Generate Server'}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="endpoints" className="p-4 border rounded-md mt-4">
-              <h3 className="text-lg font-medium mb-4">Configured Endpoints</h3>
-              
-              {endpoints.length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">
-                  No endpoints configured
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {endpoints.map((endpoint, index) => (
-                    <div key={index} className="border rounded-md p-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="flex items-center">
-                            <span className={`inline-block px-2 py-1 text-xs font-medium rounded mr-2 ${
-                              endpoint.method === 'GET' ? 'bg-blue-100 text-blue-800' :
-                              endpoint.method === 'POST' ? 'bg-green-100 text-green-800' :
-                              endpoint.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' :
-                              endpoint.method === 'DELETE' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {endpoint.method}
-                            </span>
-                            <span className="font-mono text-sm">{endpoint.path}</span>
-                          </div>
-                          {endpoint.description && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {endpoint.description}
-                            </p>
-                          )}
-                        </div>
-                        <span className={`text-xs font-medium px-2 py-1 rounded ${
-                          endpoint.mcpType === 'resource' ? 'bg-purple-100 text-purple-800' : 'bg-indigo-100 text-indigo-800'
-                        }`}>
-                          {endpoint.mcpType}
-                        </span>
-                      </div>
-                      
-                      {endpoint.parameters.length > 0 && (
-                        <div className="mt-3">
-                          <h4 className="text-xs font-medium text-muted-foreground mb-1">Parameters</h4>
-                          <div className="text-sm space-y-1">
-                            {endpoint.parameters.map((param, idx) => (
-                              <div key={idx} className="flex">
-                                <span className="font-mono mr-2">{param.name}</span>
-                                <span className="text-muted-foreground mr-2">({param.type})</span>
-                                {param.required && (
-                                  <span className="text-red-500 text-xs">required</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+          <ServerPreview
+            endpoints={endpoints}
+            serverUrl={serverUrl}
+            isGenerating={isGenerating}
+            config={config}
+            onGenerateServer={generateServer}
+            onDownloadCode={downloadServerCode}
+          />
         </div>
       </div>
     </div>

@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -6,8 +7,8 @@ import { ServerConfig, ApiDefinitionRecord, McpProject, Endpoint } from '@/types
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { extractEndpoints } from '@/utils/apiValidator';
-import ServerConfiguration from '@/components/ServerConfiguration';
+import { parseApiDefinition } from '@/utils/apiParsingUtils';
+import ServerConfigurationForm from '@/components/ServerConfigurationForm';
 
 const ConfigureServer = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -90,31 +91,13 @@ const ConfigureServer = () => {
       setApiDefinition(apiData);
       
       // Parse the API definition content and extract endpoints
-      try {
-        const parsedContent = JSON.parse(apiData.content);
-        let extractedEndpoints: Endpoint[] = [];
-        
-        if (parsedContent.parsedDefinition) {
-          extractedEndpoints = extractEndpoints(parsedContent.parsedDefinition, parsedContent.format)
-            .map(endpoint => ({
-              ...endpoint,
-              method: endpoint.method.toUpperCase() as Endpoint['method'],
-              mcpType: endpoint.method.toLowerCase() === 'get' ? 'resource' : 'tool',
-              description: endpoint.description || '',
-              parameters: endpoint.parameters || [],
-              responses: endpoint.responses || []
-            }));
-        }
-        
-        setEndpoints(extractedEndpoints);
-        setServerConfig(prev => ({
-          ...prev,
-          endpoints: extractedEndpoints
-        }));
-      } catch (error) {
-        console.error('Error parsing API definition:', error);
-        toast.error('Failed to parse API definition');
-      }
+      const extractedEndpoints = parseApiDefinition(apiData);
+      
+      setEndpoints(extractedEndpoints);
+      setServerConfig(prev => ({
+        ...prev,
+        endpoints: extractedEndpoints
+      }));
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to fetch project data');
@@ -208,7 +191,7 @@ const ConfigureServer = () => {
             <CardTitle>Server Configuration</CardTitle>
           </CardHeader>
           <CardContent>
-            <ServerConfiguration 
+            <ServerConfigurationForm 
               serverConfig={serverConfig}
               onConfigChange={handleUpdateServerConfig}
             />
