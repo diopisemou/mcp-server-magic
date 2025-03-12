@@ -96,7 +96,33 @@ if __name__ == "__main__":
       
       <TabsContent value="endpoints" className="p-4 border rounded-md mt-4">
         <h3 className="text-lg font-medium mb-4">Configured Endpoints</h3>
-        <EndpointsList endpoints={endpoints} />
+        {endpoints && endpoints.length > 0 ? (
+          <div className="space-y-4">
+            {endpoints.map((endpoint, index) => (
+              <div key={index} className="p-4 border rounded-md">
+                <div className="flex items-center">
+                  <span className={`px-2 py-1 text-xs rounded mr-2 ${
+                    endpoint.method === 'GET' ? 'bg-blue-100 text-blue-800' :
+                    endpoint.method === 'POST' ? 'bg-green-100 text-green-800' :
+                    endpoint.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' :
+                    endpoint.method === 'DELETE' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {endpoint.method}
+                  </span>
+                  <span className="font-mono text-sm">{endpoint.path}</span>
+                </div>
+                {endpoint.description && (
+                  <p className="mt-2 text-sm text-muted-foreground">{endpoint.description}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-6 border border-dashed rounded-md">
+            <p className="text-muted-foreground">No endpoints configured</p>
+          </div>
+        )}
       </TabsContent>
     </Tabs>
   );

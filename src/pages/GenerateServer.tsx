@@ -66,26 +66,64 @@ export const GenerateServer = () => {
     }
   };
 
-  const fetchApiDefinition = async (definitionId: string) => {
+  const fetchApiDefinition = async (apiDefinitionId: string) => {
     try {
       const { data, error } = await supabase
-        .storage
         .from('api_definitions')
-        .download(`${projectId}/${definitionId}.json`);
+        .select('*')
+        .eq('id', apiDefinitionId)
+        .single();
 
       if (error) throw error;
 
-      const definition = JSON.parse(await data.text()) as ApiDefinition;
-      setApiDefinition(definition);
+      // Fetch the actual API definition from storage
+      const { data: fileData, error: fileError } = await supabase.storage
+        .from('api-definitions')
+        .download(`${apiDefinitionId}`);
+
+      if (fileError) throw fileError;
+
+      const definition = await fileData.text();
+      const apiDef = {
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        format: data.format,
+        definition: definition
+      };
+
+      setApiDefinition(apiDef);
 
       // Extract endpoints from the API definition
-      if (definition.parsedDefinition) {
-        const extractedEndpoints = extractEndpointsFromDefinition(definition.parsedDefinition);
-        setEndpoints(extractedEndpoints);
-      }
+      if (definition) {
+        try {
+          const extractedEndpoints = await extractEndpoints(definition, data.format);
+          console.log('Extracted endpoints:', extractedEndpoints);
+          setEndpoints(extractedEndpoints);
 
-    } catch (error: any) {
-      toast.error('Error fetching API definition: ' + error.message);
+          // Also update the server config with these endpoints
+          setServerConfig(prev => prev ? {
+            ...prev,
+            endpoints: extractedEndpoints
+          } : null);
+
+          // Fetch saved endpoints from the database as well
+          const { data: endpointData, error: endpointError } = await supabase
+            .from('endpoints')
+            .select('*')
+            .eq('api_definition_id', apiDefinitionId);
+
+          if (!endpointError && endpointData && endpointData.length > 0) {
+            console.log('Found saved endpoints:', endpointData);
+            // If we have saved endpoints, use those instead
+            setEndpoints(endpointData);
+          }
+        } catch (extractError) {
+          console.error('Error extracting endpoints:', extractError);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching API definition:', err);
     }
   };
 
@@ -157,66 +195,50 @@ export const GenerateServer = () => {
   const handleGenerateServer = async () => {
     try {
       setIsGenerating(true);
-      setError(null);
-      setLogs(prevLogs => [...prevLogs, { type: 'info', message: 'Generating server code...' }]);
+      setLogs(prev => [...prev, { type: 'info', message: 'Starting server generation...' }]);
 
-      // Create server config if not already created
-      let config = serverConfig;
-      if (!config && apiDefinition) {
-        config = {
+      // Create default server config if none exists
+      let configToUse = serverConfig;
+      if (!configToUse && project) {
+        configToUse = {
           name: project.name || 'MCP Server',
           description: project.description || 'Generated MCP Server',
-          language: 'TypeScript',
-          authentication: {
-            type: 'None'
-          },
-          hosting: {
-            provider: 'Self-hosted',
-            type: 'Shared'
-          },
-          endpoints: endpoints
+          framework: 'fastapi',
+          language: 'python',
+          endpoints: endpoints,
+          authentication: false,
+          database: false
         };
 
-        setServerConfig(config);
+        setServerConfig(configToUse);
+        setLogs(prev => [...prev, { type: 'info', message: 'Created default server configuration' }]);
       }
 
-      if (!config) {
-        throw new Error('Server configuration is missing');
+      if (!configToUse) {
+        throw new Error('Unable to create server configuration');
       }
 
-      // Generate server code
-      const result = await generateServer(config);
+      setLogs(prev => [...prev, { type: 'info', message: 'Generating server with configuration: ' + configToUse.name }]);
+      const result = await generateServer(configToUse);
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to generate server');
+      setServerFiles(result.files);
+      setServerUrl(result.deploymentUrl);
+      setLogs(prev => [...prev, { type: 'success', message: 'Server successfully generated and deployed!' }]);
+
+      // Save the server details to the project
+      if (projectId) {
+        await supabase
+          .from('mcp_projects')
+          .update({
+            server_url: result.deploymentUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', projectId);
       }
-
-      setLogs(prevLogs => [...prevLogs, { type: 'success', message: 'Server code generated successfully' }]);
-
-      // Save generated files to storage
-      if (result.files && result.files.length > 0) {
-        setServerFiles(result.files);
-
-        // Save the first code file content preview
-        const mainCodeFile = result.files.find(file => file.type === 'code');
-        if (mainCodeFile) {
-          await saveGeneratedCode(mainCodeFile.content);
-        }
-      }
-
-      // Update project with server URL
-      if (result.serverUrl) {
-        setServerUrl(result.serverUrl);
-        await updateProjectServerUrl(result.serverUrl);
-        setLogs(prevLogs => [...prevLogs, { type: 'info', message: `Server deployed at: ${result.serverUrl}` }]);
-      }
-
-      setActiveTab('logs');
-
-    } catch (error: any) {
-      setError(error.message);
-      setLogs(prevLogs => [...prevLogs, { type: 'error', message: `Error generating server: ${error.message}` }]);
-      toast.error('Error generating server: ' + error.message);
+    } catch (err: any) {
+      console.error('Error generating server:', err);
+      setError(err.message);
+      setLogs(prev => [...prev, { type: 'error', message: 'Error: ' + err.message }]);
     } finally {
       setIsGenerating(false);
     }
