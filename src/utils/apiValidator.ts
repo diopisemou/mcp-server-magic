@@ -1,4 +1,3 @@
-
 import yaml from 'js-yaml';
 import { Endpoint, Parameter, Response } from '@/types';
 
@@ -66,7 +65,7 @@ const determineApiFormat = (parsedContent: any): ApiFormat => {
   } else if (parsedContent.isApiBlueprint) {
     return 'APIBlueprint';
   }
-  
+
   // Default to OpenAPI3 if unknown
   return 'OpenAPI3';
 };
@@ -74,11 +73,11 @@ const determineApiFormat = (parsedContent: any): ApiFormat => {
 // Validate OpenAPI 2.0 (Swagger)
 const validateOpenAPI2 = (parsedContent: any): string[] => {
   const errors: string[] = [];
-  
+
   if (!parsedContent.swagger || parsedContent.swagger !== '2.0') {
     errors.push('Invalid Swagger version. Must be 2.0');
   }
-  
+
   if (!parsedContent.info) {
     errors.push('Missing info object');
   } else {
@@ -89,22 +88,22 @@ const validateOpenAPI2 = (parsedContent: any): string[] => {
       errors.push('Missing API version');
     }
   }
-  
+
   if (!parsedContent.paths) {
     errors.push('Missing paths object');
   }
-  
+
   return errors;
 };
 
 // Validate OpenAPI 3.0
 const validateOpenAPI3 = (parsedContent: any): string[] => {
   const errors: string[] = [];
-  
+
   if (!parsedContent.openapi || !parsedContent.openapi.startsWith('3.')) {
     errors.push('Invalid OpenAPI version. Must be 3.x');
   }
-  
+
   if (!parsedContent.info) {
     errors.push('Missing info object');
   } else {
@@ -115,20 +114,20 @@ const validateOpenAPI3 = (parsedContent: any): string[] => {
       errors.push('Missing API version');
     }
   }
-  
+
   if (!parsedContent.paths) {
     errors.push('Missing paths object');
   }
-  
+
   return errors;
 };
 
 // Main validation function
-export const validateApiDefinition = async (content: string, fileName?: string): Promise<ValidationResult> => {
+export const validateApiDefinition = async (content: string, format?: ApiFormat): Promise<ValidationResult> => {
   try {
     const contentType = detectContentType(content);
     const parsedContent = parseContent(content, contentType);
-    
+
     if (!parsedContent) {
       return { 
         isValid: false, 
@@ -136,10 +135,10 @@ export const validateApiDefinition = async (content: string, fileName?: string):
         errors: ['Could not parse API definition'] 
       };
     }
-    
+
     const format = determineApiFormat(parsedContent);
     let errors: string[] = [];
-    
+
     // Validate based on format
     if (format === 'OpenAPI2') {
       errors = validateOpenAPI2(parsedContent);
@@ -156,14 +155,14 @@ export const validateApiDefinition = async (content: string, fileName?: string):
         errors.push('Invalid API Blueprint format. Should include FORMAT: 1A');
       }
     }
-    
+
     // Extract API information
     const apiInfo = {
       title: '',
       version: '',
       description: ''
     };
-    
+
     if (format === 'OpenAPI2' || format === 'OpenAPI3') {
       if (parsedContent.info) {
         apiInfo.title = parsedContent.info.title || '';
@@ -179,7 +178,7 @@ export const validateApiDefinition = async (content: string, fileName?: string):
       apiInfo.title = 'API Blueprint Document';
       apiInfo.version = '1.0';
     }
-    
+
     return {
       isValid: errors.length === 0,
       format,
@@ -199,121 +198,66 @@ export const validateApiDefinition = async (content: string, fileName?: string):
 
 // Extract endpoints from an API definition
 export const extractEndpoints = (parsedDefinition: any, format: ApiFormat): Endpoint[] => {
-  const endpoints: Endpoint[] = [];
-  
-  try {
-    if (format === 'OpenAPI2' || format === 'OpenAPI3') {
-      const paths = parsedDefinition.paths || {};
-      
-      // Iterate through each path
-      Object.entries(paths).forEach(([path, pathItem]: [string, any]) => {
-        // Iterate through each HTTP method (get, post, put, delete, etc.)
-        Object.entries(pathItem).forEach(([method, operation]: [string, any]) => {
-          // Skip non-HTTP method properties
-          if (!['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)) {
-            return;
-          }
-          
-          // Extract parameters
-          const parameters: Parameter[] = [];
-          const operationParams = operation.parameters || [];
-          
-          operationParams.forEach((param: any) => {
-            parameters.push({
-              name: param.name || '',
-              in: param.in || 'query',
-              required: !!param.required,
-              type: param.type || (param.schema ? param.schema.type : 'string'),
-              description: param.description || ''
-            });
-          });
-          
-          // Extract request body for OpenAPI3
-          if (format === 'OpenAPI3' && operation.requestBody) {
-            const content = operation.requestBody.content || {};
-            const contentType = Object.keys(content)[0] || 'application/json';
-            const schema = content[contentType]?.schema;
-            
-            if (schema) {
+  if (!parsedDefinition) return [];
+
+  // Extract endpoints based on format
+  if (format === 'OpenAPI2' || format === 'OpenAPI3') {
+    // OpenAPI extraction
+    const paths = parsedDefinition.paths || {};
+    const endpoints: Endpoint[] = [];
+
+    for (const path in paths) {
+      for (const method in paths[path]) {
+        if (['get', 'post', 'put', 'delete', 'patch', 'head', 'options'].includes(method)) {
+          const operation = paths[path][method];
+          const parameters = [];
+
+          // Process parameters
+          if (operation.parameters) {
+            for (const param of operation.parameters) {
               parameters.push({
-                name: 'body',
-                in: 'body',
-                required: !!operation.requestBody.required,
-                type: schema.type || 'object',
-                description: operation.requestBody.description || 'Request body'
+                name: param.name,
+                in: param.in,
+                required: param.required || false,
+                type: param.type || (param.schema?.type) || 'string',
+                description: param.description || ''
               });
             }
           }
-          
-          // Extract responses
-          const responses: Response[] = [];
-          const operationResponses = operation.responses || {};
-          
-          Object.entries(operationResponses).forEach(([statusCode, response]: [string, any]) => {
-            responses.push({
-              statusCode,
-              description: response.description || '',
-              contentType: format === 'OpenAPI3' 
-                ? Object.keys(response.content || { 'application/json': {} })[0] || 'application/json'
-                : 'application/json'
-            });
-          });
-          
-          // Create endpoint object
+
+          // Process responses
+          const responses = [];
+          if (operation.responses) {
+            for (const statusCode in operation.responses) {
+              responses.push({
+                statusCode,
+                description: operation.responses[statusCode].description || ''
+              });
+            }
+          }
+
           endpoints.push({
-            id: `${method}-${path}`,
+            id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, '-'),
             path,
-            method: method.toUpperCase() as any,
+            method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS',
             summary: operation.summary || '',
             description: operation.description || '',
             parameters,
             responses,
-            tags: operation.tags || [],
-            operationId: operation.operationId || '',
-            mcpType: method.toLowerCase() === 'get' ? 'resource' : 'tool',
-            enabled: true
+            mcpType: method.toLowerCase() === 'get' ? 'resource' : 'tool'
           });
-        });
-      });
-    } else if (format === 'RAML') {
-      // Basic RAML endpoint extraction (simplified)
-      // In a real app, use a proper RAML parser
-      // This is just a placeholder
-      endpoints.push({
-        id: 'raml-endpoint',
-        path: '/api',
-        method: 'GET',
-        summary: 'RAML Endpoint',
-        description: 'Placeholder for RAML endpoint',
-        parameters: [],
-        responses: [],
-        tags: [],
-        operationId: 'ramlEndpoint',
-        mcpType: 'resource',
-        enabled: true
-      });
-    } else if (format === 'APIBlueprint') {
-      // Basic API Blueprint endpoint extraction (simplified)
-      // In a real app, use a proper API Blueprint parser
-      // This is just a placeholder
-      endpoints.push({
-        id: 'blueprint-endpoint',
-        path: '/api',
-        method: 'GET',
-        summary: 'API Blueprint Endpoint',
-        description: 'Placeholder for API Blueprint endpoint',
-        parameters: [],
-        responses: [],
-        tags: [],
-        operationId: 'blueprintEndpoint',
-        mcpType: 'resource',
-        enabled: true
-      });
+        }
+      }
     }
-    
+
     return endpoints;
-  } catch (error) {
-    console.error('Error extracting endpoints:', error);
+  } else if (format === 'RAML') {
+    // Basic RAML extraction
+    return [];
+  } else if (format === 'APIBlueprint') {
+    // Basic API Blueprint extraction
     return [];
   }
+
+  return [];
 };

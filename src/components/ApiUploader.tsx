@@ -11,7 +11,7 @@ import { AlertCircle, FileText, Upload, Link as LinkIcon, Code, CheckCircle } fr
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Endpoint } from '@/types';
 
-export function ApiUploader() {
+export default function ApiUploader({onUploadComplete}: {onUploadComplete?: (apiDef: any) => void} = {}) {
   const { toast } = useToast();
   const [sourceType, setSourceType] = useState<'file' | 'url' | 'raw'>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -130,9 +130,61 @@ export function ApiUploader() {
       }
 
       toast.success('API successfully validated!');
+      if (onUploadComplete) {
+        onUploadComplete(result);
+      }
     } catch (err) {
       console.error('Error during API upload:', err);
       setError(`Error: ${(err as Error).message}`);
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleValidate = async () => {
+    setIsValidating(true);
+    setError(null);
+
+    if (!content) {
+      setError('No content to validate');
+      setIsValidating(false);
+      return;
+    }
+
+    try {
+      const result = await validateApiDefinition(content);
+      if (!result.isValid) {
+        setError(result.errors?.join(', ') || 'Invalid API definition');
+        return;
+      }
+
+      const apiDef = {
+        name: selectedFile?.name || url || 'API Definition',
+        format: result.format,
+        content: JSON.stringify({
+          originalContent: content,
+          parsedDefinition: result.parsedDefinition,
+          format: result.format
+        })
+      };
+
+      setValidatedApi(apiDef);
+
+      const endpoints = extractEndpoints(result.parsedDefinition, result.format);
+      setExtractedEndpoints(endpoints);
+
+      toast({
+        title: 'API Definition Validated',
+        description: `Format: ${result.format}. Found ${endpoints.length} endpoints.`
+      });
+
+      // Call onUploadComplete if provided
+      if (onUploadComplete) {
+        onUploadComplete(apiDef);
+      }
+    } catch (error) {
+      console.error('Validation error:', error);
+      setError('Error validating API definition');
     } finally {
       setIsValidating(false);
     }
