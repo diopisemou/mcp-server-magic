@@ -1,50 +1,52 @@
 import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { 
+  Terminal, 
+  Code, 
+  Server, 
+  RefreshCw, 
+  Download, 
+  ExternalLink, 
+  FileText,
+  ClipboardCopy 
+} from 'lucide-react';
+
+// UI Components
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from 'sonner';
-import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { ProgressCircle } from '@/components/ui/progress-circle';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { clientLogger } from '@/lib/logger';
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardFooter, 
+  CardHeader, 
+  CardTitle 
+} from '@/components/ui/card';
+import { 
+  Alert, 
+  AlertTitle, 
+  AlertDescription 
+} from '@/components/ui/alert';
+
+// Data and Integrations
+import { supabase } from '@/integrations/supabase/client';
 import { useLogging } from '@/contexts/LogContext';
 import LogViewer from '@/components/LogViewer';
-
-import { 
-  Card, CardHeader, CardTitle, CardDescription, 
-  CardContent, CardFooter 
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { LogViewer } from "@/components/LogViewer";
-import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { toast } from "sonner";
-import { useLogging } from "@/contexts/LogContext";
-
-interface Project {
-  id: string;
-  name: string;
-  description: string;
-  // Add other project fields as needed
-}
-
-interface ServerConfiguration {
-  id: string;
-  project_id: string;
-  // Add other configuration fields as needed
-}
+import { Endpoint, ServerConfiguration, Project } from '@/types';
 
 interface GenerationResult {
+  success?: boolean;
   serverUrl?: string;
   codeArchiveUrl?: string;
   downloadUrl?: string;
   error?: string;
+  deploymentId?: string;
+  apiKey?: string;
+  timestamp?: string;
 }
 
 const GenerateServer = () => { 
@@ -92,186 +94,6 @@ const GenerateServer = () => {
 
       logInfo('Project fetched successfully', { 
         projectId, 
-        projectName: data.name 
-      });
-      setProject(data);
-    } catch (error) {
-      console.error('Error fetching project:', error);
-      toast.error('Failed to load project data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchServerConfiguration = async () => {
-    if (!projectId) {
-      logWarning('No projectId provided for server configuration');
-      return;
-    }
-
-    try {
-      logInfo(`Fetching server configuration for projectId: ${projectId}`);
-      const { data, error } = await supabase
-        .from('server_configurations')
-        .select('*')
-        .eq('project_id', projectId)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
-        logError('Error fetching server configuration', { 
-          projectId, 
-          error: error.message,
-          code: error.code 
-        });
-        throw error;
-      }
-
-      if (data) {
-        logInfo('Server configuration fetched successfully', { configId: data.id });
-        setServerConfiguration(data);
-      } else {
-        logInfo('No server configuration found for project', { projectId });
-      }
-    } catch (error) {
-      console.error('Error fetching server configuration:', error);
-      toast.error('Failed to load server configuration');
-    }
-  };
-
-  const fetchServerConfiguration = async () => {
-    if (!projectId) {
-      logWarning('No projectId provided for server configuration');
-      return;
-    }
-
-    try {
-      logInfo(`Fetching server configuration for projectId: ${projectId}`);
-      const { data, error } = await supabase
-        .from('server_configurations')
-        .select('*')
-        .eq('project_id', projectId)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // Record not found is okay
-          logInfo('No server configuration found for this project');
-          return;
-        }
-
-        logError('Error fetching server configuration', { 
-          projectId, 
-          error: error.message,
-          code: error.code 
-        });
-        throw error;
-      }
-
-      logInfo('Server configuration fetched successfully');
-      setServerConfiguration(data);
-    } catch (error) {
-      logError('Failed to load server configuration', { error });
-      toast.error('Failed to load server configuration');
-    }
-  };
-
-  const generateServer = async () => {
-    if (!project || !serverConfiguration) {
-      logError('Cannot generate server: missing project or configuration');
-      toast.error('Project or server configuration not found');
-      return;
-    }
-
-    setIsGenerating(true);
-    setGenerationProgress(0);
-    setGenerationError(null);
-
-    try {
-      logInfo('Starting server generation', { projectId, configId: serverConfiguration.id });
-
-      // Mock progress updates
-      const progressInterval = setInterval(() => {
-        setGenerationProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + 5;
-        });
-      }, 1000);
-
-      // Make API call to generate server
-      const response = await fetch('/api/generate-server', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          projectId,
-          configId: serverConfiguration.id
-        }),
-      });
-
-      clearInterval(progressInterval);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to generate server');
-      }
-
-      const result = await response.json();
-      logInfo('Server generation completed successfully', { result });
-
-      setGenerationProgress(100);
-      setGenerationResult(result);
-    } catch (error) {
-      logError('Server generation failed', { error });
-      setGenerationError(error instanceof Error ? error.message : 'Unknown error occurred');
-      toast.error('Failed to generate server');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-
-  useEffect(() => {
-    if (isGenerating) {
-      logInfo('Server generation started', { projectId });
-      const interval = setInterval(() => {
-        // Mock progress increase
-        setGenerationProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(interval);
-            return prev;
-          }
-          return prev + 5;
-        });
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-  }, [isGenerating]);
-
-  const fetchProject = async () => {
-    try {
-      logDebug(`Fetching project details for projectId: ${projectId}`);
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', projectId)
-        .single();
-
-      if (error) {
-        logError('Error fetching project', { 
-          projectId, 
-          error: error.message,
-          code: error.code 
-        });
-        throw error;
-      }
-
-      logInfo('Project fetched successfully', { 
-        projectId, 
         projectName: data?.name 
       });
       setProject(data);
@@ -288,8 +110,13 @@ const GenerateServer = () => {
   };
 
   const fetchServerConfiguration = async () => {
+    if (!projectId) {
+      logWarning('No projectId provided for server configuration');
+      return;
+    }
+
     try {
-      logDebug(`Fetching server configuration for projectId: ${projectId}`);
+      logInfo(`Fetching server configuration for projectId: ${projectId}`);
       const { data, error } = await supabase
         .from('server_configurations')
         .select('*')
@@ -300,14 +127,15 @@ const GenerateServer = () => {
         if (error.code === 'PGRST116') {
           // No configuration found - this is a "not found" error from PostgREST
           logWarning('No server configuration found for project', { projectId });
+          return;
         } else {
           logError('Error fetching server configuration', { 
             projectId, 
             error: error.message,
             code: error.code 
           });
+          throw error;
         }
-        throw error;
       }
 
       logInfo('Server configuration fetched successfully', { 
@@ -324,6 +152,12 @@ const GenerateServer = () => {
   };
 
   const generateServer = async () => {
+    if (!projectId || !serverConfiguration) {
+      logWarning('Cannot generate server without project ID or server configuration');
+      toast.error('Project or server configuration not found');
+      return;
+    }
+
     setIsGenerating(true);
     setGenerationProgress(0);
     setGenerationError(null);
@@ -342,6 +176,7 @@ const GenerateServer = () => {
           const result = {
             success: true,
             serverUrl: 'https://api-demo.example.com',
+            downloadUrl: 'https://download.example.com/server-code.zip',
             deploymentId: 'dep_' + Math.random().toString(36).substring(2, 10),
             apiKey: 'sk_' + Math.random().toString(36).substring(2, 15),
             timestamp: new Date().toISOString()
@@ -398,19 +233,37 @@ const GenerateServer = () => {
     }
   };
 
+  useEffect(() => {
+    if (isGenerating) {
+      logInfo('Server generation started', { projectId });
+      const interval = setInterval(() => {
+        // Mock progress increase
+        setGenerationProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(interval);
+            return prev;
+          }
+          return prev + 5;
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [isGenerating]);
+
   const handleDownloadCode = async () => {
     if (!generationResult?.downloadUrl && !generationResult?.codeArchiveUrl) {
       toast.error('No code archive available for download');
       return;
     }
-    
+
     try {
       const downloadUrl = generationResult.downloadUrl || generationResult.codeArchiveUrl;
       logInfo('Downloading server code', { 
         projectId, 
         downloadUrl 
       });
-      
+
       // Directly trigger download for the archive URL
       window.open(downloadUrl, '_blank');
     } catch (error) {
@@ -418,12 +271,27 @@ const GenerateServer = () => {
       toast.error('Failed to download code');
     }
   };
-  
+
   const handleRestart = () => {
     logInfo('Restarting server generation', { projectId });
     setGenerationResult(null);
     setGenerationError(null);
     generateServer();
+  };
+
+  const handleTestServer = () => {
+    if (!generationResult?.serverUrl) {
+      toast.error('No server URL available for testing');
+      return;
+    }
+
+    logInfo('Testing generated server', { 
+      projectId, 
+      serverUrl: generationResult.serverUrl 
+    });
+
+    // Open the server URL in a new tab
+    window.open(generationResult.serverUrl, '_blank');
   };
 
   if (loading) {
@@ -458,360 +326,311 @@ const GenerateServer = () => {
     );
   }
 
-  const generateServer = async () => {
-    if (!projectId || !serverConfiguration) {
-      logWarning('Cannot generate server without project ID or server configuration');
-      return;
-    }
-    
-    setIsGenerating(true);
-    setGenerationProgress(0);
-    setGenerationError(null);
-    
-    try {
-      logInfo('Starting server generation', { 
-        projectId, 
-        serverConfigId: serverConfiguration.id 
-      });
-      
-      // Mock progress updates
-      const progressInterval = setInterval(() => {
-        setGenerationProgress(prev => {
-          const newProgress = prev + Math.random() * 10;
-          return newProgress > 95 ? 95 : newProgress;
-        });
-      }, 1500);
-      
-      // Call your API endpoint for server generation
-      const response = await fetch('/api/servers/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          projectId,
-          serverConfigId: serverConfiguration.id
-        }),
-      });
-      
-      clearInterval(progressInterval);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to generate server');
-      }
-      
-      const result = await response.json();
-      logInfo('Server generation completed successfully', { 
-        serverUrl: result.serverUrl 
-      });
-      
-      setGenerationProgress(100);
-      setGenerationResult(result);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      logError('Server generation failed', { error: errorMessage });
-      setGenerationError(errorMessage);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  if (!serverConfiguration) {
-    logWarning('Server configuration not found for project', { 
-      projectId, 
-      projectName: project?.name 
-    });
-    return (
-      <div className="container max-w-4xl py-8">
-        <Alert variant="destructive">
-          <AlertTitle>Configuration Not Found</AlertTitle>
-          <AlertDescription>
-            The server configuration could not be found. Please check the logs.
-            <div className="mt-4">
-              <Button 
-                onClick={() => navigate(`/projects/${projectId}/configure-server`)}
-                className="mr-2"
-              >
-                Configure Server
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => setShowLogs(prev => !prev)}
-              >
-                {showLogs ? 'Hide Logs' : 'View Logs'}
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-
-        {showLogs && (
-          <div className="mt-6">
-            <LogViewer />
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <div className="container max-w-4xl py-8">
-      <div className="flex items-center justify-between mb-6">
+    <div className="container max-w-4xl py-8 relative">
+      <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="text-3xl font-bold">{project.name}</h1>
-          <p className="text-muted-foreground">Generate your server based on the configured endpoints</p>
+          <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
+          <p className="text-muted-foreground">
+            Generate and deploy your server based on the API configuration
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => setShowLogs(prev => !prev)}
-          >
-            {showLogs ? 'Hide Logs' : 'View Logs'}
-          </Button>
-          <Button variant="outline" onClick={() => navigate(`/projects/${projectId}`)}>
-            Back to Project
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={() => navigate(`/projects/${projectId}`)}>
+          Back to Project
+        </Button>
       </div>
 
-      {showLogs && (
-        <div className="mb-6">
-          <LogViewer />
-        </div>
-      )}
+      <Separator className="my-6" />
 
-      <Card className="mb-8">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-xl flex items-center gap-2">
-                <Server className="h-5 w-5" /> Server Configuration
-              </CardTitle>
-              <CardDescription>
-                Review your server configuration before generating
-              </CardDescription>
-            </div>
-            <Badge variant="outline" className="text-xs">
-              {serverConfiguration.framework}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-medium mb-1">Base Path</h3>
-              <p className="text-sm font-mono bg-muted p-2 rounded">
-                {serverConfiguration.basePath || '/api'}
-              </p>
-            </div>
-            <div>
-              <h3 className="font-medium mb-1">Endpoints</h3>
-              <div className="grid gap-2">
-                {serverConfiguration.endpoints && serverConfiguration.endpoints.length > 0 ? (
-                  serverConfiguration.endpoints.map((endpoint: Endpoint, index: number) => (
-                    <div key={index} className="bg-muted p-2 rounded flex items-start gap-2">
-                      <Badge variant="outline" className="uppercase text-xs">
-                        {endpoint.method}
-                      </Badge>
-                      <div className="font-mono text-sm">{endpoint.path}</div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">No endpoints configured</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter className="bg-muted/50">
-          <div className="space-y-4 w-full">
-            {generationResult ? (
-              <div className="space-y-4">
+      <div className="grid md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 space-y-6">
+          {!serverConfiguration && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Server Configuration Required</CardTitle>
+                <CardDescription>
+                  You need to configure your server before you can generate it.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="mb-4">
+                  Server configuration includes the framework, authentication methods, and endpoint definitions.
+                </p>
+              </CardContent>
+              <CardFooter>
+                <Button onClick={() => navigate(`/projects/${projectId}/configure-server`)}>
+                  Configure Server
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
+
+          {serverConfiguration && !generationResult && !isGenerating && (
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle>Server Configuration</CardTitle>
+                    <CardDescription>
+                      Your API server is ready to be generated
+                    </CardDescription>
+                  </div>
+                  <Badge>{serverConfiguration.language || 'Unknown'}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-medium">Framework</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {serverConfiguration.framework || 'Not specified'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="font-medium">Authentication</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {serverConfiguration.authentication_type || 'None'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="font-medium">Endpoints</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {serverConfiguration.endpoints?.length || 0} defined endpoints
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button onClick={generateServer} className="w-full">
+                  <Server className="mr-2 h-4 w-4" />
+                  Generate & Deploy Server
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
+
+          {isGenerating && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Generating Server</CardTitle>
+                <CardDescription>
+                  Please wait while we generate and deploy your server
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center justify-center py-6">
+                <ProgressCircle value={generationProgress} size="large" />
+                <p className="mt-4 text-center text-sm text-muted-foreground">
+                  {generationProgress < 30 && "Initializing server generation..."}
+                  {generationProgress >= 30 && generationProgress < 60 && "Building server code..."}
+                  {generationProgress >= 60 && generationProgress < 90 && "Deploying server..."}
+                  {generationProgress >= 90 && "Finalizing deployment..."}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {generationResult && !isGenerating && (
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle>
+                      {generationResult.success ? 'Server Generated Successfully' : 'Server Generation Failed'}
+                    </CardTitle>
+                    <CardDescription>
+                      {generationResult.success 
+                        ? 'Your server has been generated and deployed' 
+                        : 'There was an error generating your server'}
+                    </CardDescription>
+                  </div>
+                  {generationResult.success && (
+                    <Badge variant="outline" className="bg-green-50">
+                      Active
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
                 {generationResult.success ? (
-                  <Alert className="bg-green-500/10 border-green-500 text-green-700">
-                    <Server className="h-4 w-4" />
-                    <AlertTitle>Server Generated Successfully</AlertTitle>
-                    <AlertDescription>
-                      Your server has been generated and deployed.
-                    </AlertDescription>
-                  </Alert>
+                  <div className="space-y-4">
+                    {generationResult.serverUrl && (
+                      <div>
+                        <h4 className="font-medium flex items-center">
+                          Server URL
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-4 w-4 ml-2"
+                            onClick={() => {
+                              navigator.clipboard.writeText(generationResult.serverUrl || '');
+                              toast.success('Server URL copied to clipboard');
+                            }}
+                          >
+                            <ClipboardCopy className="h-3 w-3" />
+                          </Button>
+                        </h4>
+                        <p className="text-sm font-mono bg-muted p-2 rounded">
+                          {generationResult.serverUrl}
+                        </p>
+                      </div>
+                    )}
+
+                    {generationResult.apiKey && (
+                      <div>
+                        <h4 className="font-medium flex items-center">
+                          API Key
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-4 w-4 ml-2"
+                            onClick={() => {
+                              navigator.clipboard.writeText(generationResult.apiKey || '');
+                              toast.success('API Key copied to clipboard');
+                            }}
+                          >
+                            <ClipboardCopy className="h-3 w-3" />
+                          </Button>
+                        </h4>
+                        <p className="text-sm font-mono bg-muted p-2 rounded">
+                          {generationResult.apiKey}
+                        </p>
+                      </div>
+                    )}
+
+                    {generationResult.deploymentId && (
+                      <div>
+                        <h4 className="font-medium">Deployment ID</h4>
+                        <p className="text-sm font-mono bg-muted p-2 rounded">
+                          {generationResult.deploymentId}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <Alert variant="destructive">
                     <AlertTitle>Generation Failed</AlertTitle>
                     <AlertDescription>
-                      {generationResult.error || 'An error occurred during server generation.'}
+                      {generationResult.error || 'An unknown error occurred during server generation'}
                     </AlertDescription>
                   </Alert>
                 )}
+              </CardContent>
+              <CardFooter className="flex flex-col space-y-2">
+                {generationResult.success ? (
+                  <div className="w-full space-y-2">
+                    <Button 
+                      onClick={handleTestServer} 
+                      className="w-full"
+                      variant="outline"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Test Server
+                    </Button>
 
-                {generationResult.success && (
-                  <div className="grid gap-2">
-                    <div className="grid grid-cols-[1fr_auto] items-center gap-2 rounded border p-2">
-                      <div>
-                        <p className="font-medium">Server URL</p>
-                        <p className="text-sm font-mono">{generationResult.serverUrl}</p>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => {
-                          window.open(generationResult.serverUrl, '_blank');
-                          logInfo('User opened server URL', {
-                            projectId,
-                            serverUrl: generationResult.serverUrl
-                          });
-                        }}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    <div className="grid grid-cols-[1fr_auto] items-center gap-2 rounded border p-2">
-                      <div>
-                        <p className="font-medium">API Key</p>
-                        <p className="text-sm font-mono">{generationResult.apiKey}</p>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => {
-                          navigator.clipboard.writeText(generationResult.apiKey || '');
-                          toast.success('API key copied to clipboard');
-                          logInfo('User copied API key', { projectId });
-                        }}
-                      >
-                        <FileText className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Button 
+                      onClick={handleDownloadCode} 
+                      variant="outline" 
+                      className="w-full"
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download Code
+                    </Button>
                   </div>
+                ) : (
+                  <Button onClick={handleRestart} className="w-full">
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Try Again
+                  </Button>
                 )}
+              </CardFooter>
+            </Card>
+          )}
+        </div>
 
-                <Button 
-                  className="w-full" 
-                  onClick={handleRestart}
-                  variant={generationResult.success ? "outline" : "default"}
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  {generationResult.success ? 'Regenerate Server' : 'Try Again'}
-                </Button>
-              </div>
-            ) : isGenerating ? (
-              <div className="space-y-4">
-                <div className="flex flex-col items-center justify-center gap-2 p-4">
-                  <ProgressCircle />
-                  <p className="text-center font-medium">Generating your server...</p>
-                  <p className="text-center text-sm text-muted-foreground">
-                    This may take a few minutes
-                  </p>
-                </div>
-
-                <div className="bg-muted rounded-lg p-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Progress</span>
-                      <span>{generationProgress}%</span>
-                    </div>
-                    <div className="h-2 w-full bg-muted-foreground/20 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-primary rounded-full transition-all duration-300 ease-in-out" 
-                        style={{ width: `${generationProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <Button 
-                className="w-full" 
-                onClick={generateServer}
-                disabled={isGenerating}
-              >
-                <Terminal className="mr-2 h-4 w-4" />
-                Generate Server
-              </Button>
-            )}
-
-            {generationError && !generationResult && (
-              <Alert variant="destructive">
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{generationError}</AlertDescription>
-              </Alert>
-            )}
-
-            {showLogs && (
-              <div className="mt-4">
-                <LogViewer />
-              </div>
-            )}
-          </div>
-        </CardFooter>
-      </Card>
-
-      {generationResult && (
-        <div className="mt-6">
+        <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Generation Result</CardTitle>
-              <CardDescription>
-                Your server has been generated successfully.
-              </CardDescription>
+              <CardTitle>Server Details</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-sm font-medium mb-1">Server URL</h3>
-                  <div className="flex items-center gap-2">
-                    <code className="bg-muted p-2 rounded flex-1 overflow-hidden overflow-ellipsis">
-                      {generationResult.serverUrl || 'No URL available'}
-                    </code>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (generationResult.serverUrl) {
-                          navigator.clipboard.writeText(generationResult.serverUrl);
-                          toast.success('URL copied to clipboard');
-                        }
-                      }}
-                      disabled={!generationResult.serverUrl}
-                    >
-                      <ClipboardCopy className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <h4 className="text-sm font-medium">Project</h4>
+                  <p className="text-sm">{project.name}</p>
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-medium mb-1">Actions</h3>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        if (generationResult.serverUrl) {
-                          window.open(generationResult.serverUrl, '_blank');
-                        }
-                      }}
-                      disabled={!generationResult.serverUrl}
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Open Server
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        if (generationResult.downloadUrl) {
-                          window.open(generationResult.downloadUrl, '_blank');
-                        }
-                      }}
-                      disabled={!generationResult.downloadUrl}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Download Code
-                    </Button>
-                  </div>
+                  <h4 className="text-sm font-medium">Language</h4>
+                  <p className="text-sm">{serverConfiguration?.language || 'Not specified'}</p>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium">Framework</h4>
+                  <p className="text-sm">{serverConfiguration?.framework || 'Not specified'}</p>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium">Created At</h4>
+                  <p className="text-sm">
+                    {serverConfiguration?.created_at 
+                      ? new Date(serverConfiguration.created_at).toLocaleDateString() 
+                      : 'N/A'}
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Documentation</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-sm">
+                  Learn more about your generated server and how to use it:
+                </p>
+
+                <div className="space-y-2">
+                  <Button variant="link" className="h-auto p-0" onClick={() => navigate('/docs/server-generation')}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Server Generation Guide
+                  </Button>
+
+                  <Button variant="link" className="h-auto p-0" onClick={() => navigate('/docs/deployment')}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Deployment Instructions
+                  </Button>
+
+                  <Button variant="link" className="h-auto p-0" onClick={() => navigate('/docs/api-integration')}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    API Integration Guide
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {showLogs && (
+        <div className="fixed inset-0 bg-background/80 z-50 flex items-end">
+          <div className="fixed inset-x-0 bottom-0 h-1/2 bg-background border-t">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="font-medium flex items-center">
+                <Terminal className="mr-2 h-4 w-4" />
+                Server Generation Logs
+              </h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowLogs(false)}>
+                Close
+              </Button>
+            </div>
+            <div className="p-4 h-[calc(100%-61px)] overflow-auto">
+              <LogViewer filter={`projectId:${projectId}`} />
+            </div>
+          </div>
         </div>
       )}
 
@@ -826,21 +645,6 @@ const GenerateServer = () => {
       </div>
     </div>
   );
-  
-  const handleTestServer = () => {
-    if (!generationResult?.serverUrl) {
-      toast.error('No server URL available for testing');
-      return;
-    }
-    
-    logInfo('Testing generated server', { 
-      projectId, 
-      serverUrl: generationResult.serverUrl 
-    });
-    
-    // Open the server URL in a new tab
-    window.open(generationResult.serverUrl, '_blank');
-  };
 };
 
 export default GenerateServer;
