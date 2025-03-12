@@ -30,13 +30,35 @@ const ServerGenerationSection: React.FC<ServerGenerationSectionProps> = ({
     <div className="space-y-4">
       <div>
         <h3 className="text-sm font-medium text-muted-foreground">API Definition</h3>
-        <p>{apiDefinition?.name || 'No API definition available'}</p>
-        <p className="text-sm text-muted-foreground">Format: {apiDefinition?.format}</p>
+        {apiDefinition ? (
+          <>
+            <p>{apiDefinition.name}</p>
+            <p className="text-sm text-muted-foreground">Format: {apiDefinition.format}</p>
+          </>
+        ) : (
+          <div className="mt-2 mb-2">
+            <p className="mb-2">No API definition available</p>
+            <Button variant="outline" size="sm" asChild>
+              <a href="/import-api">Import API Definition</a>
+            </Button>
+          </div>
+        )}
       </div>
       
       <div>
         <h3 className="text-sm font-medium text-muted-foreground">Endpoints</h3>
-        <p>{endpoints.length} endpoints configured</p>
+        {endpoints.length > 0 ? (
+          <p>{endpoints.length} endpoints configured</p>
+        ) : (
+          <div className="mt-2 mb-2">
+            <p className="mb-2">0 endpoints configured</p>
+            {apiDefinition && (
+              <Button variant="outline" size="sm" asChild>
+                <a href="/configure-endpoints">Configure Endpoints</a>
+              </Button>
+            )}
+          </div>
+        )}
       </div>
       
       <div className="mt-6 pt-6 border-t space-y-4">

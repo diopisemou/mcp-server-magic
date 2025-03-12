@@ -193,52 +193,33 @@ export const GenerateServer = () => {
   };
 
   const handleGenerateServer = async () => {
+    setIsGenerating(true);
+    setError(null);
+
     try {
-      setIsGenerating(true);
-      setLogs(prev => [...prev, { type: 'info', message: 'Starting server generation...' }]);
-
-      // Create default server config if none exists
-      let configToUse = serverConfig;
-      if (!configToUse && project) {
-        configToUse = {
-          name: project.name || 'MCP Server',
-          description: project.description || 'Generated MCP Server',
-          framework: 'fastapi',
-          language: 'python',
-          endpoints: endpoints,
-          authentication: false,
-          database: false
-        };
-
-        setServerConfig(configToUse);
-        setLogs(prev => [...prev, { type: 'info', message: 'Created default server configuration' }]);
+      if (!apiDefinition) {
+        throw new Error('API definition is missing. Please import an API definition first.');
       }
 
-      if (!configToUse) {
-        throw new Error('Unable to create server configuration');
+      if (!endpoints || endpoints.length === 0) {
+        throw new Error('No endpoints configured. Please configure endpoints first.');
       }
 
-      setLogs(prev => [...prev, { type: 'info', message: 'Generating server with configuration: ' + configToUse.name }]);
-      const result = await generateServer(configToUse);
+      if (!serverConfig) {
+        throw new Error('Server configuration is missing. Please configure your server first.');
+      }
 
+      // Generate server code
+      const result = await generateServer(serverConfig, endpoints);
       setServerFiles(result.files);
-      setServerUrl(result.deploymentUrl);
-      setLogs(prev => [...prev, { type: 'success', message: 'Server successfully generated and deployed!' }]);
+      setServerUrl(result.deploymentUrl || 'https://example.com/api');
 
-      // Save the server details to the project
-      if (projectId) {
-        await supabase
-          .from('mcp_projects')
-          .update({
-            server_url: result.deploymentUrl,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', projectId);
-      }
+      // Show success toast
+      toast.success('Server generated successfully');
     } catch (err: any) {
       console.error('Error generating server:', err);
-      setError(err.message);
-      setLogs(prev => [...prev, { type: 'error', message: 'Error: ' + err.message }]);
+      setError(`Error generating server:\n\n${err.message}`);
+      toast.error('Failed to generate server');
     } finally {
       setIsGenerating(false);
     }
