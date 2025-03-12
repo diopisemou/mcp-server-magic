@@ -9,7 +9,196 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      api_definitions: {
+        Row: {
+          content: string
+          created_at: string
+          format: string
+          id: string
+          name: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          format: string
+          id?: string
+          name: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          format?: string
+          id?: string
+          name?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_definitions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deployments: {
+        Row: {
+          configuration_id: string
+          created_at: string
+          id: string
+          logs: string | null
+          project_id: string
+          server_url: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          configuration_id: string
+          created_at?: string
+          id?: string
+          logs?: string | null
+          project_id: string
+          server_url?: string | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          configuration_id?: string
+          created_at?: string
+          id?: string
+          logs?: string | null
+          project_id?: string
+          server_url?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deployments_configuration_id_fkey"
+            columns: ["configuration_id"]
+            isOneToOne: false
+            referencedRelation: "server_configurations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deployments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_projects: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id: string
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      server_configurations: {
+        Row: {
+          authentication_details: Json | null
+          authentication_type: string
+          created_at: string
+          description: string | null
+          hosting_provider: string
+          hosting_region: string | null
+          hosting_type: string
+          id: string
+          language: string
+          name: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          authentication_details?: Json | null
+          authentication_type: string
+          created_at?: string
+          description?: string | null
+          hosting_provider: string
+          hosting_region?: string | null
+          hosting_type: string
+          id?: string
+          language: string
+          name: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          authentication_details?: Json | null
+          authentication_type?: string
+          created_at?: string
+          description?: string | null
+          hosting_provider?: string
+          hosting_region?: string | null
+          hosting_type?: string
+          id?: string
+          language?: string
+          name?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "server_configurations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

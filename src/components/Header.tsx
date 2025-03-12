@@ -2,10 +2,14 @@
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate, Link } from 'react-router-dom';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -15,6 +19,11 @@ const Header = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
 
   return (
     <header 
@@ -51,9 +60,32 @@ const Header = () => {
               {item}
             </a>
           ))}
-          <Button variant="default" className="rounded-full px-6">
-            Get Started
-          </Button>
+          {user ? (
+            <>
+              <Button 
+                variant="ghost" 
+                className="rounded-full px-4"
+                onClick={() => navigate('/dashboard')}
+              >
+                Dashboard
+              </Button>
+              <Button 
+                variant="outline" 
+                className="rounded-full px-4"
+                onClick={handleSignOut}
+              >
+                Sign Out
+              </Button>
+            </>
+          ) : (
+            <Button 
+              variant="default" 
+              className="rounded-full px-6"
+              onClick={() => navigate('/auth')}
+            >
+              Get Started
+            </Button>
+          )}
         </nav>
         
         <button 
@@ -89,7 +121,7 @@ const Header = () => {
       {/* Mobile menu */}
       <div className={cn(
         "md:hidden absolute left-0 right-0 transition-all duration-300 ease-in-out overflow-hidden bg-white shadow-md",
-        mobileMenuOpen ? "max-h-60 py-4" : "max-h-0"
+        mobileMenuOpen ? "max-h-96 py-4" : "max-h-0"
       )}>
         <div className="px-6 flex flex-col space-y-4">
           {['Features', 'Documentation', 'Pricing'].map((item) => (
@@ -102,9 +134,38 @@ const Header = () => {
               {item}
             </a>
           ))}
-          <Button variant="default" className="rounded-full">
-            Get Started
-          </Button>
+          {user ? (
+            <>
+              <Link
+                to="/dashboard"
+                className="text-foreground/80 hover:text-primary text-sm font-medium py-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Dashboard
+              </Link>
+              <Button 
+                variant="outline" 
+                className="rounded-full w-full mt-2"
+                onClick={() => {
+                  handleSignOut();
+                  setMobileMenuOpen(false);
+                }}
+              >
+                Sign Out
+              </Button>
+            </>
+          ) : (
+            <Button 
+              variant="default" 
+              className="rounded-full w-full mt-2"
+              onClick={() => {
+                navigate('/auth');
+                setMobileMenuOpen(false);
+              }}
+            >
+              Get Started
+            </Button>
+          )}
         </div>
       </div>
     </header>

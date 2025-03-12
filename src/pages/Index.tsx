@@ -1,4 +1,5 @@
-import { useState } from 'react';
+
+import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Hero from '@/components/Hero';
 import Features from '@/components/Features';
@@ -7,10 +8,15 @@ import EndpointMapper from '@/components/EndpointMapper';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { ApiDefinition, Endpoint } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const Index = () => {
   const [apiDefinition, setApiDefinition] = useState<ApiDefinition | null>(null);
   const [mappedEndpoints, setMappedEndpoints] = useState<Endpoint[] | null>(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
   
   const handleApiUpload = (definition: ApiDefinition) => {
     setApiDefinition(definition);
@@ -25,8 +31,19 @@ const Index = () => {
   
   const handleEndpointMapping = (endpoints: Endpoint[]) => {
     setMappedEndpoints(endpoints);
-    // In a real app, this would navigate to the server configuration page
-    console.log('Mapped endpoints:', endpoints);
+    
+    if (user) {
+      // If user is logged in, navigate to import-api page
+      navigate('/import-api');
+    } else {
+      // If not logged in, prompt to sign up/login
+      toast.info('Please sign in or create an account to continue', {
+        action: {
+          label: 'Sign In',
+          onClick: () => navigate('/auth')
+        }
+      });
+    }
   };
 
   return (
@@ -36,6 +53,35 @@ const Index = () => {
       <main>
         <Hero />
         <Features />
+        
+        <section id="demo" className="py-24 relative overflow-hidden">
+          <div className="content-container">
+            <div className="text-center max-w-2xl mx-auto mb-16">
+              <div className="inline-block px-4 py-1 mb-6 rounded-full bg-primary/10 text-primary text-sm font-medium">
+                Try It Now
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold mb-6 text-balance">
+                Experience the MCP Server Generator
+              </h2>
+              <p className="text-lg text-muted-foreground text-balance">
+                Upload your API definition and see how easy it is to create an MCP server.
+              </p>
+              
+              <div className="mt-8 flex justify-center gap-4">
+                {user ? (
+                  <Button onClick={() => navigate('/dashboard')} className="rounded-full px-8">
+                    Go to Dashboard
+                  </Button>
+                ) : (
+                  <Button onClick={() => navigate('/auth')} className="rounded-full px-8">
+                    Get Started
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+        
         <ApiUploader onUploadComplete={handleApiUpload} />
         
         {apiDefinition && (
@@ -126,6 +172,7 @@ const Index = () => {
                         plan.highlight ? 'bg-white text-primary hover:bg-white/90' : ''
                       }`}
                       variant={plan.highlight ? 'outline' : 'default'}
+                      onClick={() => navigate('/auth')}
                     >
                       Get Started
                     </Button>

@@ -62,3 +62,54 @@ export interface ServerFile {
   content: string;
   type: 'code' | 'config' | 'documentation';
 }
+
+export interface User {
+  id: string;
+  email: string;
+  username?: string;
+}
+
+export interface McpProject {
+  id: string;
+  name: string;
+  description?: string;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiDefinitionRecord {
+  id: string;
+  project_id: string;
+  name: string;
+  format: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServerConfigRecord {
+  id: string;
+  project_id: string;
+  name: string;
+  description?: string;
+  language: 'Python' | 'TypeScript';
+  authentication_type: string;
+  authentication_details: Record<string, any>;
+  hosting_provider: string;
+  hosting_type: string;
+  hosting_region?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Deployment {
+  id: string;
+  project_id: string;
+  configuration_id: string;
+  status: 'pending' | 'success' | 'failed';
+  server_url?: string;
+  logs?: string;
+  created_at: string;
+  updated_at: string;
+}
