@@ -260,7 +260,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   }
 
   return (
-    <section className="py-24 relative overflow-hidden" id="start">
+    <div className="py-24 relative overflow-hidden" id="start">
       <div className="content-container">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
@@ -524,6 +524,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
