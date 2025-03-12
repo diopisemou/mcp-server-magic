@@ -3,34 +3,6 @@ import yaml from 'js-yaml';
 
 type ApiFormat = 'OpenAPI2' | 'OpenAPI3' | 'RAML' | 'APIBlueprint';
 
-// Extract Swagger definition URL from HTML content
-export const extractSwaggerUrl = (htmlContent: string, baseUrl: string): string | null => {
-  // Look for common patterns in Swagger UI HTML
-  const patterns = [
-    /url:\s*['"](.*?)['"]/,                         // Standard Swagger UI config
-    /spec:\s*{"url":\s*['"](.*?)['"]}/,            // Alternative format
-    /"swagger-ui".*?["'].*?["'](.*\.json|.*\.yaml|.*\.yml)["']/i, // Script src referencing spec
-    /href=["'](.*\.json|.*\.yaml|.*\.yml)["']/i     // Direct link to spec
-  ];
-
-  for (const pattern of patterns) {
-    const matches = htmlContent.match(pattern);
-    if (matches && matches[1]) {
-      // Resolve relative URLs
-      try {
-        return new URL(matches[1], baseUrl).href;
-      } catch (e) {
-        console.error('Error resolving URL:', e);
-      }
-    }
-  }
-  
-  return null;
-};
-
-// Parse content based on detected type
-
-
 interface ValidationResult {
   isValid: boolean;
   format: ApiFormat;
