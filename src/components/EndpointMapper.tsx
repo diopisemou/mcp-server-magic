@@ -331,6 +331,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
           </div>
         </div>
       </div>
+      </section>
 
       {/* Edit Endpoint Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
