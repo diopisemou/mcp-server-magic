@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
@@ -12,16 +13,16 @@ import {
   FileText, 
   ChevronDown, 
   ChevronUp, 
-  Lock 
+  Lock,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   Accordion,
   AccordionContent,
   AccordionItem,
-  AccordionTrigger,
-  AccordionItem,
-  AccordionTrigger,
+  AccordionTrigger
 } from "@/components/ui/accordion";
 import {
   Select,
@@ -33,9 +34,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { validateApiDefinition } from '@/utils/apiValidator';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Alert, AlertDescription, AlertTitle, AlertCircle } from "@/components/ui/alert";
-import { Loader2 } from "lucide-react";
-
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface ApiUploaderProps {
   onUploadComplete: (apiDefinition: ApiDefinition) => void;
@@ -65,6 +64,9 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isUrl, setIsUrl] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -76,11 +78,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
       setDragActive(false);
     }
   };
-
-  const [isUrl, setIsUrl] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -389,13 +386,8 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
 
   const extractEndpoints = (definition: any, format: string): any[] => {
     // Implement endpoint extraction logic based on format (JSON, YAML, etc.)
-    if (format === 'json') {
-      //Extract endpoints from JSON
-      //Example: Assuming a specific structure in your JSON
-      return Object.keys(definition).map(key => ({path: key, methods: definition[key]}));
-    } else if (format === 'yaml') {
-      //Extract endpoints from YAML
-      //Example: Assuming a specific structure in your YAML
+    if (format === 'json' || format === 'yaml') {
+      // Extract endpoints from JSON or YAML
       return Object.keys(definition).map(key => ({path: key, methods: definition[key]}));
     }
     return [];
@@ -498,7 +490,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                         />
                         <div className="flex items-center gap-4 mt-2">
                           <div className="flex items-center gap-2">
-                            <RadioGroup value={urlType} onValueChange={setUrlType} className="flex space-x-2">
+                            <RadioGroup value={urlType} onValueChange={(value: any) => setUrlType(value)} className="flex space-x-2">
                               <div className="flex items-center space-x-1">
                                 <RadioGroupItem value="direct" id="direct" />
                                 <Label htmlFor="direct">API Definition URL (JSON/YAML)</Label>
@@ -537,7 +529,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                               <Label htmlFor="auth-type">Authentication Type</Label>
                               <Select 
                                 value={authType} 
-                                onValueChange={(value) => setAuthType(value as any)}
+                                onValueChange={(value: any) => setAuthType(value)}
                               >
                                 <SelectTrigger className="w-full mt-1">
                                   <SelectValue placeholder="Select authentication type" />
@@ -606,7 +598,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                             </div>
                             <div>
                               <Label htmlFor="request-method">Request Method</Label>
-                              <Select value={requestMethod} onValueChange={setRequestMethod}>
+                              <Select value={requestMethod} onValueChange={(value: any) => setRequestMethod(value)}>
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select request method" />
                                 </SelectTrigger>
@@ -664,7 +656,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                   </Alert>
                 )}
                 {testResult && (
-                  <Alert className="mb-4" variant={testResult.success ? 'success' : 'destructive'}>
+                  <Alert className="mb-4" variant={testResult.success ? "default" : "destructive"}>
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>
                       {testResult.success ? 'Success' : 'Error'}
@@ -692,7 +684,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                 </Button>
                 {showEndpoints && (
                   <Accordion type="single" className="mt-4">
-                    <AccordionItem>
+                    <AccordionItem value="endpoints">
                       <AccordionTrigger>
                         Endpoints
                         {showEndpoints ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
