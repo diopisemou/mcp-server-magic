@@ -1,0 +1,1218 @@
+plugin:vite:react-swc] × the name `Card` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:4:1]
+  1 │ import { useState, useEffect } from 'react';
+  2 │ import { Button } from '@/components/ui/button';
+  3 │ import { Separator } from '@/components/ui/separator';
+  4 │ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+    ·          ──┬─
+    ·            ╰── previous definition of `Card` here
+  5 │ import { toast } from 'sonner';
+  6 │ import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
+  7 │ import { useParams, useNavigate } from 'react-router-dom';
+  8 │ import { supabase } from '@/integrations/supabase/client';
+  9 │ import { Skeleton } from '@/components/ui/skeleton';
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+    ·   ──┬─
+    ·     ╰── `Card` redefined here
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+    ╰────
+  × the name `CardHeader` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:4:1]
+  1 │ import { useState, useEffect } from 'react';
+  2 │ import { Button } from '@/components/ui/button';
+  3 │ import { Separator } from '@/components/ui/separator';
+  4 │ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+    ·                                                          ─────┬────
+    ·                                                               ╰── previous definition of `CardHeader` here
+  5 │ import { toast } from 'sonner';
+  6 │ import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
+  7 │ import { useParams, useNavigate } from 'react-router-dom';
+  8 │ import { supabase } from '@/integrations/supabase/client';
+  9 │ import { Skeleton } from '@/components/ui/skeleton';
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+    ·         ─────┬────
+    ·              ╰── `CardHeader` redefined here
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+    ╰────
+  × the name `CardTitle` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:4:1]
+  1 │ import { useState, useEffect } from 'react';
+  2 │ import { Button } from '@/components/ui/button';
+  3 │ import { Separator } from '@/components/ui/separator';
+  4 │ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+    ·                                                                      ────┬────
+    ·                                                                          ╰── previous definition of `CardTitle` here
+  5 │ import { toast } from 'sonner';
+  6 │ import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
+  7 │ import { useParams, useNavigate } from 'react-router-dom';
+  8 │ import { supabase } from '@/integrations/supabase/client';
+  9 │ import { Skeleton } from '@/components/ui/skeleton';
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+    ·                     ────┬────
+    ·                         ╰── `CardTitle` redefined here
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+    ╰────
+  × the name `CardDescription` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:4:1]
+  1 │ import { useState, useEffect } from 'react';
+  2 │ import { Button } from '@/components/ui/button';
+  3 │ import { Separator } from '@/components/ui/separator';
+  4 │ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+    ·                             ───────┬───────
+    ·                                    ╰── previous definition of `CardDescription` here
+  5 │ import { toast } from 'sonner';
+  6 │ import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
+  7 │ import { useParams, useNavigate } from 'react-router-dom';
+  8 │ import { supabase } from '@/integrations/supabase/client';
+  9 │ import { Skeleton } from '@/components/ui/skeleton';
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+    ·                                ───────┬───────
+    ·                                       ╰── `CardDescription` redefined here
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+    ╰────
+  × the name `CardContent` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:4:1]
+  1 │ import { useState, useEffect } from 'react';
+  2 │ import { Button } from '@/components/ui/button';
+  3 │ import { Separator } from '@/components/ui/separator';
+  4 │ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+    ·                ─────┬─────
+    ·                     ╰── previous definition of `CardContent` here
+  5 │ import { toast } from 'sonner';
+  6 │ import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
+  7 │ import { useParams, useNavigate } from 'react-router-dom';
+  8 │ import { supabase } from '@/integrations/supabase/client';
+  9 │ import { Skeleton } from '@/components/ui/skeleton';
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+    ·   ─────┬─────
+    ·        ╰── `CardContent` redefined here
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+    ╰────
+  × the name `CardFooter` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:4:1]
+  1 │ import { useState, useEffect } from 'react';
+  2 │ import { Button } from '@/components/ui/button';
+  3 │ import { Separator } from '@/components/ui/separator';
+  4 │ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+    ·                                              ─────┬────
+    ·                                                   ╰── previous definition of `CardFooter` here
+  5 │ import { toast } from 'sonner';
+  6 │ import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
+  7 │ import { useParams, useNavigate } from 'react-router-dom';
+  8 │ import { supabase } from '@/integrations/supabase/client';
+  9 │ import { Skeleton } from '@/components/ui/skeleton';
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+    ·                ─────┬────
+    ·                     ╰── `CardFooter` redefined here
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+    ╰────
+  × the name `Button` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:2:1]
+  1 │ import { useState, useEffect } from 'react';
+  2 │ import { Button } from '@/components/ui/button';
+    ·          ───┬──
+    ·             ╰── previous definition of `Button` here
+  3 │ import { Separator } from '@/components/ui/separator';
+  4 │ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+  5 │ import { toast } from 'sonner';
+  6 │ import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
+  7 │ import { useParams, useNavigate } from 'react-router-dom';
+  8 │ import { supabase } from '@/integrations/supabase/client';
+  9 │ import { Skeleton } from '@/components/ui/skeleton';
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+    ·          ───┬──
+    ·             ╰── `Button` redefined here
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+ 24 │ import { LogViewer } from "@/components/LogViewer";
+ 25 │ import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
+    ╰────
+  × the name `Alert` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:13:1]
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+    ·          ──┬──
+    ·            ╰── previous definition of `Alert` here
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+    ·          ──┬──
+    ·            ╰── `Alert` redefined here
+ 24 │ import { LogViewer } from "@/components/LogViewer";
+ 25 │ import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
+ 26 │ import { supabase } from "@/lib/supabase";
+    ╰────
+  × the name `AlertTitle` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:13:1]
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+    ·                 ─────┬────
+    ·                      ╰── previous definition of `AlertTitle` here
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+    ·                 ─────┬────
+    ·                      ╰── `AlertTitle` redefined here
+ 24 │ import { LogViewer } from "@/components/LogViewer";
+ 25 │ import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
+ 26 │ import { supabase } from "@/lib/supabase";
+    ╰────
+  × the name `AlertDescription` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:13:1]
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+    ·                             ────────┬───────
+    ·                                     ╰── previous definition of `AlertDescription` here
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+    ·                             ────────┬───────
+    ·                                     ╰── `AlertDescription` redefined here
+ 24 │ import { LogViewer } from "@/components/LogViewer";
+ 25 │ import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
+ 26 │ import { supabase } from "@/lib/supabase";
+    ╰────
+  × the name `LogViewer` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:16:1]
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+    ·        ────┬────
+    ·            ╰── previous definition of `LogViewer` here
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+ 24 │ import { LogViewer } from "@/components/LogViewer";
+    ·          ────┬────
+    ·              ╰── `LogViewer` redefined here
+ 25 │ import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
+ 26 │ import { supabase } from "@/lib/supabase";
+ 27 │ import { toast } from "sonner";
+    ╰────
+  × the name `Terminal` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:6:1]
+  3 │ import { Separator } from '@/components/ui/separator';
+  4 │ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+  5 │ import { toast } from 'sonner';
+  6 │ import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
+    ·          ────┬───
+    ·              ╰── previous definition of `Terminal` here
+  7 │ import { useParams, useNavigate } from 'react-router-dom';
+  8 │ import { supabase } from '@/integrations/supabase/client';
+  9 │ import { Skeleton } from '@/components/ui/skeleton';
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+ 24 │ import { LogViewer } from "@/components/LogViewer";
+ 25 │ import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
+    ·          ────┬───
+    ·              ╰── `Terminal` redefined here
+ 26 │ import { supabase } from "@/lib/supabase";
+ 27 │ import { toast } from "sonner";
+ 28 │ import { useLogging } from "@/contexts/LogContext";
+    ╰────
+  × the name `Download` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:6:1]
+  3 │ import { Separator } from '@/components/ui/separator';
+  4 │ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+  5 │ import { toast } from 'sonner';
+  6 │ import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
+    ·                                             ────┬───
+    ·                                                 ╰── previous definition of `Download` here
+  7 │ import { useParams, useNavigate } from 'react-router-dom';
+  8 │ import { supabase } from '@/integrations/supabase/client';
+  9 │ import { Skeleton } from '@/components/ui/skeleton';
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+ 24 │ import { LogViewer } from "@/components/LogViewer";
+ 25 │ import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
+    ·                    ────┬───
+    ·                        ╰── `Download` redefined here
+ 26 │ import { supabase } from "@/lib/supabase";
+ 27 │ import { toast } from "sonner";
+ 28 │ import { useLogging } from "@/contexts/LogContext";
+    ╰────
+  × the name `ExternalLink` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:6:1]
+  3 │ import { Separator } from '@/components/ui/separator';
+  4 │ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+  5 │ import { toast } from 'sonner';
+  6 │ import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
+    ·                                                       ──────┬─────
+    ·                                                             ╰── previous definition of `ExternalLink` here
+  7 │ import { useParams, useNavigate } from 'react-router-dom';
+  8 │ import { supabase } from '@/integrations/supabase/client';
+  9 │ import { Skeleton } from '@/components/ui/skeleton';
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+ 24 │ import { LogViewer } from "@/components/LogViewer";
+ 25 │ import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
+    ·                              ──────┬─────
+    ·                                    ╰── `ExternalLink` redefined here
+ 26 │ import { supabase } from "@/lib/supabase";
+ 27 │ import { toast } from "sonner";
+ 28 │ import { useLogging } from "@/contexts/LogContext";
+    ╰────
+  × the name `supabase` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:8:1]
+  5 │ import { toast } from 'sonner';
+  6 │ import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
+  7 │ import { useParams, useNavigate } from 'react-router-dom';
+  8 │ import { supabase } from '@/integrations/supabase/client';
+    ·          ────┬───
+    ·              ╰── previous definition of `supabase` here
+  9 │ import { Skeleton } from '@/components/ui/skeleton';
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+ 24 │ import { LogViewer } from "@/components/LogViewer";
+ 25 │ import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
+ 26 │ import { supabase } from "@/lib/supabase";
+    ·          ────┬───
+    ·              ╰── `supabase` redefined here
+ 27 │ import { toast } from "sonner";
+ 28 │ import { useLogging } from "@/contexts/LogContext";
+    ╰────
+  × the name `toast` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:5:1]
+  2 │ import { Button } from '@/components/ui/button';
+  3 │ import { Separator } from '@/components/ui/separator';
+  4 │ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+  5 │ import { toast } from 'sonner';
+    ·          ──┬──
+    ·            ╰── previous definition of `toast` here
+  6 │ import { Terminal, Code, Server, RefreshCw, Download, ExternalLink, FileText } from 'lucide-react';
+  7 │ import { useParams, useNavigate } from 'react-router-dom';
+  8 │ import { supabase } from '@/integrations/supabase/client';
+  9 │ import { Skeleton } from '@/components/ui/skeleton';
+ 10 │ import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
+ 11 │ import { Badge } from '@/components/ui/badge';
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+ 24 │ import { LogViewer } from "@/components/LogViewer";
+ 25 │ import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
+ 26 │ import { supabase } from "@/lib/supabase";
+ 27 │ import { toast } from "sonner";
+    ·          ──┬──
+    ·            ╰── `toast` redefined here
+ 28 │ import { useLogging } from "@/contexts/LogContext";
+ 29 │ 
+ 30 │ interface Project {
+    ╰────
+  × the name `useLogging` is defined multiple times
+    ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:15:1]
+ 12 │ import { ProgressCircle } from '@/components/ui/progress-circle';
+ 13 │ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+ 14 │ import { clientLogger } from '@/lib/logger';
+ 15 │ import { useLogging } from '@/contexts/LogContext';
+    ·          ─────┬────
+    ·               ╰── previous definition of `useLogging` here
+ 16 │ import LogViewer from '@/components/LogViewer';
+ 17 │ 
+ 18 │ import { 
+ 19 │   Card, CardHeader, CardTitle, CardDescription, 
+ 20 │   CardContent, CardFooter 
+ 21 │ } from "@/components/ui/card";
+ 22 │ import { Button } from "@/components/ui/button";
+ 23 │ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+ 24 │ import { LogViewer } from "@/components/LogViewer";
+ 25 │ import { Terminal, Download, ExternalLink, ClipboardCopy } from "lucide-react";
+ 26 │ import { supabase } from "@/lib/supabase";
+ 27 │ import { toast } from "sonner";
+ 28 │ import { useLogging } from "@/contexts/LogContext";
+    ·          ─────┬────
+    ·               ╰── `useLogging` redefined here
+ 29 │ 
+ 30 │ interface Project {
+ 31 │   id: string;
+    ╰────
+  × the name `fetchServerConfiguration` is defined multiple times
+     ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:106:1]
+ 103 │     }
+ 104 │   };
+ 105 │ 
+ 106 │   const fetchServerConfiguration = async () => {
+     ·         ────────────┬───────────
+     ·                     ╰── previous definition of `fetchServerConfiguration` here
+ 107 │     if (!projectId) {
+ 108 │       logWarning('No projectId provided for server configuration');
+ 109 │       return;
+ 110 │     }
+ 111 │ 
+ 112 │     try {
+ 113 │       logInfo(`Fetching server configuration for projectId: ${projectId}`);
+ 114 │       const { data, error } = await supabase
+ 115 │         .from('server_configurations')
+ 116 │         .select('*')
+ 117 │         .eq('project_id', projectId)
+ 118 │         .single();
+ 119 │ 
+ 120 │       if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+ 121 │         logError('Error fetching server configuration', { 
+ 122 │           projectId, 
+ 123 │           error: error.message,
+ 124 │           code: error.code 
+ 125 │         });
+ 126 │         throw error;
+ 127 │       }
+ 128 │ 
+ 129 │       if (data) {
+ 130 │         logInfo('Server configuration fetched successfully', { configId: data.id });
+ 131 │         setServerConfiguration(data);
+ 132 │       } else {
+ 133 │         logInfo('No server configuration found for project', { projectId });
+ 134 │       }
+ 135 │     } catch (error) {
+ 136 │       console.error('Error fetching server configuration:', error);
+ 137 │       toast.error('Failed to load server configuration');
+ 138 │     }
+ 139 │   };
+ 140 │ 
+ 141 │   const fetchServerConfiguration = async () => {
+     ·         ────────────┬───────────
+     ·                     ╰── `fetchServerConfiguration` redefined here
+ 142 │     if (!projectId) {
+ 143 │       logWarning('No projectId provided for server configuration');
+ 144 │       return;
+     ╰────
+  × the name `fetchProject` is defined multiple times
+     ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:69:1]
+  66 │     fetchServerConfiguration();
+  67 │   }, [projectId]);
+  68 │ 
+  69 │   const fetchProject = async () => {
+     ·         ──────┬─────
+     ·               ╰── previous definition of `fetchProject` here
+  70 │     if (!projectId) {
+  71 │       logWarning('No projectId provided');
+  72 │       setLoading(false);
+  73 │       return;
+  74 │     }
+  75 │ 
+  76 │     try {
+  77 │       logInfo(`Fetching project data for projectId: ${projectId}`);
+  78 │       const { data, error } = await supabase
+  79 │         .from('projects')
+  80 │         .select('*')
+  81 │         .eq('id', projectId)
+  82 │         .single();
+  83 │ 
+  84 │       if (error) {
+  85 │         logError('Error fetching project', { 
+  86 │           projectId, 
+  87 │           error: error.message,
+  88 │           code: error.code 
+  89 │         });
+  90 │         throw error;
+  91 │       }
+  92 │ 
+  93 │       logInfo('Project fetched successfully', { 
+  94 │         projectId, 
+  95 │         projectName: data.name 
+  96 │       });
+  97 │       setProject(data);
+  98 │     } catch (error) {
+  99 │       console.error('Error fetching project:', error);
+ 100 │       toast.error('Failed to load project data');
+ 101 │     } finally {
+ 102 │       setLoading(false);
+ 103 │     }
+ 104 │   };
+ 105 │ 
+ 106 │   const fetchServerConfiguration = async () => {
+ 107 │     if (!projectId) {
+ 108 │       logWarning('No projectId provided for server configuration');
+ 109 │       return;
+ 110 │     }
+ 111 │ 
+ 112 │     try {
+ 113 │       logInfo(`Fetching server configuration for projectId: ${projectId}`);
+ 114 │       const { data, error } = await supabase
+ 115 │         .from('server_configurations')
+ 116 │         .select('*')
+ 117 │         .eq('project_id', projectId)
+ 118 │         .single();
+ 119 │ 
+ 120 │       if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+ 121 │         logError('Error fetching server configuration', { 
+ 122 │           projectId, 
+ 123 │           error: error.message,
+ 124 │           code: error.code 
+ 125 │         });
+ 126 │         throw error;
+ 127 │       }
+ 128 │ 
+ 129 │       if (data) {
+ 130 │         logInfo('Server configuration fetched successfully', { configId: data.id });
+ 131 │         setServerConfiguration(data);
+ 132 │       } else {
+ 133 │         logInfo('No server configuration found for project', { projectId });
+ 134 │       }
+ 135 │     } catch (error) {
+ 136 │       console.error('Error fetching server configuration:', error);
+ 137 │       toast.error('Failed to load server configuration');
+ 138 │     }
+ 139 │   };
+ 140 │ 
+ 141 │   const fetchServerConfiguration = async () => {
+ 142 │     if (!projectId) {
+ 143 │       logWarning('No projectId provided for server configuration');
+ 144 │       return;
+ 145 │     }
+ 146 │ 
+ 147 │     try {
+ 148 │       logInfo(`Fetching server configuration for projectId: ${projectId}`);
+ 149 │       const { data, error } = await supabase
+ 150 │         .from('server_configurations')
+ 151 │         .select('*')
+ 152 │         .eq('project_id', projectId)
+ 153 │         .single();
+ 154 │ 
+ 155 │       if (error) {
+ 156 │         if (error.code === 'PGRST116') {
+ 157 │           // Record not found is okay
+ 158 │           logInfo('No server configuration found for this project');
+ 159 │           return;
+ 160 │         }
+ 161 │ 
+ 162 │         logError('Error fetching server configuration', { 
+ 163 │           projectId, 
+ 164 │           error: error.message,
+ 165 │           code: error.code 
+ 166 │         });
+ 167 │         throw error;
+ 168 │       }
+ 169 │ 
+ 170 │       logInfo('Server configuration fetched successfully');
+ 171 │       setServerConfiguration(data);
+ 172 │     } catch (error) {
+ 173 │       logError('Failed to load server configuration', { error });
+ 174 │       toast.error('Failed to load server configuration');
+ 175 │     }
+ 176 │   };
+ 177 │ 
+ 178 │   const generateServer = async () => {
+ 179 │     if (!project || !serverConfiguration) {
+ 180 │       logError('Cannot generate server: missing project or configuration');
+ 181 │       toast.error('Project or server configuration not found');
+ 182 │       return;
+ 183 │     }
+ 184 │ 
+ 185 │     setIsGenerating(true);
+ 186 │     setGenerationProgress(0);
+ 187 │     setGenerationError(null);
+ 188 │ 
+ 189 │     try {
+ 190 │       logInfo('Starting server generation', { projectId, configId: serverConfiguration.id });
+ 191 │ 
+ 192 │       // Mock progress updates
+ 193 │       const progressInterval = setInterval(() => {
+ 194 │         setGenerationProgress(prev => {
+ 195 │           if (prev >= 95) {
+ 196 │             clearInterval(progressInterval);
+ 197 │             return prev;
+ 198 │           }
+ 199 │           return prev + 5;
+ 200 │         });
+ 201 │       }, 1000);
+ 202 │ 
+ 203 │       // Make API call to generate server
+ 204 │       const response = await fetch('/api/generate-server', {
+ 205 │         method: 'POST',
+ 206 │         headers: {
+ 207 │           'Content-Type': 'application/json',
+ 208 │         },
+ 209 │         body: JSON.stringify({
+ 210 │           projectId,
+ 211 │           configId: serverConfiguration.id
+ 212 │         }),
+ 213 │       });
+ 214 │ 
+ 215 │       clearInterval(progressInterval);
+ 216 │ 
+ 217 │       if (!response.ok) {
+ 218 │         const errorData = await response.json();
+ 219 │         throw new Error(errorData.message || 'Failed to generate server');
+ 220 │       }
+ 221 │ 
+ 222 │       const result = await response.json();
+ 223 │       logInfo('Server generation completed successfully', { result });
+ 224 │ 
+ 225 │       setGenerationProgress(100);
+ 226 │       setGenerationResult(result);
+ 227 │     } catch (error) {
+ 228 │       logError('Server generation failed', { error });
+ 229 │       setGenerationError(error instanceof Error ? error.message : 'Unknown error occurred');
+ 230 │       toast.error('Failed to generate server');
+ 231 │     } finally {
+ 232 │       setIsGenerating(false);
+ 233 │     }
+ 234 │   };
+ 235 │ 
+ 236 │ 
+ 237 │   useEffect(() => {
+ 238 │     if (isGenerating) {
+ 239 │       logInfo('Server generation started', { projectId });
+ 240 │       const interval = setInterval(() => {
+ 241 │         // Mock progress increase
+ 242 │         setGenerationProgress(prev => {
+ 243 │           if (prev >= 95) {
+ 244 │             clearInterval(interval);
+ 245 │             return prev;
+ 246 │           }
+ 247 │           return prev + 5;
+ 248 │         });
+ 249 │       }, 1000);
+ 250 │ 
+ 251 │       return () => clearInterval(interval);
+ 252 │     }
+ 253 │   }, [isGenerating]);
+ 254 │ 
+ 255 │   const fetchProject = async () => {
+     ·         ──────┬─────
+     ·               ╰── `fetchProject` redefined here
+ 256 │     try {
+ 257 │       logDebug(`Fetching project details for projectId: ${projectId}`);
+ 258 │       const { data, error } = await supabase
+     ╰────
+  × the name `fetchServerConfiguration` is defined multiple times
+     ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:141:1]
+ 138 │     }
+ 139 │   };
+ 140 │ 
+ 141 │   const fetchServerConfiguration = async () => {
+     ·         ────────────┬───────────
+     ·                     ╰── previous definition of `fetchServerConfiguration` here
+ 142 │     if (!projectId) {
+ 143 │       logWarning('No projectId provided for server configuration');
+ 144 │       return;
+ 145 │     }
+ 146 │ 
+ 147 │     try {
+ 148 │       logInfo(`Fetching server configuration for projectId: ${projectId}`);
+ 149 │       const { data, error } = await supabase
+ 150 │         .from('server_configurations')
+ 151 │         .select('*')
+ 152 │         .eq('project_id', projectId)
+ 153 │         .single();
+ 154 │ 
+ 155 │       if (error) {
+ 156 │         if (error.code === 'PGRST116') {
+ 157 │           // Record not found is okay
+ 158 │           logInfo('No server configuration found for this project');
+ 159 │           return;
+ 160 │         }
+ 161 │ 
+ 162 │         logError('Error fetching server configuration', { 
+ 163 │           projectId, 
+ 164 │           error: error.message,
+ 165 │           code: error.code 
+ 166 │         });
+ 167 │         throw error;
+ 168 │       }
+ 169 │ 
+ 170 │       logInfo('Server configuration fetched successfully');
+ 171 │       setServerConfiguration(data);
+ 172 │     } catch (error) {
+ 173 │       logError('Failed to load server configuration', { error });
+ 174 │       toast.error('Failed to load server configuration');
+ 175 │     }
+ 176 │   };
+ 177 │ 
+ 178 │   const generateServer = async () => {
+ 179 │     if (!project || !serverConfiguration) {
+ 180 │       logError('Cannot generate server: missing project or configuration');
+ 181 │       toast.error('Project or server configuration not found');
+ 182 │       return;
+ 183 │     }
+ 184 │ 
+ 185 │     setIsGenerating(true);
+ 186 │     setGenerationProgress(0);
+ 187 │     setGenerationError(null);
+ 188 │ 
+ 189 │     try {
+ 190 │       logInfo('Starting server generation', { projectId, configId: serverConfiguration.id });
+ 191 │ 
+ 192 │       // Mock progress updates
+ 193 │       const progressInterval = setInterval(() => {
+ 194 │         setGenerationProgress(prev => {
+ 195 │           if (prev >= 95) {
+ 196 │             clearInterval(progressInterval);
+ 197 │             return prev;
+ 198 │           }
+ 199 │           return prev + 5;
+ 200 │         });
+ 201 │       }, 1000);
+ 202 │ 
+ 203 │       // Make API call to generate server
+ 204 │       const response = await fetch('/api/generate-server', {
+ 205 │         method: 'POST',
+ 206 │         headers: {
+ 207 │           'Content-Type': 'application/json',
+ 208 │         },
+ 209 │         body: JSON.stringify({
+ 210 │           projectId,
+ 211 │           configId: serverConfiguration.id
+ 212 │         }),
+ 213 │       });
+ 214 │ 
+ 215 │       clearInterval(progressInterval);
+ 216 │ 
+ 217 │       if (!response.ok) {
+ 218 │         const errorData = await response.json();
+ 219 │         throw new Error(errorData.message || 'Failed to generate server');
+ 220 │       }
+ 221 │ 
+ 222 │       const result = await response.json();
+ 223 │       logInfo('Server generation completed successfully', { result });
+ 224 │ 
+ 225 │       setGenerationProgress(100);
+ 226 │       setGenerationResult(result);
+ 227 │     } catch (error) {
+ 228 │       logError('Server generation failed', { error });
+ 229 │       setGenerationError(error instanceof Error ? error.message : 'Unknown error occurred');
+ 230 │       toast.error('Failed to generate server');
+ 231 │     } finally {
+ 232 │       setIsGenerating(false);
+ 233 │     }
+ 234 │   };
+ 235 │ 
+ 236 │ 
+ 237 │   useEffect(() => {
+ 238 │     if (isGenerating) {
+ 239 │       logInfo('Server generation started', { projectId });
+ 240 │       const interval = setInterval(() => {
+ 241 │         // Mock progress increase
+ 242 │         setGenerationProgress(prev => {
+ 243 │           if (prev >= 95) {
+ 244 │             clearInterval(interval);
+ 245 │             return prev;
+ 246 │           }
+ 247 │           return prev + 5;
+ 248 │         });
+ 249 │       }, 1000);
+ 250 │ 
+ 251 │       return () => clearInterval(interval);
+ 252 │     }
+ 253 │   }, [isGenerating]);
+ 254 │ 
+ 255 │   const fetchProject = async () => {
+ 256 │     try {
+ 257 │       logDebug(`Fetching project details for projectId: ${projectId}`);
+ 258 │       const { data, error } = await supabase
+ 259 │         .from('projects')
+ 260 │         .select('*')
+ 261 │         .eq('id', projectId)
+ 262 │         .single();
+ 263 │ 
+ 264 │       if (error) {
+ 265 │         logError('Error fetching project', { 
+ 266 │           projectId, 
+ 267 │           error: error.message,
+ 268 │           code: error.code 
+ 269 │         });
+ 270 │         throw error;
+ 271 │       }
+ 272 │ 
+ 273 │       logInfo('Project fetched successfully', { 
+ 274 │         projectId, 
+ 275 │         projectName: data?.name 
+ 276 │       });
+ 277 │       setProject(data);
+ 278 │     } catch (error) {
+ 279 │       logError('Failed to fetch project', { 
+ 280 │         projectId, 
+ 281 │         error: error instanceof Error ? error.message : String(error)
+ 282 │       });
+ 283 │       console.error('Error fetching project:', error);
+ 284 │       toast.error('Failed to fetch project details');
+ 285 │     } finally {
+ 286 │       setLoading(false);
+ 287 │     }
+ 288 │   };
+ 289 │ 
+ 290 │   const fetchServerConfiguration = async () => {
+     ·         ────────────┬───────────
+     ·                     ╰── `fetchServerConfiguration` redefined here
+ 291 │     try {
+ 292 │       logDebug(`Fetching server configuration for projectId: ${projectId}`);
+ 293 │       const { data, error } = await supabase
+     ╰────
+  × the name `generateServer` is defined multiple times
+     ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:178:1]
+ 175 │     }
+ 176 │   };
+ 177 │ 
+ 178 │   const generateServer = async () => {
+     ·         ───────┬──────
+     ·                ╰── previous definition of `generateServer` here
+ 179 │     if (!project || !serverConfiguration) {
+ 180 │       logError('Cannot generate server: missing project or configuration');
+ 181 │       toast.error('Project or server configuration not found');
+ 182 │       return;
+ 183 │     }
+ 184 │ 
+ 185 │     setIsGenerating(true);
+ 186 │     setGenerationProgress(0);
+ 187 │     setGenerationError(null);
+ 188 │ 
+ 189 │     try {
+ 190 │       logInfo('Starting server generation', { projectId, configId: serverConfiguration.id });
+ 191 │ 
+ 192 │       // Mock progress updates
+ 193 │       const progressInterval = setInterval(() => {
+ 194 │         setGenerationProgress(prev => {
+ 195 │           if (prev >= 95) {
+ 196 │             clearInterval(progressInterval);
+ 197 │             return prev;
+ 198 │           }
+ 199 │           return prev + 5;
+ 200 │         });
+ 201 │       }, 1000);
+ 202 │ 
+ 203 │       // Make API call to generate server
+ 204 │       const response = await fetch('/api/generate-server', {
+ 205 │         method: 'POST',
+ 206 │         headers: {
+ 207 │           'Content-Type': 'application/json',
+ 208 │         },
+ 209 │         body: JSON.stringify({
+ 210 │           projectId,
+ 211 │           configId: serverConfiguration.id
+ 212 │         }),
+ 213 │       });
+ 214 │ 
+ 215 │       clearInterval(progressInterval);
+ 216 │ 
+ 217 │       if (!response.ok) {
+ 218 │         const errorData = await response.json();
+ 219 │         throw new Error(errorData.message || 'Failed to generate server');
+ 220 │       }
+ 221 │ 
+ 222 │       const result = await response.json();
+ 223 │       logInfo('Server generation completed successfully', { result });
+ 224 │ 
+ 225 │       setGenerationProgress(100);
+ 226 │       setGenerationResult(result);
+ 227 │     } catch (error) {
+ 228 │       logError('Server generation failed', { error });
+ 229 │       setGenerationError(error instanceof Error ? error.message : 'Unknown error occurred');
+ 230 │       toast.error('Failed to generate server');
+ 231 │     } finally {
+ 232 │       setIsGenerating(false);
+ 233 │     }
+ 234 │   };
+ 235 │ 
+ 236 │ 
+ 237 │   useEffect(() => {
+ 238 │     if (isGenerating) {
+ 239 │       logInfo('Server generation started', { projectId });
+ 240 │       const interval = setInterval(() => {
+ 241 │         // Mock progress increase
+ 242 │         setGenerationProgress(prev => {
+ 243 │           if (prev >= 95) {
+ 244 │             clearInterval(interval);
+ 245 │             return prev;
+ 246 │           }
+ 247 │           return prev + 5;
+ 248 │         });
+ 249 │       }, 1000);
+ 250 │ 
+ 251 │       return () => clearInterval(interval);
+ 252 │     }
+ 253 │   }, [isGenerating]);
+ 254 │ 
+ 255 │   const fetchProject = async () => {
+ 256 │     try {
+ 257 │       logDebug(`Fetching project details for projectId: ${projectId}`);
+ 258 │       const { data, error } = await supabase
+ 259 │         .from('projects')
+ 260 │         .select('*')
+ 261 │         .eq('id', projectId)
+ 262 │         .single();
+ 263 │ 
+ 264 │       if (error) {
+ 265 │         logError('Error fetching project', { 
+ 266 │           projectId, 
+ 267 │           error: error.message,
+ 268 │           code: error.code 
+ 269 │         });
+ 270 │         throw error;
+ 271 │       }
+ 272 │ 
+ 273 │       logInfo('Project fetched successfully', { 
+ 274 │         projectId, 
+ 275 │         projectName: data?.name 
+ 276 │       });
+ 277 │       setProject(data);
+ 278 │     } catch (error) {
+ 279 │       logError('Failed to fetch project', { 
+ 280 │         projectId, 
+ 281 │         error: error instanceof Error ? error.message : String(error)
+ 282 │       });
+ 283 │       console.error('Error fetching project:', error);
+ 284 │       toast.error('Failed to fetch project details');
+ 285 │     } finally {
+ 286 │       setLoading(false);
+ 287 │     }
+ 288 │   };
+ 289 │ 
+ 290 │   const fetchServerConfiguration = async () => {
+ 291 │     try {
+ 292 │       logDebug(`Fetching server configuration for projectId: ${projectId}`);
+ 293 │       const { data, error } = await supabase
+ 294 │         .from('server_configurations')
+ 295 │         .select('*')
+ 296 │         .eq('project_id', projectId)
+ 297 │         .single();
+ 298 │ 
+ 299 │       if (error) {
+ 300 │         if (error.code === 'PGRST116') {
+ 301 │           // No configuration found - this is a "not found" error from PostgREST
+ 302 │           logWarning('No server configuration found for project', { projectId });
+ 303 │         } else {
+ 304 │           logError('Error fetching server configuration', { 
+ 305 │             projectId, 
+ 306 │             error: error.message,
+ 307 │             code: error.code 
+ 308 │           });
+ 309 │         }
+ 310 │         throw error;
+ 311 │       }
+ 312 │ 
+ 313 │       logInfo('Server configuration fetched successfully', { 
+ 314 │         projectId, 
+ 315 │         configId: data?.id,
+ 316 │         framework: data?.framework,
+ 317 │         endpointCount: data?.endpoints?.length || 0
+ 318 │       });
+ 319 │       setServerConfiguration(data);
+ 320 │     } catch (error) {
+ 321 │       // Don't show a toast here since this might be a new project without a configuration
+ 322 │       console.error('Error fetching server configuration:', error);
+ 323 │     }
+ 324 │   };
+ 325 │ 
+ 326 │   const generateServer = async () => {
+     ·         ───────┬──────
+     ·                ╰── `generateServer` redefined here
+ 327 │     setIsGenerating(true);
+ 328 │     setGenerationProgress(0);
+ 329 │     setGenerationError(null);
+     ╰────
+  × the name `generateServer` is defined multiple times
+     ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:326:1]
+ 323 │     }
+ 324 │   };
+ 325 │ 
+ 326 │   const generateServer = async () => {
+     ·         ───────┬──────
+     ·                ╰── previous definition of `generateServer` here
+ 327 │     setIsGenerating(true);
+ 328 │     setGenerationProgress(0);
+ 329 │     setGenerationError(null);
+ 330 │ 
+ 331 │     try {
+ 332 │       logInfo('Starting server generation process', { 
+ 333 │         projectId,
+ 334 │         configId: serverConfiguration?.id
+ 335 │       });
+ 336 │ 
+ 337 │       // Mock server generation for demo purposes
+ 338 │       setTimeout(() => {
+ 339 │         const success = Math.random() > 0.3; // 70% chance of success for demo
+ 340 │ 
+ 341 │         if (success) {
+ 342 │           const result = {
+ 343 │             success: true,
+ 344 │             serverUrl: 'https://api-demo.example.com',
+ 345 │             deploymentId: 'dep_' + Math.random().toString(36).substring(2, 10),
+ 346 │             apiKey: 'sk_' + Math.random().toString(36).substring(2, 15),
+ 347 │             timestamp: new Date().toISOString()
+ 348 │           };
+ 349 │ 
+ 350 │           logInfo('Server generated successfully', {
+ 351 │             projectId,
+ 352 │             deploymentId: result.deploymentId,
+ 353 │             serverUrl: result.serverUrl
+ 354 │           });
+ 355 │ 
+ 356 │           setGenerationResult(result);
+ 357 │           toast.success('Server generated successfully!');
+ 358 │         } else {
+ 359 │           const errorMessage = 'Failed to generate server due to an unexpected error';
+ 360 │           logError('Server generation failed', {
+ 361 │             projectId,
+ 362 │             error: errorMessage
+ 363 │           });
+ 364 │ 
+ 365 │           setGenerationError(errorMessage);
+ 366 │           setGenerationResult({
+ 367 │             success: false,
+ 368 │             error: errorMessage,
+ 369 │             timestamp: new Date().toISOString()
+ 370 │           });
+ 371 │ 
+ 372 │           toast.error('Server generation failed');
+ 373 │         }
+ 374 │ 
+ 375 │         setGenerationProgress(100);
+ 376 │         setTimeout(() => {
+ 377 │           setIsGenerating(false);
+ 378 │         }, 3000);
+ 379 │       }, 3000);
+ 380 │     } catch (error) {
+ 381 │       const errorMessage = error instanceof Error ? error.message : String(error);
+ 382 │       logError('Exception during server generation', {
+ 383 │         projectId,
+ 384 │         error: errorMessage,
+ 385 │         stack: error instanceof Error ? error.stack : undefined
+ 386 │       });
+ 387 │ 
+ 388 │       console.error('Error generating server:', error);
+ 389 │       setGenerationError('Failed to start server generation');
+ 390 │       setIsGenerating(false);
+ 391 │ 
+ 392 │       // Create a failed generation result
+ 393 │       setGenerationResult({
+ 394 │         success: false,
+ 395 │         error: 'Failed to start server generation',
+ 396 │         timestamp: new Date().toISOString()
+ 397 │       });
+ 398 │     }
+ 399 │   };
+ 400 │ 
+ 401 │   const handleDownloadCode = async () => {
+ 402 │     if (!generationResult?.downloadUrl && !generationResult?.codeArchiveUrl) {
+ 403 │       toast.error('No code archive available for download');
+ 404 │       return;
+ 405 │     }
+ 406 │     
+ 407 │     try {
+ 408 │       const downloadUrl = generationResult.downloadUrl || generationResult.codeArchiveUrl;
+ 409 │       logInfo('Downloading server code', { 
+ 410 │         projectId, 
+ 411 │         downloadUrl 
+ 412 │       });
+ 413 │       
+ 414 │       // Directly trigger download for the archive URL
+ 415 │       window.open(downloadUrl, '_blank');
+ 416 │     } catch (error) {
+ 417 │       console.error('Error downloading code:', error);
+ 418 │       toast.error('Failed to download code');
+ 419 │     }
+ 420 │   };
+ 421 │   
+ 422 │   const handleRestart = () => {
+ 423 │     logInfo('Restarting server generation', { projectId });
+ 424 │     setGenerationResult(null);
+ 425 │     setGenerationError(null);
+ 426 │     generateServer();
+ 427 │   };
+ 428 │ 
+ 429 │   if (loading) {
+ 430 │     return (
+ 431 │       <div className="container max-w-4xl py-8">
+ 432 │         <Skeleton className="h-12 w-3/4 mb-4" />
+ 433 │         <Skeleton className="h-6 w-1/2 mb-8" />
+ 434 │         <div className="grid gap-8">
+ 435 │           <Skeleton className="h-64" />
+ 436 │           <Skeleton className="h-64" />
+ 437 │         </div>
+ 438 │       </div>
+ 439 │     );
+ 440 │   }
+ 441 │ 
+ 442 │   if (!project) {
+ 443 │     logWarning('Attempted to access non-existent project', { projectId });
+ 444 │     return (
+ 445 │       <div className="container max-w-4xl py-8">
+ 446 │         <Alert variant="destructive">
+ 447 │           <AlertTitle>Project Not Found</AlertTitle>
+ 448 │           <AlertDescription>
+ 449 │             The requested project does not exist or you don't have access to it.
+ 450 │             <div className="mt-4">
+ 451 │               <Button onClick={() => navigate('/projects')}>
+ 452 │                 Back to Projects
+ 453 │               </Button>
+ 454 │             </div>
+ 455 │           </AlertDescription>
+ 456 │         </Alert>
+ 457 │       </div>
+ 458 │     );
+ 459 │   }
+ 460 │ 
+ 461 │   const generateServer = async () => {
+     ·         ───────┬──────
+     ·                ╰── `generateServer` redefined here
+ 462 │     if (!projectId || !serverConfiguration) {
+ 463 │       logWarning('Cannot generate server without project ID or server configuration');
+ 464 │       return;
+     ╰────
