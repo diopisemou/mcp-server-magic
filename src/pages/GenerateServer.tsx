@@ -88,114 +88,6 @@ const GenerateServer = () => {
         });
         throw error;
       }
-      
-      logInfo('Project fetched successfully', { 
-        projectId, 
-        projectName: data.name 
-      });
-      setProject(data);
-    } catch (error) {
-      logError('Failed to load project data', { error });
-      toast.error('Failed to load project data');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const fetchServerConfiguration = async () => {
-    if (!projectId) {
-      logWarning('No projectId provided for server configuration');
-      return;
-    }
-    
-    try {
-      logInfo(`Fetching server configuration for projectId: ${projectId}`);
-      const { data, error } = await supabase
-        .from('server_configurations')
-        .select('*')
-        .eq('project_id', projectId)
-        .single();
-      
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // Record not found is okay
-          logInfo('No server configuration found for this project');
-          return;
-        }
-        
-        logError('Error fetching server configuration', { 
-          projectId, 
-          error: error.message,
-          code: error.code 
-        });
-        throw error;
-      }
-      
-      logInfo('Server configuration fetched successfully');
-      setServerConfiguration(data);
-    } catch (error) {
-      logError('Failed to load server configuration', { error });
-      toast.error('Failed to load server configuration');
-    }
-  };
-  
-  const generateServer = async () => {
-    if (!project || !serverConfiguration) {
-      logError('Cannot generate server: missing project or configuration');
-      toast.error('Project or server configuration not found');
-      return;
-    }
-    
-    setIsGenerating(true);
-    setGenerationProgress(0);
-    setGenerationError(null);
-    
-    try {
-      logInfo('Starting server generation', { projectId, configId: serverConfiguration.id });
-      
-      // Mock progress updates
-      const progressInterval = setInterval(() => {
-        setGenerationProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + 5;
-        });
-      }, 1000);
-      
-      // Make API call to generate server
-      const response = await fetch('/api/generate-server', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          projectId,
-          configId: serverConfiguration.id
-        }),
-      });
-      
-      clearInterval(progressInterval);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to generate server');
-      }
-      
-      const result = await response.json();
-      logInfo('Server generation completed successfully', { result });
-      
-      setGenerationProgress(100);
-      setGenerationResult(result);
-    } catch (error) {
-      logError('Server generation failed', { error });
-      setGenerationError(error instanceof Error ? error.message : 'Unknown error occurred');
-      toast.error('Failed to generate server');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
       logInfo('Project fetched successfully', { 
         projectId, 
@@ -209,6 +101,102 @@ const GenerateServer = () => {
       setLoading(false);
     }
   };
+
+  const fetchServerConfiguration = async () => {
+    if (!projectId) {
+      logWarning('No projectId provided for server configuration');
+      return;
+    }
+
+    try {
+      logInfo(`Fetching server configuration for projectId: ${projectId}`);
+      const { data, error } = await supabase
+        .from('server_configurations')
+        .select('*')
+        .eq('project_id', projectId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Record not found is okay
+          logInfo('No server configuration found for this project');
+          return;
+        }
+
+        logError('Error fetching server configuration', { 
+          projectId, 
+          error: error.message,
+          code: error.code 
+        });
+        throw error;
+      }
+
+      logInfo('Server configuration fetched successfully');
+      setServerConfiguration(data);
+    } catch (error) {
+      logError('Failed to load server configuration', { error });
+      toast.error('Failed to load server configuration');
+    }
+  };
+
+  const generateServer = async () => {
+    if (!project || !serverConfiguration) {
+      logError('Cannot generate server: missing project or configuration');
+      toast.error('Project or server configuration not found');
+      return;
+    }
+
+    setIsGenerating(true);
+    setGenerationProgress(0);
+    setGenerationError(null);
+
+    try {
+      logInfo('Starting server generation', { projectId, configId: serverConfiguration.id });
+
+      // Mock progress updates
+      const progressInterval = setInterval(() => {
+        setGenerationProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 5;
+        });
+      }, 1000);
+
+      // Make API call to generate server
+      const response = await fetch('/api/generate-server', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId,
+          configId: serverConfiguration.id
+        }),
+      });
+
+      clearInterval(progressInterval);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to generate server');
+      }
+
+      const result = await response.json();
+      logInfo('Server generation completed successfully', { result });
+
+      setGenerationProgress(100);
+      setGenerationResult(result);
+    } catch (error) {
+      logError('Server generation failed', { error });
+      setGenerationError(error instanceof Error ? error.message : 'Unknown error occurred');
+      toast.error('Failed to generate server');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
 
   useEffect(() => {
     if (isGenerating) {
@@ -633,7 +621,7 @@ const GenerateServer = () => {
                 <AlertDescription>{generationError}</AlertDescription>
               </Alert>
             )}
-            
+
             {showLogs && (
               <div className="mt-4">
                 <LogViewer />
@@ -642,7 +630,7 @@ const GenerateServer = () => {
           </div>
         </CardFooter>
       </Card>
-      
+
       {generationResult && (
         <div className="mt-6">
           <Card>
@@ -675,7 +663,7 @@ const GenerateServer = () => {
                     </Button>
                   </div>
                 </div>
-                
+
                 <div>
                   <h3 className="text-sm font-medium mb-1">Actions</h3>
                   <div className="flex gap-2">
@@ -710,7 +698,7 @@ const GenerateServer = () => {
           </Card>
         </div>
       )}
-      
+
       <div className="fixed bottom-4 right-4">
         <Button
           variant="secondary"
