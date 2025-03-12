@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { ApiDefinition } from '@/types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { FileJson, Upload, FileText, AlertCircle } from 'lucide-react';
+import { validateApiDefinition } from '@/utils/apiValidator';
 
 interface ApiUploaderProps {
   onUploadComplete: (definition: ApiDefinition) => void;
@@ -16,6 +18,7 @@ const ApiUploader = ({ onUploadComplete }: ApiUploaderProps) => {
   const [isUrl, setIsUrl] = useState(false);
   const [url, setUrl] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -49,34 +52,42 @@ const ApiUploader = ({ onUploadComplete }: ApiUploaderProps) => {
 
   const handleFile = async (file: File) => {
     setUploading(true);
+    setValidationErrors([]);
     
     // Check file type
-    const validTypes = ['application/json', 'application/x-yaml', 'text/yaml', 'text/plain'];
+    const validTypes = ['application/json', 'application/x-yaml', 'text/yaml', 'text/plain', 'text/markdown'];
     if (!validTypes.includes(file.type)) {
-      toast.error('Invalid file type. Please upload JSON or YAML files.');
+      toast.error('Invalid file type. Please upload JSON, YAML, RAML, or Markdown files.');
       setUploading(false);
       return;
     }
     
-    // Simulate file processing with a delay
     try {
       // Read file content
       const content = await file.text();
       
+      // Validate API definition
+      const { isValid, format, errors, parsedDefinition } = await validateApiDefinition(content, file.name);
+      
+      if (!isValid) {
+        setValidationErrors(errors || ['Invalid API definition format']);
+        toast.error('API definition validation failed');
+        setUploading(false);
+        return;
+      }
+      
       // Create API definition object
       const apiDefinition: ApiDefinition = {
         name: file.name,
-        format: 'OpenAPI3', // Default, would be determined by validation
+        format,
         content,
+        parsedDefinition,
         file
       };
       
-      // Simulate API validation delay
-      setTimeout(() => {
-        onUploadComplete(apiDefinition);
-        setUploading(false);
-        toast.success('API definition uploaded successfully');
-      }, 1500);
+      onUploadComplete(apiDefinition);
+      setUploading(false);
+      toast.success(`API definition (${format}) uploaded successfully`);
     } catch (error) {
       console.error('Error processing file:', error);
       toast.error('Error processing file. Please try again.');
@@ -87,27 +98,52 @@ const ApiUploader = ({ onUploadComplete }: ApiUploaderProps) => {
   const handleUrlSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setUploading(true);
+    setValidationErrors([]);
     
-    // Simulate URL validation and fetching
+    // Validate URL
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       toast.error('Please enter a valid URL');
       setUploading(false);
       return;
     }
     
-    // Simulate API fetching with a delay
-    setTimeout(() => {
-      const apiDefinition: ApiDefinition = {
-        name: url.split('/').pop() || 'api-definition',
-        format: 'OpenAPI3', // Default, would be determined by validation
-        content: '{"openapi": "3.0.0", "info": {"title": "Sample API", "version": "1.0.0"}}', // Placeholder
-        url
-      };
-      
-      onUploadComplete(apiDefinition);
-      setUploading(false);
-      toast.success('API definition fetched successfully');
-    }, 2000);
+    // Fetch and validate API definition from URL
+    fetch(url)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.text();
+      })
+      .then(async (content) => {
+        const { isValid, format, errors, parsedDefinition } = await validateApiDefinition(content, url);
+        
+        if (!isValid) {
+          setValidationErrors(errors || ['Invalid API definition format']);
+          toast.error('API definition validation failed');
+          setUploading(false);
+          return;
+        }
+        
+        const apiDefinition: ApiDefinition = {
+          name: url.split('/').pop() || 'api-definition',
+          format,
+          content,
+          parsedDefinition,
+          url
+        };
+        
+        onUploadComplete(apiDefinition);
+        toast.success(`API definition (${format}) fetched successfully`);
+      })
+      .catch(error => {
+        console.error('Error fetching API definition:', error);
+        toast.error('Failed to fetch API definition. Please check the URL and try again.');
+        setValidationErrors([error.message]);
+      })
+      .finally(() => {
+        setUploading(false);
+      });
   };
 
   return (
@@ -158,30 +194,21 @@ const ApiUploader = ({ onUploadComplete }: ApiUploaderProps) => {
                   onDrop={handleDrop}
                 >
                   <div className="text-center">
-                    <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      width="40" 
-                      height="40" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
+                    <Upload 
                       className="mx-auto mb-4 text-muted-foreground"
-                    >
-                      <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
-                      <path d="M12 12v9" />
-                      <path d="m16 16-4-4-4 4" />
-                    </svg>
+                      size={40}
+                    />
                     <h3 className="text-lg font-medium mb-2">
                       {dragActive 
                         ? 'Drop your API definition file here' 
                         : 'Drag and drop your API definition file here'
                       }
                     </h3>
-                    <p className="text-muted-foreground mb-4">
-                      Supports OpenAPI, RAML, and API Blueprint formats
+                    <p className="text-muted-foreground mb-4 flex items-center justify-center gap-2">
+                      <span>Supports OpenAPI</span>
+                      <FileJson className="h-4 w-4" />
+                      <span>RAML and API Blueprint formats</span>
+                      <FileText className="h-4 w-4" />
                     </p>
                     <input
                       ref={inputRef}
@@ -223,6 +250,22 @@ const ApiUploader = ({ onUploadComplete }: ApiUploaderProps) => {
                     Enter the URL of a publicly accessible API definition file
                   </p>
                 </form>
+              )}
+              
+              {validationErrors.length > 0 && (
+                <div className="mt-4 p-4 bg-destructive/10 rounded-md border border-destructive">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-destructive">Validation errors</p>
+                      <ul className="mt-2 text-sm text-destructive space-y-1">
+                        {validationErrors.map((error, index) => (
+                          <li key={index}>{error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </div>
