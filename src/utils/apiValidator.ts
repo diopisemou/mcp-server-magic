@@ -1,5 +1,21 @@
 import yaml from 'js-yaml';
 
+// Polyfill for Buffer in browser environments
+const BufferPolyfill = {
+  isBuffer: (obj: any): boolean => {
+    return obj && typeof obj === 'object' && 
+           typeof obj.byteLength === 'number';
+  },
+  from: (data: string): { toString: () => string } => {
+    return {
+      toString: () => data
+    };
+  }
+};
+
+// Use native Buffer if available (Node.js) or polyfill (browser)
+const BufferImpl = typeof Buffer !== 'undefined' ? Buffer : BufferPolyfill;
+
 type ApiFormat = 'OpenAPI2' | 'OpenAPI3' | 'RAML' | 'APIBlueprint';
 
 // Extract Swagger definition URL from HTML content
@@ -40,8 +56,8 @@ interface ValidationResult {
 // Helper function to determine if content is JSON or YAML
 const detectContentType = (content: string | Buffer | object): string => {
   // Handle Buffer or non-string content
-  if (Buffer.isBuffer(content)) {
-    content = content.toString('utf-8');
+  if (BufferImpl.isBuffer(content)) {
+    content = content.toString();
   } else if (typeof content !== 'string') {
     // If content is an object (already parsed JSON), return 'json'
     if (typeof content === 'object') {
@@ -321,8 +337,8 @@ export const validateApiDefinition = async (
   let errors: string[] = [];
 
   // Convert Buffer to string if needed
-  if (Buffer.isBuffer(content)) {
-    content = content.toString('utf-8');
+  if (BufferImpl.isBuffer(content)) {
+    content = content.toString();
   } else if (typeof content !== 'string') {
     try {
       content = String(content);
