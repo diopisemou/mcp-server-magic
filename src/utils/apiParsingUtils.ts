@@ -15,18 +15,20 @@ export const parseApiDefinition = (apiDefinition: ApiDefinitionRecord | null): E
     const parsedContent = JSON.parse(apiDefinition.content);
     let extractedEndpoints: Endpoint[] = [];
     
-    if (parsedContent.parsedDefinition) {
-      extractedEndpoints = extractEndpoints(parsedContent.parsedDefinition, parsedContent.format)
-        .map((endpoint) => ({
-          ...endpoint,
-          id: endpoint.id || `endpoint-${Math.random().toString(36).substring(2)}`,
-          method: endpoint.method.toUpperCase() as Endpoint['method'],
-          mcpType: endpoint.method.toLowerCase() === 'get' ? 'resource' : 'tool',
-          description: endpoint.description || '',
-          parameters: endpoint.parameters || [],
-          responses: endpoint.responses || []
-        }));
-    }
+    // Extract endpoints directly from the parsedContent
+    console.log("Parsing API definition format:", parsedContent.format);
+    
+    // Pass the entire object to extract endpoints so we can handle nested definitions
+    extractedEndpoints = extractEndpoints(parsedContent, parsedContent.format)
+      .map((endpoint) => ({
+        ...endpoint,
+        id: endpoint.id || `endpoint-${Math.random().toString(36).substring(2)}`,
+        method: endpoint.method.toUpperCase() as Endpoint['method'],
+        mcpType: endpoint.method.toLowerCase() === 'get' ? 'resource' : 'tool',
+        description: endpoint.description || '',
+        parameters: endpoint.parameters || [],
+        responses: endpoint.responses || []
+      }));
     
     console.log("Parsed endpoints:", extractedEndpoints);
     return extractedEndpoints;

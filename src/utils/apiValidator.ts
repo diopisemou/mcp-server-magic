@@ -4,7 +4,9 @@ import yaml from 'js-yaml';
 const BufferPolyfill = {
   isBuffer: (obj: any): boolean => {
     return obj && typeof obj === 'object' &&
-      typeof obj.byteLength === 'number';
+      (typeof obj.byteLength === 'number' || 
+       (obj instanceof Uint8Array) || 
+       (obj instanceof ArrayBuffer));
   },
   from: (data: string): { toString: () => string } => {
     return {
@@ -54,7 +56,7 @@ interface ValidationResult {
 }
 
 // Helper function to determine if content is JSON or YAML
-const detectContentType = (content: string | Buffer | object): string => {
+const detectContentType = (content: string | Buffer | object): 'json' | 'yaml' | 'raml' | 'markdown' | 'unknown' => {
   // Handle Buffer or non-string content
   if (BufferImpl.isBuffer(content)) {
     content = content.toString();
@@ -71,6 +73,11 @@ const detectContentType = (content: string | Buffer | object): string => {
     }
   }
 
+  // Make sure we have a string to work with
+  if (typeof content !== 'string') {
+    return 'unknown';
+  }
+
   const trimmedContent = content.trim();
 
   if (trimmedContent.startsWith('{') || trimmedContent.startsWith('[')) {
@@ -79,8 +86,16 @@ const detectContentType = (content: string | Buffer | object): string => {
     return 'raml';
   } else if (trimmedContent.startsWith('# ') || trimmedContent.startsWith('FORMAT:')) {
     return 'markdown'; // Potential API Blueprint
-  } else {
+  } else if (trimmedContent.includes('openapi:') || trimmedContent.includes('swagger:')) {
     return 'yaml';
+  } else {
+    // Try to determine if it's YAML
+    try {
+      yaml.load(trimmedContent);
+      return 'yaml';
+    } catch (e) {
+      return 'unknown';
+    }
   }
 };
 
@@ -211,10 +226,14 @@ const validateAPIBlueprint = (parsedContent: any): string[] => {
 export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoint[] => {
   const endpoints: Endpoint[] = [];
   console.log('Extracting endpoints from format:', format);
+  console.log('API Definition (sample):', JSON.stringify(apiDefinition).substring(0, 300) + '...');
   
   try {
-    // Handle case where API definition might be nested
-    const definition = apiDefinition.parsedDefinition || apiDefinition;
+    // Handle case where API definition might be nested in different ways
+    const definition = 
+      apiDefinition.parsedDefinition || // From validateApiDefinition result
+      (apiDefinition.content ? JSON.parse(apiDefinition.content).parsedDefinition : null) || // From DB content
+      apiDefinition; // Direct definition
     
     if (!definition) {
       console.error('No valid definition found in:', apiDefinition);
