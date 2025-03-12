@@ -34,6 +34,43 @@ const GenerateServer = () => {
     fetchServerConfiguration();
   }, [projectId]);
 
+  const fetchProject = async () => {
+    if (!projectId) {
+      logWarning('No projectId provided');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      logInfo(`Fetching project data for projectId: ${projectId}`);
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single();
+
+      if (error) {
+        logError('Error fetching project', { 
+          projectId, 
+          error: error.message,
+          code: error.code 
+        });
+        throw error;
+      }
+
+      logInfo('Project fetched successfully', { 
+        projectId, 
+        projectName: data.name 
+      });
+      setProject(data);
+    } catch (error) {
+      console.error('Error fetching project:', error);
+      toast.error('Failed to load project data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (isGenerating) {
       logInfo('Server generation started', { projectId });
