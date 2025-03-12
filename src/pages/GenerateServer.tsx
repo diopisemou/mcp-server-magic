@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Endpoint, ServerConfiguration, Project, GenerationResult } from '@/types';
 import { Badge } from '@/components/ui/badge';
-import { ProgressCircle } from '@/components/ui/progress-circle';
+import { ProgressCircle } from '@/components/ui/progress-circle'; // Added import
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const GenerateServer: React.FC = () => {
@@ -74,7 +74,7 @@ const GenerateServer: React.FC = () => {
   }, [projectId, configId]);
 
   // Helper functions to handle server generation
-  const generateServer = () => {
+  const handleGenerateServer = async () => {
     if (!config || !project) {
       toast.error('Missing required configuration');
       return;
@@ -85,7 +85,7 @@ const GenerateServer: React.FC = () => {
       setGenerationError(null);
 
       // Create a new deployment record
-      supabase
+      const { data: deploymentData, error: deploymentError } = await supabase
         .from('deployments')
         .insert([
           {
@@ -95,107 +95,96 @@ const GenerateServer: React.FC = () => {
           }
         ])
         .select()
-        .single()
-        .then(({ data: deploymentData, error: deploymentError }) => {
-          if (deploymentError) {
-            throw deploymentError;
+        .single();
+
+      if (deploymentError) {
+        throw deploymentError;
+      }
+
+      setDeploymentId(deploymentData.id);
+
+      // Simulate server generation (3-second delay)
+      setTimeout(async () => {
+        try {
+          // Generate a random server URL for demo purposes
+          const demoServerUrl = `https://mcp-server-${Math.random().toString(36).substring(2, 10)}.example.com`;
+
+          // Update the deployment status
+          const { error: updateError } = await supabase
+            .from('deployments')
+            .update({
+              status: 'success',
+              server_url: demoServerUrl
+            })
+            .eq('id', deploymentData.id);
+
+          if (updateError) {
+            throw updateError;
           }
 
-          setDeploymentId(deploymentData.id);
+          setServerUrl(demoServerUrl);
 
-          // Simulate server generation (3-second delay)
-          setTimeout(async () => {
-            try {
-              // Generate a random server URL for demo purposes
-              const demoServerUrl = `https://mcp-server-${Math.random().toString(36).substring(2, 10)}.example.com`;
-
-              // Update the deployment status
-              const { error: updateError } = await supabase
-                .from('deployments')
-                .update({
-                  status: 'success',
-                  server_url: demoServerUrl
-                })
-                .eq('id', deploymentData.id);
-
-              if (updateError) {
-                throw updateError;
+          // Create a successful generation result
+          setGenerationResult({
+            success: true,
+            serverUrl: demoServerUrl,
+            files: [
+              {
+                name: 'mcp_server.py',
+                path: '/src/',
+                content: generateServerCode(config, endpoints),
+                type: 'code'
+              },
+              {
+                name: 'requirements.txt',
+                path: '/',
+                content: generateRequirementsFile(),
+                type: 'config'
+              },
+              {
+                name: 'README.md',
+                path: '/',
+                content: generateReadme(config, endpoints),
+                type: 'documentation'
               }
+            ]
+          });
 
-              setServerUrl(demoServerUrl);
+          toast.success('Server generated and deployed successfully');
+        } catch (error) {
+          console.error('Error updating deployment:', error);
+          setGenerationError('Failed to update deployment status');
 
-              // Create a successful generation result
-              setGenerationResult({
-                success: true,
-                serverUrl: demoServerUrl,
-                files: [
-                  {
-                    name: 'mcp_server.py',
-                    path: '/src/',
-                    content: generateServerCode(config, endpoints),
-                    type: 'code'
-                  },
-                  {
-                    name: 'requirements.txt',
-                    path: '/',
-                    content: generateRequirementsFile(),
-                    type: 'config'
-                  },
-                  {
-                    name: 'README.md',
-                    path: '/',
-                    content: generateReadme(config, endpoints),
-                    type: 'documentation'
-                  }
-                ]
-              });
-
-              toast.success('Server generated and deployed successfully');
-            } catch (error) {
-              console.error('Error updating deployment:', error);
-              setGenerationError('Failed to update deployment status');
-
-              // Update deployment to failed status
-              await supabase
-                .from('deployments')
-                .update({
-                  status: 'failed',
-                  logs: JSON.stringify(error)
-                })
-                .eq('id', deploymentData.id);
-
-              // Create a failed generation result
-              setGenerationResult({
-                success: false,
-                error: 'Failed to update deployment status'
-              });
-            } finally {
-              setIsGenerating(false);
-            }
-          }, 3000);
-        })
-        .catch((error) => {
-          console.error('Error generating server:', error);
-          setGenerationError('Failed to start server generation');
-          setIsGenerating(false);
+          // Update deployment to failed status
+          await supabase
+            .from('deployments')
+            .update({
+              status: 'failed',
+              logs: JSON.stringify(error)
+            })
+            .eq('id', deploymentData.id);
 
           // Create a failed generation result
           setGenerationResult({
             success: false,
-            error: 'Failed to start server generation'
+            error: 'Failed to update deployment status'
           });
-        });
-    } catch (error) {
-      console.error('Error generating server:', error);
-      setGenerationError('Failed to start server generation');
-      setIsGenerating(false);
+        } finally {
+          setIsGenerating(false);
+        }
+      }, 3000);
+    })
+      .catch((error) => {
+        console.error('Error generating server:', error);
+        setGenerationError('Failed to start server generation');
+        setIsGenerating(false);
 
-      // Create a failed generation result
-      setGenerationResult({
-        success: false,
-        error: 'Failed to start server generation'
+        // Create a failed generation result
+        setGenerationResult({
+          success: false,
+          error: 'Failed to start server generation'
+        });
       });
-    }
   };
 
   const handleRestart = () => {
@@ -494,7 +483,7 @@ ${endpoints.map(endpoint => `- \`${endpoint.method} ${endpoint.path}\` - ${endpo
 
           <CardFooter>
             <Button
-              onClick={generateServer}
+              onClick={handleGenerateServer} // Updated function call
               disabled={isGenerating}
               className="w-full"
             >
