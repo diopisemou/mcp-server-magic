@@ -43,8 +43,6 @@ const ConfigureServer = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
-  const navigate = useNavigate();
-  
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
@@ -105,6 +103,7 @@ const ConfigureServer = () => {
           extractedEndpoints = extractEndpoints(parsedContent.parsedDefinition, parsedContent.format)
             .map(endpoint => ({
               ...endpoint,
+              method: endpoint.method.toUpperCase() as Endpoint['method'],
               mcpType: endpoint.method.toLowerCase() === 'get' ? 'resource' : 'tool'
             }));
         }
@@ -212,7 +211,7 @@ const ConfigureServer = () => {
           </CardHeader>
           <CardContent>
             <ServerConfiguration 
-              initialConfig={serverConfig}
+              serverConfig={serverConfig}
               onConfigChange={handleUpdateServerConfig}
             />
           </CardContent>

@@ -7,10 +7,9 @@ import { McpProject, ApiDefinitionRecord, ServerConfigRecord, Deployment } from 
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Download, Code, Server, Play, RefreshCw } from 'lucide-react';
+import { Download, Code, Server, Play, RefreshCw, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import ServerConfiguration from '@/components/ServerConfiguration';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const ProjectDetail = () => {
@@ -81,7 +80,13 @@ const ProjectDetail = () => {
         throw configError;
       }
 
-      setServerConfigs(configData || []);
+      // Cast the data to the required types
+      const typedConfigData: ServerConfigRecord[] = configData?.map(config => ({
+        ...config,
+        language: config.language as "Python" | "TypeScript"
+      })) || [];
+      
+      setServerConfigs(typedConfigData);
 
       // Fetch deployments
       const { data: deploymentData, error: deploymentError } = await supabase
@@ -94,7 +99,13 @@ const ProjectDetail = () => {
         throw deploymentError;
       }
 
-      setDeployments(deploymentData || []);
+      // Cast the data to the required types
+      const typedDeploymentData: Deployment[] = deploymentData?.map(deployment => ({
+        ...deployment,
+        status: deployment.status as "pending" | "success" | "failed"
+      })) || [];
+      
+      setDeployments(typedDeploymentData);
     } catch (error) {
       console.error('Error fetching project data:', error);
       toast.error('Failed to fetch project data');

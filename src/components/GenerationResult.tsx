@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import type { GenerationResult as GenerationResultType } from '@/types';
 
 interface GenerationResultProps {
@@ -53,7 +53,7 @@ const GenerationResult = ({ result, onRestart }: GenerationResultProps) => {
                         className="ml-2"
                         onClick={() => {
                           navigator.clipboard.writeText(result.serverUrl || '');
-                          toast.success('URL copied to clipboard');
+                          toast('URL copied to clipboard');
                         }}
                       >
                         Copy
