@@ -219,11 +219,22 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
       }
 
       // Determine proper file extension based on content
-      const contentType = content.trim().startsWith('{') ? 'json' : 'yaml';
+      let contentType = 'yaml';
+      const trimmedContent = content.trim();
+      
+      if (trimmedContent.startsWith('{') || trimmedContent.startsWith('[')) {
+        contentType = 'json';
+      } else if (trimmedContent.startsWith('#%RAML')) {
+        contentType = 'raml';
+      } else if (trimmedContent.startsWith('# ') || trimmedContent.startsWith('FORMAT:')) {
+        contentType = 'markdown';
+      }
+      
+      console.log(`Content appears to be ${contentType}`);
       const fileName = `api-definition.${contentType}`;
 
-
       const result = await validateApiDefinition(content, fileName);
+      console.log("Validation result:", result);
 
       if (!result.isValid) {
         setError(`Invalid API definition: ${result.errors?.join(', ')}`);
@@ -348,12 +359,82 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   };
 
   const extractEndpoints = (apiDef: any, format: string): Endpoint[] => {
-    //Implementation to extract endpoints based on format.  This is a placeholder and needs actual implementation
-    if(apiDef && format){
-        //Add your logic here to extract endpoints based on the format.
-        return []; 
+    console.log("Extracting endpoints:", { format, apiDef });
+    const endpoints: Endpoint[] = [];
+    
+    try {
+      if (!apiDef || !format) {
+        console.error("Missing API definition or format");
+        return [];
+      }
+
+      // Extract endpoints from OpenAPI (both v2 and v3)
+      if (format === 'OpenAPI2' || format === 'OpenAPI3') {
+        const paths = apiDef.paths || {};
+        
+        Object.entries(paths).forEach(([path, pathObj]: [string, any]) => {
+          Object.entries(pathObj || {}).forEach(([method, operation]: [string, any]) => {
+            if (!operation) return;
+            
+            // Skip non-HTTP method properties
+            if (!['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)) {
+              return;
+            }
+            
+            const parameters = (operation.parameters || []).map((param: any) => ({
+              name: param.name,
+              in: param.in,
+              required: !!param.required,
+              type: param.schema?.type || param.type || 'string',
+              description: param.description || ''
+            }));
+            
+            // Add request body params for non-GET methods
+            if (method !== 'get' && operation.requestBody) {
+              const contentType = Object.keys(operation.requestBody.content || {})[0] || 'application/json';
+              const schema = operation.requestBody.content?.[contentType]?.schema;
+              
+              if (schema) {
+                if (schema.properties) {
+                  Object.entries(schema.properties).forEach(([name, propSchema]: [string, any]) => {
+                    parameters.push({
+                      name,
+                      in: 'body',
+                      required: schema.required?.includes(name) || false,
+                      type: propSchema.type || 'string',
+                      description: propSchema.description || ''
+                    });
+                  });
+                }
+              }
+            }
+            
+            const responses: Record<string, string> = {};
+            if (operation.responses) {
+              Object.entries(operation.responses).forEach(([code, response]: [string, any]) => {
+                responses[code] = response.description || `Response ${code}`;
+              });
+            }
+            
+            endpoints.push({
+              id: `${path}-${method}`,
+              path,
+              method: method.toUpperCase() as any,
+              description: operation.summary || operation.description || '',
+              parameters,
+              responses,
+              tags: operation.tags || []
+            });
+          });
+        });
+      }
+      
+      console.log("Extracted endpoints:", endpoints);
+      return endpoints;
+    } catch (error) {
+      console.error("Error extracting endpoints:", error);
+      return [];
     }
-    return [];
   };
 
 

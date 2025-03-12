@@ -26,27 +26,60 @@ const detectContentType = (content: string): 'json' | 'yaml' | 'raml' | 'markdow
 // Parse content based on detected type
 const parseContent = (content: string, contentType: 'json' | 'yaml' | 'raml' | 'markdown'): any => {
   try {
+    console.log(`Parsing content as ${contentType}`);
     if (contentType === 'json') {
-      return JSON.parse(content);
+      const parsed = JSON.parse(content);
+      console.log("Successfully parsed JSON:", parsed);
+      return parsed;
     } else if (contentType === 'yaml') {
-      const parsedYaml = yaml.load(content);
-      return parsedYaml;
+      try {
+        const parsedYaml = yaml.load(content);
+        console.log("Successfully parsed YAML:", parsedYaml);
+        return parsedYaml;
+      } catch (yamlError) {
+        console.error("YAML parsing failed:", yamlError);
+        // Try JSON as fallback
+        try {
+          const parsed = JSON.parse(content);
+          console.log("Fallback to JSON parsing succeeded:", parsed);
+          return parsed;
+        } catch (jsonError) {
+          console.error("Fallback to JSON parsing failed:", jsonError);
+          throw yamlError; // Throw the original YAML error
+        }
+      }
     } else if (contentType === 'raml') {
       // Basic RAML parsing - in a real app, use raml-parser
       // For now, extract basic info from RAML header
+      console.log("Parsing RAML");
       const lines = content.split('\n');
-      const version = lines.find(line => line.trim().startsWith('#%RAML'))?.split(' ')[1] || '';
-      const title = lines.find(line => line.trim().startsWith('title:'))?.split('title:')[1].trim() || '';
-      return { ramlVersion: version, title, isRaml: true };
+      const ramlVersion = lines[0].replace('#%RAML ', '');
+      const ramlObj: any = { ramlVersion, isRaml: true };
+
+      lines.slice(1).forEach(line => {
+        if (line.includes(':')) {
+          const [key, ...valueParts] = line.split(':');
+          const value = valueParts.join(':').trim();
+          if (key && key.trim()) {
+            ramlObj[key.trim()] = value;
+          }
+        }
+      });
+
+      console.log("Parsed RAML:", ramlObj);
+      return ramlObj;
     } else if (contentType === 'markdown') {
-      // Basic API Blueprint parsing - in a real app, use a proper parser
-      return { isApiBlueprint: true, content };
+      // Simplified API Blueprint parsing
+      console.log("Parsing API Blueprint/Markdown");
+      return {
+        isApiBlueprint: true,
+        content
+      };
     }
   } catch (error) {
     console.error('Error parsing content:', error);
-    throw new Error('Failed to parse content');
+    return null;
   }
-  return null;
 };
 
 // Determine API format from parsed content
@@ -162,16 +195,25 @@ interface ApiEndpoint {
 // Extract endpoints from different API definition formats
 export const extractEndpoints = (parsedDefinition: any, format: ApiFormat): ApiEndpoint[] => {
   const endpoints: ApiEndpoint[] = [];
+  console.log("Extracting endpoints from parsed definition:", { format, parsedDefinition });
 
   try {
     if (format === 'OpenAPI2' || format === 'OpenAPI3') {
       const paths = parsedDefinition.paths || {};
+      console.log("Processing paths:", Object.keys(paths));
 
-      Object.entries(paths).forEach(([path, methods]: [string, any]) => {
-        Object.entries(methods).forEach(([method, operation]: [string, any]) => {
-          if (['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)) {
-            // Extract parameters from both the operation and any request body
-            const parameters = (operation.parameters || []).map((param: any) => ({
+      Object.entries(paths).forEach(([path, pathObj]: [string, any]) => {
+        Object.entries(pathObj || {}).forEach(([method, operation]: [string, any]) => {
+          // Skip non-HTTP method properties like 'parameters'
+          if (!['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method.toLowerCase())) {
+            return;
+          }
+
+          if (operation) {
+            console.log(`Processing endpoint: ${method.toUpperCase()} ${path}`);
+
+            // Extract parameters
+            let parameters = (operation.parameters || []).map((param: any) => ({
               name: param.name,
               in: param.in,
               required: !!param.required,
@@ -179,19 +221,19 @@ export const extractEndpoints = (parsedDefinition: any, format: ApiFormat): ApiE
               description: param.description || ''
             }));
 
-            // Extract any request body parameters
-            if (operation.requestBody && operation.requestBody.content) {
-              const contentTypes = Object.keys(operation.requestBody.content);
-              if (contentTypes.length > 0) {
-                const firstContentType = contentTypes[0];
-                const schema = operation.requestBody.content[firstContentType].schema;
+            // For OpenAPI 3.0, also handle requestBody
+            if (format === 'OpenAPI3' && operation.requestBody) {
+              const contentType = Object.keys(operation.requestBody.content || {})[0] || 'application/json';
+              const schema = operation.requestBody.content?.[contentType]?.schema;
 
-                if (schema && schema.properties) {
-                  Object.entries(schema.properties).forEach(([propName, propSchema]: [string, any]) => {
+              if (schema) {
+                console.log(`Processing request body schema for ${method} ${path}`);
+                if (schema.properties) {
+                  Object.entries(schema.properties).forEach(([name, propSchema]: [string, any]) => {
                     parameters.push({
-                      name: propName,
+                      name,
                       in: 'body',
-                      required: schema.required?.includes(propName) || false,
+                      required: schema.required?.includes(name) || false,
                       type: propSchema.type || 'string',
                       description: propSchema.description || ''
                     });
@@ -200,15 +242,21 @@ export const extractEndpoints = (parsedDefinition: any, format: ApiFormat): ApiE
               }
             }
 
-            const responses = Object.entries(operation.responses || {}).map(([code, response]: [string, any]) => ({
-              code,
-              description: response.description || ''
-            }));
+            // Extract responses
+            const responses: { code: string; description: string }[] = [];
+            if (operation.responses) {
+              Object.entries(operation.responses).forEach(([code, response]: [string, any]) => {
+                responses.push({
+                  code,
+                  description: response.description || `Response ${code}`
+                });
+              });
+            }
 
             endpoints.push({
               id: `${path}-${method}`,
               path,
-              method,
+              method: method.toUpperCase(),
               description: operation.summary || operation.description || '',
               parameters,
               responses,
@@ -218,14 +266,14 @@ export const extractEndpoints = (parsedDefinition: any, format: ApiFormat): ApiE
         });
       });
     } else if (format === 'RAML') {
+      console.log("RAML endpoint extraction not fully implemented");
       // Simplified RAML handling - would need more complete implementation
-      // const resources = parsedDefinition.resources || [];
-      // Extract endpoints from RAML resources
     } else if (format === 'APIBlueprint') {
+      console.log("API Blueprint endpoint extraction not fully implemented");
       // Basic API Blueprint parsing - in a real app, use a full parser
-      const content = parsedDefinition.content;
-      const lines = content.split('\n');
     }
+
+    console.log(`Extracted ${endpoints.length} endpoints:`, endpoints);
   } catch (error) {
     console.error('Error extracting endpoints:', error);
   }
