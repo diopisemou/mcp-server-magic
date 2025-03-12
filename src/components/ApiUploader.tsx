@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
@@ -623,6 +622,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                           </div>
                         </div>
                       )}
+                    </div>
                     <Button type="submit" disabled={isUploading || !apiUrl}>
                       {isUploading ? 'Fetching...' : 'Fetch'}
                     </Button>
