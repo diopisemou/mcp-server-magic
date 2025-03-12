@@ -1,15 +1,10 @@
-
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { ServerConfig, ApiDefinitionRecord, McpProject, Endpoint } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { extractEndpoints } from '@/utils/apiValidator';
 import ServerConfiguration from '@/components/ServerConfiguration';
@@ -104,7 +99,10 @@ const ConfigureServer = () => {
             .map(endpoint => ({
               ...endpoint,
               method: endpoint.method.toUpperCase() as Endpoint['method'],
-              mcpType: endpoint.method.toLowerCase() === 'get' ? 'resource' : 'tool'
+              mcpType: endpoint.method.toLowerCase() === 'get' ? 'resource' : 'tool',
+              description: endpoint.description || '',
+              parameters: endpoint.parameters || [],
+              responses: endpoint.responses || []
             }));
         }
         

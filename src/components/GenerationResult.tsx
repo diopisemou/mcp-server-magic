@@ -11,7 +11,7 @@ interface GenerationResultProps {
   onRestart: () => void;
 }
 
-const GenerationResult = ({ result, onRestart }: GenerationResultProps) => {
+const GenerationResultComponent = ({ result, onRestart }: GenerationResultProps) => {
   const [activeTab, setActiveTab] = useState('server');
   
   if (!result) return null;
@@ -52,8 +52,10 @@ const GenerationResult = ({ result, onRestart }: GenerationResultProps) => {
                         variant="outline" 
                         className="ml-2"
                         onClick={() => {
-                          navigator.clipboard.writeText(result.serverUrl || '');
-                          toast('URL copied to clipboard');
+                          if (result.serverUrl) {
+                            navigator.clipboard.writeText(result.serverUrl);
+                            toast('URL copied to clipboard');
+                          }
                         }}
                       >
                         Copy
@@ -172,4 +174,4 @@ const GenerationResult = ({ result, onRestart }: GenerationResultProps) => {
   );
 };
 
-export default GenerationResult;
+export default GenerationResultComponent;

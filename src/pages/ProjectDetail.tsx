@@ -83,7 +83,8 @@ const ProjectDetail = () => {
       // Cast the data to the required types
       const typedConfigData: ServerConfigRecord[] = configData?.map(config => ({
         ...config,
-        language: config.language as "Python" | "TypeScript"
+        language: config.language as "Python" | "TypeScript",
+        authentication_details: config.authentication_details as Record<string, any>
       })) || [];
       
       setServerConfigs(typedConfigData);

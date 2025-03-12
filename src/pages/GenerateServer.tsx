@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,9 +6,9 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { ServerConfigRecord, ApiDefinitionRecord, McpProject, Endpoint, ServerConfig, GenerationResult } from '@/types';
-import { Download, ExternalLink, Code } from 'lucide-react';
-import GenerationResult from '@/components/GenerationResult';
+import { ServerConfigRecord, ApiDefinitionRecord, McpProject, Endpoint, ServerConfig, GenerationResult as GenerationResultType } from '@/types';
+import { Download, ExternalLink, Code, Server, Play, RefreshCw } from 'lucide-react';
+import GenerationResultComponent from '@/components/GenerationResult';
 
 const GenerateServer = () => {
   const { projectId, configId } = useParams<{ projectId: string; configId: string }>();
@@ -24,7 +23,7 @@ const GenerateServer = () => {
   const [deploymentId, setDeploymentId] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
+  const [generationResult, setGenerationResult] = useState<GenerationResultType | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -58,10 +57,11 @@ const GenerateServer = () => {
         return;
       }
 
-      // Cast the language to the required type
+      // Cast the data to the required type
       const typedConfig: ServerConfigRecord = {
         ...configData,
-        language: configData.language as "Python" | "TypeScript"
+        language: configData.language as "Python" | "TypeScript",
+        authentication_details: configData.authentication_details as Record<string, any>
       };
       
       setConfig(typedConfig);
@@ -410,7 +410,7 @@ ${endpoints.map(endpoint => `- \`${endpoint.method} ${endpoint.path}\` - ${endpo
             Back to Project
           </Button>
         </div>
-        <GenerationResult result={generationResult} onRestart={handleRestart} />
+        <GenerationResultComponent result={generationResult} onRestart={handleRestart} />
       </div>
     );
   }

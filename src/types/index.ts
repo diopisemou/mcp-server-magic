@@ -1,4 +1,3 @@
-
 export interface ApiDefinition {
   name: string;
   format: 'OpenAPI2' | 'OpenAPI3' | 'RAML' | 'APIBlueprint';
@@ -12,7 +11,7 @@ export interface Endpoint {
   id?: string;
   path: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
-  description: string;
+  description?: string;
   parameters: Parameter[];
   responses: Response[];
   mcpType: 'resource' | 'tool' | 'none';
