@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import Header from '@/components/Header';
 import Hero from '@/components/Hero';
@@ -6,6 +5,7 @@ import Features from '@/components/Features';
 import ApiUploader from '@/components/ApiUploader';
 import EndpointMapper from '@/components/EndpointMapper';
 import Footer from '@/components/Footer';
+import { Button } from '@/components/ui/button';
 import { ApiDefinition, Endpoint } from '@/types';
 
 const Index = () => {
