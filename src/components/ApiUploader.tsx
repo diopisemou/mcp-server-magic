@@ -219,15 +219,40 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
       }
 
       // Determine file name to use for validation
-      let inputContent = content || '';
-      let fileName = selectedFile?.name || 'api-definition.yaml';
+      let inputContent = '';
+      let fileName = '';
 
-      // Logging for debugging
+      if (sourceType === 'url') {
+        if (!apiUrl) {
+          setError('Please enter a valid URL');
+          setIsValidating(false);
+          return;
+        }
+
+        const fetchResult = await fetchApiDefinition(apiUrl);
+        inputContent = fetchResult.content;
+        fileName = apiUrl.split('/').pop() || `api-definition.${fetchResult.format}`;
+      } else if (sourceType === 'file') {
+        if (!selectedFile || !rawContent) {
+          setError('Please select a file');
+          setIsValidating(false);
+          return;
+        }
+
+        inputContent = rawContent;
+        fileName = selectedFile.name;
+      } else { // raw content
+        inputContent = content;
+        // Determine probable content type based on content
+        const contentType = content.trim().startsWith('{') ? 'json' : 'yaml';
+        fileName = `api-definition.${contentType}`;
+      }
+
       console.log("Processing API upload:", { 
         sourceType, 
         fileName,
         contentPreview: inputContent.substring(0, 100),
-        isJson: inputContent.trim().startsWith('{')
+        contentLength: inputContent.length
       });
 
       const result = await validateApiDefinition(inputContent, fileName);
