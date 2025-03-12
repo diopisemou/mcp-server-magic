@@ -1,0 +1,298 @@
+[plugin:vite:react-swc] × the name `cn` is defined multiple times
+    ╭─[/home/runner/workspace/src/components/ui/scroll-area.tsx:4:1]
+  1 │ import * as React from "react"
+  2 │ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
+  3 │ 
+  4 │ import { cn } from "@/lib/utils"
+    ·          ─┬
+    ·           ╰── previous definition of `cn` here
+  5 │ 
+  6 │ const ScrollArea = React.forwardRef<
+  7 │   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
+  8 │   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
+  9 │ >(({ className, children, ...props }, ref) => (
+ 10 │   <ScrollAreaPrimitive.Root
+ 11 │     ref={ref}
+ 12 │     className={cn("relative overflow-hidden", className)}
+ 13 │     {...props}
+ 14 │   >
+ 15 │     <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+ 16 │       {children}
+ 17 │     </ScrollAreaPrimitive.Viewport>
+ 18 │     <ScrollBar />
+ 19 │     <ScrollAreaPrimitive.Corner />
+ 20 │   </ScrollAreaPrimitive.Root>
+ 21 │ ))
+ 22 │ ScrollArea.displayName = ScrollAreaPrimitive.Root.displayName
+ 23 │ 
+ 24 │ const ScrollBar = React.forwardRef<
+ 25 │   React.ElementRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>,
+ 26 │   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
+ 27 │ >(({ className, orientation = "vertical", ...props }, ref) => (
+ 28 │   <ScrollAreaPrimitive.ScrollAreaScrollbar
+ 29 │     ref={ref}
+ 30 │     orientation={orientation}
+ 31 │     className={cn(
+ 32 │       "flex touch-none select-none transition-colors",
+ 33 │       orientation === "vertical" &&
+ 34 │         "h-full w-2.5 border-l border-l-transparent p-[1px]",
+ 35 │       orientation === "horizontal" &&
+ 36 │         "h-2.5 flex-col border-t border-t-transparent p-[1px]",
+ 37 │       className
+ 38 │     )}
+ 39 │     {...props}
+ 40 │   >
+ 41 │     <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-border" />
+ 42 │   </ScrollAreaPrimitive.ScrollAreaScrollbar>
+ 43 │ ))
+ 44 │ ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
+ 45 │ 
+ 46 │ export { ScrollArea, ScrollBar }
+ 47 │ import * as React from "react"
+ 48 │ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
+ 49 │ 
+ 50 │ import { cn } from "@/lib/utils"
+    ·          ─┬
+    ·           ╰── `cn` redefined here
+ 51 │ 
+ 52 │ const ScrollArea = React.forwardRef<
+ 53 │   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
+    ╰────
+  × the name `ScrollArea` is defined multiple times
+    ╭─[/home/runner/workspace/src/components/ui/scroll-area.tsx:6:1]
+  3 │ 
+  4 │ import { cn } from "@/lib/utils"
+  5 │ 
+  6 │ const ScrollArea = React.forwardRef<
+    ·       ─────┬────
+    ·            ╰── previous definition of `ScrollArea` here
+  7 │   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
+  8 │   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
+  9 │ >(({ className, children, ...props }, ref) => (
+ 10 │   <ScrollAreaPrimitive.Root
+ 11 │     ref={ref}
+ 12 │     className={cn("relative overflow-hidden", className)}
+ 13 │     {...props}
+ 14 │   >
+ 15 │     <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+ 16 │       {children}
+ 17 │     </ScrollAreaPrimitive.Viewport>
+ 18 │     <ScrollBar />
+ 19 │     <ScrollAreaPrimitive.Corner />
+ 20 │   </ScrollAreaPrimitive.Root>
+ 21 │ ))
+ 22 │ ScrollArea.displayName = ScrollAreaPrimitive.Root.displayName
+ 23 │ 
+ 24 │ const ScrollBar = React.forwardRef<
+ 25 │   React.ElementRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>,
+ 26 │   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
+ 27 │ >(({ className, orientation = "vertical", ...props }, ref) => (
+ 28 │   <ScrollAreaPrimitive.ScrollAreaScrollbar
+ 29 │     ref={ref}
+ 30 │     orientation={orientation}
+ 31 │     className={cn(
+ 32 │       "flex touch-none select-none transition-colors",
+ 33 │       orientation === "vertical" &&
+ 34 │         "h-full w-2.5 border-l border-l-transparent p-[1px]",
+ 35 │       orientation === "horizontal" &&
+ 36 │         "h-2.5 flex-col border-t border-t-transparent p-[1px]",
+ 37 │       className
+ 38 │     )}
+ 39 │     {...props}
+ 40 │   >
+ 41 │     <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-border" />
+ 42 │   </ScrollAreaPrimitive.ScrollAreaScrollbar>
+ 43 │ ))
+ 44 │ ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
+ 45 │ 
+ 46 │ export { ScrollArea, ScrollBar }
+ 47 │ import * as React from "react"
+ 48 │ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
+ 49 │ 
+ 50 │ import { cn } from "@/lib/utils"
+ 51 │ 
+ 52 │ const ScrollArea = React.forwardRef<
+    ·       ─────┬────
+    ·            ╰── `ScrollArea` redefined here
+ 53 │   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
+ 54 │   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
+ 55 │ >(({ className, children, ...props }, ref) => (
+    ╰────
+  × the name `ScrollBar` is defined multiple times
+    ╭─[/home/runner/workspace/src/components/ui/scroll-area.tsx:24:1]
+ 21 │ ))
+ 22 │ ScrollArea.displayName = ScrollAreaPrimitive.Root.displayName
+ 23 │ 
+ 24 │ const ScrollBar = React.forwardRef<
+    ·       ────┬────
+    ·           ╰── previous definition of `ScrollBar` here
+ 25 │   React.ElementRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>,
+ 26 │   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
+ 27 │ >(({ className, orientation = "vertical", ...props }, ref) => (
+ 28 │   <ScrollAreaPrimitive.ScrollAreaScrollbar
+ 29 │     ref={ref}
+ 30 │     orientation={orientation}
+ 31 │     className={cn(
+ 32 │       "flex touch-none select-none transition-colors",
+ 33 │       orientation === "vertical" &&
+ 34 │         "h-full w-2.5 border-l border-l-transparent p-[1px]",
+ 35 │       orientation === "horizontal" &&
+ 36 │         "h-2.5 flex-col border-t border-t-transparent p-[1px]",
+ 37 │       className
+ 38 │     )}
+ 39 │     {...props}
+ 40 │   >
+ 41 │     <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-border" />
+ 42 │   </ScrollAreaPrimitive.ScrollAreaScrollbar>
+ 43 │ ))
+ 44 │ ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
+ 45 │ 
+ 46 │ export { ScrollArea, ScrollBar }
+ 47 │ import * as React from "react"
+ 48 │ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
+ 49 │ 
+ 50 │ import { cn } from "@/lib/utils"
+ 51 │ 
+ 52 │ const ScrollArea = React.forwardRef<
+ 53 │   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
+ 54 │   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
+ 55 │ >(({ className, children, ...props }, ref) => (
+ 56 │   <ScrollAreaPrimitive.Root
+ 57 │     ref={ref}
+ 58 │     className={cn("relative overflow-hidden", className)}
+ 59 │     {...props}
+ 60 │   >
+ 61 │     <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+ 62 │       {children}
+ 63 │     </ScrollAreaPrimitive.Viewport>
+ 64 │     <ScrollBar />
+ 65 │     <ScrollAreaPrimitive.Corner />
+ 66 │   </ScrollAreaPrimitive.Root>
+ 67 │ ))
+ 68 │ ScrollArea.displayName = ScrollAreaPrimitive.Root.displayName
+ 69 │ 
+ 70 │ const ScrollBar = React.forwardRef<
+    ·       ────┬────
+    ·           ╰── `ScrollBar` redefined here
+ 71 │   React.ElementRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>,
+ 72 │   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
+ 73 │ >(({ className, orientation = "vertical", ...props }, ref) => (
+    ╰────
+  × the name `ScrollArea` is exported multiple times
+    ╭─[/home/runner/workspace/src/components/ui/scroll-area.tsx:46:1]
+ 43 │ ))
+ 44 │ ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
+ 45 │ 
+ 46 │ export { ScrollArea, ScrollBar }
+    ·          ─────┬────
+    ·               ╰── previous exported here
+ 47 │ import * as React from "react"
+ 48 │ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
+ 49 │ 
+ 50 │ import { cn } from "@/lib/utils"
+ 51 │ 
+ 52 │ const ScrollArea = React.forwardRef<
+ 53 │   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
+ 54 │   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
+ 55 │ >(({ className, children, ...props }, ref) => (
+ 56 │   <ScrollAreaPrimitive.Root
+ 57 │     ref={ref}
+ 58 │     className={cn("relative overflow-hidden", className)}
+ 59 │     {...props}
+ 60 │   >
+ 61 │     <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+ 62 │       {children}
+ 63 │     </ScrollAreaPrimitive.Viewport>
+ 64 │     <ScrollBar />
+ 65 │     <ScrollAreaPrimitive.Corner />
+ 66 │   </ScrollAreaPrimitive.Root>
+ 67 │ ))
+ 68 │ ScrollArea.displayName = ScrollAreaPrimitive.Root.displayName
+ 69 │ 
+ 70 │ const ScrollBar = React.forwardRef<
+ 71 │   React.ElementRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>,
+ 72 │   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
+ 73 │ >(({ className, orientation = "vertical", ...props }, ref) => (
+ 74 │   <ScrollAreaPrimitive.ScrollAreaScrollbar
+ 75 │     ref={ref}
+ 76 │     orientation={orientation}
+ 77 │     className={cn(
+ 78 │       "flex touch-none select-none transition-colors",
+ 79 │       orientation === "vertical" &&
+ 80 │         "h-full w-2.5 border-l border-l-transparent p-[1px]",
+ 81 │       orientation === "horizontal" &&
+ 82 │         "h-2.5 flex-col border-t border-t-transparent p-[1px]",
+ 83 │       className
+ 84 │     )}
+ 85 │     {...props}
+ 86 │   >
+ 87 │     <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-border" />
+ 88 │   </ScrollAreaPrimitive.ScrollAreaScrollbar>
+ 89 │ ))
+ 90 │ ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
+ 91 │ 
+ 92 │ export { ScrollArea, ScrollBar }
+    ·          ─────┬────
+    ·               ╰── exported more than once
+    ╰────
+
+Advice:   ☞ Exported identifiers must be unique
+  × the name `ScrollBar` is exported multiple times
+    ╭─[/home/runner/workspace/src/components/ui/scroll-area.tsx:46:1]
+ 43 │ ))
+ 44 │ ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
+ 45 │ 
+ 46 │ export { ScrollArea, ScrollBar }
+    ·                      ────┬────
+    ·                          ╰── previous exported here
+ 47 │ import * as React from "react"
+ 48 │ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
+ 49 │ 
+ 50 │ import { cn } from "@/lib/utils"
+ 51 │ 
+ 52 │ const ScrollArea = React.forwardRef<
+ 53 │   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
+ 54 │   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
+ 55 │ >(({ className, children, ...props }, ref) => (
+ 56 │   <ScrollAreaPrimitive.Root
+ 57 │     ref={ref}
+ 58 │     className={cn("relative overflow-hidden", className)}
+ 59 │     {...props}
+ 60 │   >
+ 61 │     <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+ 62 │       {children}
+ 63 │     </ScrollAreaPrimitive.Viewport>
+ 64 │     <ScrollBar />
+ 65 │     <ScrollAreaPrimitive.Corner />
+ 66 │   </ScrollAreaPrimitive.Root>
+ 67 │ ))
+ 68 │ ScrollArea.displayName = ScrollAreaPrimitive.Root.displayName
+ 69 │ 
+ 70 │ const ScrollBar = React.forwardRef<
+ 71 │   React.ElementRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>,
+ 72 │   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
+ 73 │ >(({ className, orientation = "vertical", ...props }, ref) => (
+ 74 │   <ScrollAreaPrimitive.ScrollAreaScrollbar
+ 75 │     ref={ref}
+ 76 │     orientation={orientation}
+ 77 │     className={cn(
+ 78 │       "flex touch-none select-none transition-colors",
+ 79 │       orientation === "vertical" &&
+ 80 │         "h-full w-2.5 border-l border-l-transparent p-[1px]",
+ 81 │       orientation === "horizontal" &&
+ 82 │         "h-2.5 flex-col border-t border-t-transparent p-[1px]",
+ 83 │       className
+ 84 │     )}
+ 85 │     {...props}
+ 86 │   >
+ 87 │     <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-border" />
+ 88 │   </ScrollAreaPrimitive.ScrollAreaScrollbar>
+ 89 │ ))
+ 90 │ ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName
+ 91 │ 
+ 92 │ export { ScrollArea, ScrollBar }
+    ·                      ────┬────
+    ·                          ╰── exported more than once
+    ╰────
+
+Advice:   ☞ Exported identifiers must be unique
