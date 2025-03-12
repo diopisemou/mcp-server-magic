@@ -141,43 +141,68 @@ const validateAPIBlueprint = (parsedContent: any): string[] => {
   return errors;
 };
 
+interface ApiEndpoint {
+  id: string;
+  path: string;
+  method: string;
+  description: string;
+  parameters: {
+    name: string;
+    in: string;
+    required: boolean;
+    type: string;
+    description?: string;
+  }[];
+  responses: { code: string; description: string }[];
+  tags?: string[];
+  operationId?: string;
+}
+
 // Extract endpoints from different API definition formats
-export const extractEndpoints = (parsedContent: any, format: ApiFormat): any[] => {
-  const endpoints: any[] = [];
+export const extractEndpoints = (parsedDefinition: any, format: ApiFormat): ApiEndpoint[] => {
+  const endpoints: ApiEndpoint[] = [];
 
   try {
     if (format === 'OpenAPI2' || format === 'OpenAPI3') {
-      // Process OpenAPI/Swagger format
-      const paths = parsedContent.paths || {};
+      const paths = parsedDefinition.paths || {};
 
-      Object.entries(paths).forEach(([path, pathItem]: [string, any]) => {
-        // For each HTTP method in the path
-        ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].forEach(method => {
-          if (pathItem[method]) {
-            const operation = pathItem[method];
+      Object.entries(paths).forEach(([path, methods]: [string, any]) => {
+        Object.entries(methods).forEach(([method, operation]: [string, any]) => {
+          if (['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)) {
+            // Extract parameters from both the operation and any request body
+            const parameters = (operation.parameters || []).map((param: any) => ({
+              name: param.name,
+              in: param.in,
+              required: !!param.required,
+              type: param.schema?.type || param.type || 'string',
+              description: param.description || ''
+            }));
 
-            // Extract parameters
-            const parameters = [...(pathItem.parameters || []), ...(operation.parameters || [])].map((param: any) => {
-              return {
-                name: param.name,
-                in: param.in,
-                type: param.schema?.type || param.type || 'string',
-                required: !!param.required,
-                description: param.description || ''
-              };
-            });
+            // Extract any request body parameters
+            if (operation.requestBody && operation.requestBody.content) {
+              const contentTypes = Object.keys(operation.requestBody.content);
+              if (contentTypes.length > 0) {
+                const firstContentType = contentTypes[0];
+                const schema = operation.requestBody.content[firstContentType].schema;
 
-            // Extract responses
-            const responses: any[] = [];
-            if (operation.responses) {
-              Object.entries(operation.responses).forEach(([code, response]: [string, any]) => {
-                responses.push({
-                  statusCode: code,
-                  description: response.description || '',
-                  schema: response.schema || response.content || {}
-                });
-              });
+                if (schema && schema.properties) {
+                  Object.entries(schema.properties).forEach(([propName, propSchema]: [string, any]) => {
+                    parameters.push({
+                      name: propName,
+                      in: 'body',
+                      required: schema.required?.includes(propName) || false,
+                      type: propSchema.type || 'string',
+                      description: propSchema.description || ''
+                    });
+                  });
+                }
+              }
             }
+
+            const responses = Object.entries(operation.responses || {}).map(([code, response]: [string, any]) => ({
+              code,
+              description: response.description || ''
+            }));
 
             endpoints.push({
               id: `${path}-${method}`,
@@ -186,57 +211,19 @@ export const extractEndpoints = (parsedContent: any, format: ApiFormat): any[] =
               description: operation.summary || operation.description || '',
               parameters,
               responses,
-              tags: operation.tags || [],
-              operationId: operation.operationId || `${method}${path.replace(/[^a-zA-Z0-9]/g, '')}`
+              tags: operation.tags || []
             });
           }
         });
       });
     } else if (format === 'RAML') {
-      // Basic RAML endpoint extraction
-      // In a real implementation, you'd use a proper RAML parser
-      if (parsedContent.resources) {
-        parsedContent.resources.forEach((resource: any) => {
-          if (resource.relativeUri && resource.methods) {
-            resource.methods.forEach((method: any) => {
-              endpoints.push({
-                id: `${resource.relativeUri}-${method.method}`,
-                path: resource.relativeUri,
-                method: method.method,
-                description: method.description || '',
-                parameters: [],
-                responses: []
-              });
-            });
-          }
-        });
-      }
+      // Simplified RAML handling - would need more complete implementation
+      // const resources = parsedDefinition.resources || [];
+      // Extract endpoints from RAML resources
     } else if (format === 'APIBlueprint') {
-      // Very basic API Blueprint endpoint extraction
-      // In a real implementation, you'd use a proper API Blueprint parser
-      const content = parsedContent.content || '';
+      // Basic API Blueprint parsing - in a real app, use a full parser
+      const content = parsedDefinition.content;
       const lines = content.split('\n');
-
-      // Very simplistic extraction - not for production use
-      let currentPath = '';
-      lines.forEach(line => {
-        if (line.match(/^##\s+/)) {
-          const pathMatch = line.match(/^##\s+([A-Z]+)\s+([\/\w{}]+)/);
-          if (pathMatch) {
-            const method = pathMatch[1].toLowerCase();
-            const path = pathMatch[2];
-
-            endpoints.push({
-              id: `${path}-${method}`,
-              path,
-              method,
-              description: '',
-              parameters: [],
-              responses: []
-            });
-          }
-        }
-      });
     }
   } catch (error) {
     console.error('Error extracting endpoints:', error);
@@ -294,9 +281,6 @@ export const validateApiDefinition = async (content: string, filename: string): 
   }
 };
 
-
-// Extract endpoints from API definition
-//This function is now replaced by the new export const extractEndpoints above.
 
 
 /**

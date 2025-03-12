@@ -312,37 +312,32 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) {
-      return;
-    }
-
     const file = e.target.files[0];
+    if (!file) return;
+
     setSelectedFile(file);
     setError('');
 
     try {
-      const text = await file.text();
-      setContent(text);
-      setRawContent(text);
+      const content = await file.text();
+      setRawContent(content);
 
-      try {
-        const result = await validateApiDefinition(text, file.name);
-
-        if (!result.isValid) {
-          setError(`Invalid API definition: ${result.errors?.join(', ')}`);
-          return;
+      // Auto-detect and validate content when file is uploaded
+      if (content.trim()) {
+        try {
+          const result = await validateApiDefinition(content, file.name);
+          if (!result.isValid) {
+            setError(`Invalid API definition: ${result.errors?.join(', ')}`);
+          } else {
+            toast.success(`Valid ${result.format} definition detected`);
+          }
+        } catch (validationErr) {
+          console.error("Validation error:", validationErr);
+          // Don't show validation errors yet, wait for user to submit
         }
-
-        setFormat(result.format);
-
-        if (result.parsedDefinition) {
-          processApiDefinition(result.parsedDefinition);
-        }
-      } catch (parseError) {
-        setError(`Could not parse file: ${(parseError as Error).message}. Please ensure it's a valid API definition.`);
       }
-    } catch (error) {
-      setError(`Error reading file: ${(error as Error).message}`);
+    } catch (err) {
+      setError(`Error reading file: ${(err as Error).message}`);
     }
   };
 
