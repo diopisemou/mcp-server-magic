@@ -6,18 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { ApiDefinition } from '@/types';
-import { 
-  Upload, 
-  FileJson, 
-  FileText, 
-  ChevronDown, 
-  ChevronUp, 
+import {
+  Upload,
+  FileJson,
+  FileText,
+  ChevronDown,
+  ChevronUp,
   Lock,
   Loader2,
   AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { 
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -31,9 +31,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from '@/components/ui/textarea';
-import { validateApiDefinition } from '@/utils/apiValidator';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { parseApiDefinition } from '@/utils/apiParsingUtils';
 
 interface ApiUploaderProps {
   onUploadComplete: (apiDefinition: ApiDefinition) => void;
@@ -72,7 +72,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (e.type === "dragenter" || e.type === "dragover") {
       setDragActive(true);
     } else if (e.type === "dragleave") {
@@ -85,7 +85,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
       handleFileSelection(file);
@@ -111,22 +111,22 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
       'text/x-yaml',
       'text/plain'
     ];
-    
-    if (!validTypes.includes(file.type) && 
-        !file.name.endsWith('.json') && 
-        !file.name.endsWith('.yaml') && 
-        !file.name.endsWith('.yml')) {
+
+    if (!validTypes.includes(file.type) &&
+      !file.name.endsWith('.json') &&
+      !file.name.endsWith('.yaml') &&
+      !file.name.endsWith('.yml')) {
       setFileError('Please upload a valid JSON or YAML file');
       setSelectedFile(null);
       return;
     }
-    
+
     if (file.size > 10 * 1024 * 1024) { // 10MB
       setFileError('File is too large. Maximum size is 10MB');
       setSelectedFile(null);
       return;
     }
-    
+
     setSelectedFile(file);
     setFileError(null);
   };
@@ -161,15 +161,17 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         }, 200);
 
         const content = await readFileContent(selectedFile);
-        
+
         // Determine format based on file extension
         const format = selectedFile.name.endsWith('.json') ? 'json' : 'yaml';
-        
+
         apiDefinition = {
+          id: null,
           name: selectedFile.name.replace(/\.(json|yaml|yml)$/, ''),
           content,
           format,
-          parsedDefinition: null
+          parsedDefinition: null,
+          created_at: new Date().toISOString()
         };
 
         clearInterval(interval);
@@ -235,13 +237,13 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         }
 
         const response = await fetch(fetchUrl, requestOptions);
-        
+
         if (!response.ok) {
           throw new Error(`Failed to fetch API: ${response.status} ${response.statusText}`);
         }
-        
+
         const content = await response.text();
-        
+
         // Try to determine if it's JSON or YAML
         let format = 'json';
         try {
@@ -249,15 +251,17 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         } catch (e) {
           format = 'yaml';
         }
-        
+
         const urlParts = new URL(apiUrl).pathname.split('/');
         const fileName = urlParts[urlParts.length - 1] || 'api-definition';
-        
+
         apiDefinition = {
+          id: null,
           name: fileName.replace(/\.(json|yaml|yml)$/, ''),
           content,
           format,
-          parsedDefinition: null
+          parsedDefinition: null,
+          created_at: new Date().toISOString()
         };
 
         clearInterval(interval);
@@ -265,23 +269,24 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
       }
 
       // Validate the API definition
-      const validationResult = await validateApiDefinition(apiDefinition);
-      
+      const validationResult = await parseApiDefinition(apiDefinition);
+
       if (!validationResult.isValid) {
         setValidationErrors(validationResult.errors || ['Invalid API definition']);
         throw new Error('API definition validation failed');
       }
-      
+
       // Extract endpoints for preview
       setEndpoints(validationResult.endpoints || []);
+      //setEndpoints(validationResult || []);
       setShowEndpoints(true);
-      
+
       // Complete the upload
       onUploadComplete({
         ...apiDefinition,
         parsedDefinition: validationResult.parsedDefinition
       });
-      
+
       toast.success('API definition uploaded successfully');
     } catch (error) {
       console.error('Upload error:', error);
@@ -348,8 +353,8 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
 
         <div className="bg-white shadow-lg rounded-xl overflow-hidden border border-border">
           <div className="p-6">
-            <RadioGroup 
-              value={uploadMethod} 
+            <RadioGroup
+              value={uploadMethod}
               onValueChange={(value) => setUploadMethod(value as 'file' | 'url')}
               className="flex flex-col sm:flex-row gap-4 mb-6"
             >
@@ -377,7 +382,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
 
             {uploadMethod === 'file' ? (
               <div className="space-y-4">
-                <div 
+                <div
                   className={cn(
                     "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
                     dragActive ? "border-primary bg-primary/5" : "border-border hover:bg-secondary/50",
@@ -441,8 +446,8 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                     className="p-0 h-auto text-sm flex items-center"
                     onClick={toggleAdvancedOptions}
                   >
-                    {showAdvancedOptions ? 
-                      <ChevronUp className="h-4 w-4 mr-1" /> : 
+                    {showAdvancedOptions ?
+                      <ChevronUp className="h-4 w-4 mr-1" /> :
                       <ChevronDown className="h-4 w-4 mr-1" />
                     }
                     Advanced Options
@@ -598,8 +603,8 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
             {isUploading && (
               <div className="mt-4">
                 <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-primary transition-all duration-300 ease-in-out" 
+                  <div
+                    className="h-full bg-primary transition-all duration-300 ease-in-out"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
@@ -618,8 +623,8 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
             )}
 
             <div className="mt-6">
-              <Button 
-                onClick={handleUpload} 
+              <Button
+                onClick={handleUpload}
                 disabled={isUploading}
                 className="w-full"
               >
@@ -635,7 +640,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                   </>
                 )}
               </Button>
-              
+
               {showEndpoints && (
                 <Accordion type="single" collapsible className="mt-4">
                   <AccordionItem value="endpoints">
@@ -652,10 +657,10 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                               <span className={cn(
                                 "inline-block px-2 py-0.5 rounded text-xs font-medium mr-2",
                                 endpoint.method === 'GET' ? "bg-green-100 text-green-700" :
-                                endpoint.method === 'POST' ? "bg-blue-100 text-blue-700" :
-                                endpoint.method === 'PUT' ? "bg-amber-100 text-amber-700" :
-                                endpoint.method === 'DELETE' ? "bg-rose-100 text-rose-700" :
-                                "bg-gray-100 text-gray-700"
+                                  endpoint.method === 'POST' ? "bg-blue-100 text-blue-700" :
+                                    endpoint.method === 'PUT' ? "bg-amber-100 text-amber-700" :
+                                      endpoint.method === 'DELETE' ? "bg-rose-100 text-rose-700" :
+                                        "bg-gray-100 text-gray-700"
                               )}>
                                 {endpoint.method}
                               </span>

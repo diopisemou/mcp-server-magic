@@ -7,10 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { cn } from '@/lib/utils';
-import { extractEndpoints } from '@/utils/apiValidator';
+import { extractEndpointsFromDefinition } from '@/utils/apiValidator';
 import { Edit, Trash2, Plus, Check, X, AlertCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
+import { parseApiDefinition } from '@/utils/apiParsingUtils';
 
 interface EndpointMapperProps {
   apiDefinition: ApiDefinition;
@@ -26,7 +27,9 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
 
   useEffect(() => {
     if (apiDefinition?.parsedDefinition) {
-      const extractedEndpoints = extractEndpoints(apiDefinition.parsedDefinition, apiDefinition.format)
+      //const extractedEndpoints = extractEndpointsFromDefinition(apiDefinition.parsedDefinition, apiDefinition.format)
+      const extractedEndpoints = extractEndpointsFromDefinition(apiDefinition.content, apiDefinition.file?.name)
+        //const extractedEndpoints = parseApiDefinition(apiDefinition)
         .map(endpoint => ({
           ...endpoint,
           id: uuidv4(),
@@ -69,7 +72,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
   };
 
   const handleEditEndpoint = (endpoint: Endpoint) => {
-    setEditingEndpoint({...endpoint});
+    setEditingEndpoint({ ...endpoint });
     setIsEditDialogOpen(true);
   };
 
@@ -241,125 +244,125 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
         <div className="content-container">
           <div className="max-w-5xl mx-auto">
             <div className="mb-12">
-            <div className="inline-block px-4 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
-              API Mapping
-            </div>
-            <h2 className="text-3xl font-bold mb-4">
-              Map Your API Endpoints to MCP Capabilities
-            </h2>
-            <p className="text-muted-foreground">
-              Review, edit and customize how your API endpoints are mapped to MCP resources and tools.
-              GET endpoints typically map to resources, while POST, PUT, and DELETE endpoints map to tools.
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg border border-border overflow-hidden">
-            <div className="p-6 border-b border-border flex items-center justify-between">
-              <div>
-                <h3 className="font-medium">{apiDefinition.name}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {apiDefinition.format} • {endpoints.length} endpoints
-                </p>
+              <div className="inline-block px-4 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
+                API Mapping
               </div>
-              <Button onClick={addNewEndpoint} className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Add Endpoint
-              </Button>
+              <h2 className="text-3xl font-bold mb-4">
+                Map Your API Endpoints to MCP Capabilities
+              </h2>
+              <p className="text-muted-foreground">
+                Review, edit and customize how your API endpoints are mapped to MCP resources and tools.
+                GET endpoints typically map to resources, while POST, PUT, and DELETE endpoints map to tools.
+              </p>
             </div>
 
-            {endpoints.length === 0 ? (
-              <div className="p-12 text-center">
-                <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No endpoints found</h3>
-                <p className="text-muted-foreground mb-6">
-                  We couldn't detect any endpoints in your API definition.
-                </p>
-                <Button onClick={addNewEndpoint}>
-                  Add Endpoint Manually
+            <div className="bg-white rounded-xl shadow-lg border border-border overflow-hidden">
+              <div className="p-6 border-b border-border flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium">{apiDefinition.name}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {apiDefinition.format} • {endpoints.length} endpoints
+                  </p>
+                </div>
+                <Button onClick={addNewEndpoint} className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add Endpoint
                 </Button>
               </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {endpoints.map((endpoint, index) => (
-                  <div key={endpoint.id} className="p-6 hover:bg-secondary/30 transition-colors">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className={cn(
-                            "px-2 py-1 rounded-md text-xs font-medium",
-                            getMethodColor(endpoint.method)
-                          )}>
-                            {endpoint.method}
-                          </span>
-                          <code className="text-sm font-mono bg-secondary px-2 py-1 rounded">
-                            {endpoint.path}
-                          </code>
+
+              {endpoints.length === 0 ? (
+                <div className="p-12 text-center">
+                  <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No endpoints found</h3>
+                  <p className="text-muted-foreground mb-6">
+                    We couldn't detect any endpoints in your API definition.
+                  </p>
+                  <Button onClick={addNewEndpoint}>
+                    Add Endpoint Manually
+                  </Button>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {endpoints.map((endpoint, index) => (
+                    <div key={endpoint.id} className="p-6 hover:bg-secondary/30 transition-colors">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className={cn(
+                              "px-2 py-1 rounded-md text-xs font-medium",
+                              getMethodColor(endpoint.method)
+                            )}>
+                              {endpoint.method}
+                            </span>
+                            <code className="text-sm font-mono bg-secondary px-2 py-1 rounded">
+                              {endpoint.path}
+                            </code>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {endpoint.description}</p>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {endpoint.description}</p>
-                      </div>
-                      <div className="flex flex-col space-y-2">
-                        <div className="flex space-x-2 justify-end">
-                          <Button 
-                            variant={endpoint.mcpType === 'resource' ? 'default' : 'outline'} 
-                            size="sm"
-                            onClick={() => toggleEndpointType(endpoint.id, 'resource')}
-                            className={endpoint.mcpType === 'resource' ? 'bg-purple-600 hover:bg-purple-700' : ''}
-                          >
-                            Resource
-                          </Button>
-                          <Button 
-                            variant={endpoint.mcpType === 'tool' ? 'default' : 'outline'} 
-                            size="sm"
-                            onClick={() => toggleEndpointType(endpoint.id, 'tool')}
-                            className={endpoint.mcpType === 'tool' ? 'bg-blue-600 hover:bg-blue-700' : ''}
-                          >
-                            Tool
-                          </Button>
-                          <Button 
-                            variant={endpoint.mcpType === 'none' ? 'default' : 'outline'} 
-                            size="sm"
-                            onClick={() => toggleEndpointType(endpoint.id, 'none')}
-                            className={endpoint.mcpType === 'none' ? 'bg-gray-600 hover:bg-gray-700' : ''}
-                          >
-                            Skip
-                          </Button>
-                        </div>
-                        <div className="flex flex-row gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleEditEndpoint(endpoint)}
-                          >
-                            <Edit className="h-3.5 w-3.5 mr-1.5" />
-                            Edit
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => confirmDeleteEndpoint(endpoint.id)}
-                            className="text-destructive border-destructive/20 hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                            Delete
-                          </Button>
+                        <div className="flex flex-col space-y-2">
+                          <div className="flex space-x-2 justify-end">
+                            <Button
+                              variant={endpoint.mcpType === 'resource' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => toggleEndpointType(endpoint.id, 'resource')}
+                              className={endpoint.mcpType === 'resource' ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                            >
+                              Resource
+                            </Button>
+                            <Button
+                              variant={endpoint.mcpType === 'tool' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => toggleEndpointType(endpoint.id, 'tool')}
+                              className={endpoint.mcpType === 'tool' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                            >
+                              Tool
+                            </Button>
+                            <Button
+                              variant={endpoint.mcpType === 'none' ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => toggleEndpointType(endpoint.id, 'none')}
+                              className={endpoint.mcpType === 'none' ? 'bg-gray-600 hover:bg-gray-700' : ''}
+                            >
+                              Skip
+                            </Button>
+                          </div>
+                          <div className="flex flex-row gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditEndpoint(endpoint)}
+                            >
+                              <Edit className="h-3.5 w-3.5 mr-1.5" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => confirmDeleteEndpoint(endpoint.id)}
+                              className="text-destructive border-destructive/20 hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                              Delete
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            <div className="p-6 border-t border-border">
-              <Button
-                onClick={handleContinue}
-                className="w-full"
-              >
-                Continue Server Configuration
-              </Button>
+              <div className="p-6 border-t border-border">
+                <Button
+                  onClick={handleContinue}
+                  className="w-full"
+                >
+                  Continue Server Configuration
+                </Button>
+              </div>
             </div>
-          </div>
           </div>
         </div>
       </div>
@@ -403,7 +406,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                   <label className="block text-sm font-medium mb-1">Path</label>
                   <Input
                     value={editingEndpoint.path}
-                    onChange={(e) => setEditingEndpoint({...editingEndpoint, path: e.target.value})}
+                    onChange={(e) => setEditingEndpoint({ ...editingEndpoint, path: e.target.value })}
                     placeholder="/api/resource/{id}"
                   />
                 </div>
@@ -413,7 +416,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                 <label className="block text-sm font-medium mb-1">Description</label>
                 <Textarea
                   value={editingEndpoint.description}
-                  onChange={(e) => setEditingEndpoint({...editingEndpoint, description: e.target.value})}
+                  onChange={(e) => setEditingEndpoint({ ...editingEndpoint, description: e.target.value })}
                   placeholder="Describe what this endpoint does"
                   rows={2}
                 />
