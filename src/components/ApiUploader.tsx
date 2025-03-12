@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from '@/components/ui/textarea';
-import { validateApiDefinition } from '@/utils/api-validator';
+import { validateApiDefinition } from '@/utils/apiValidator';
 
 interface ApiUploaderProps {
   onUploadComplete: (apiDefinition: ApiDefinition) => void;
