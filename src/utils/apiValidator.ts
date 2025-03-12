@@ -211,14 +211,22 @@ const validateAPIBlueprint = (parsedContent: any): string[] => {
 export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoint[] => {
   const endpoints: Endpoint[] = [];
   console.log('Extracting endpoints from format:', format);
-  console.log('API Definition:', JSON.stringify(apiDefinition, null, 2).substring(0, 500) + '...');
-
+  
   try {
-    if (format === 'OpenAPI2' || format === 'OpenAPI3') {
-      const paths = apiDefinition.paths || {};
+    // Handle case where API definition might be nested
+    const definition = apiDefinition.parsedDefinition || apiDefinition;
+    
+    if (!definition) {
+      console.error('No valid definition found in:', apiDefinition);
+      return endpoints;
+    }
+    
+    if ((format === 'OpenAPI2' || format === 'OpenAPI3') && definition.paths) {
+      const paths = definition.paths || {};
 
       Object.keys(paths).forEach(path => {
         const pathObj = paths[path];
+        if (!pathObj) return;
 
         // Common HTTP methods
         const methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'];
@@ -228,34 +236,53 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
             const operation = pathObj[method];
 
             // Extract parameters
-            const parameters = [...(pathObj.parameters || []), ...(operation.parameters || [])].map(param => ({
+            const parameters = [];
+            
+            // Add path parameters if they exist
+            if (Array.isArray(pathObj.parameters)) {
+              parameters.push(...pathObj.parameters);
+            }
+            
+            // Add operation parameters if they exist
+            if (Array.isArray(operation.parameters)) {
+              parameters.push(...operation.parameters);
+            }
+            
+            const formattedParameters = parameters.map(param => ({
               name: param.name,
-              type: param.schema?.type || param.type || 'string',
+              type: (param.schema?.type || param.type || 'string'),
               required: !!param.required,
               description: param.description || ''
             }));
 
             // Extract responses
-            const responses = Object.keys(operation.responses || {}).map(statusCode => ({
-              statusCode: parseInt(statusCode, 10) || statusCode,
-              description: operation.responses[statusCode].description || '',
-              schema: operation.responses[statusCode].schema || operation.responses[statusCode].content
-            }));
+            const responses = [];
+            if (operation.responses) {
+              for (const [statusCode, response] of Object.entries(operation.responses)) {
+                if (response) {
+                  responses.push({
+                    statusCode: parseInt(statusCode, 10) || statusCode,
+                    description: response.description || '',
+                    schema: response.schema || (response.content ? response.content : null)
+                  });
+                }
+              }
+            }
 
             endpoints.push({
               id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, '-'),
               path,
               method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
               description: operation.summary || operation.description || '',
-              parameters,
+              parameters: formattedParameters,
               responses
             });
           }
         });
       });
     } else if (format === 'RAML') {
-      if (apiDefinition.resources) {
-        apiDefinition.resources.forEach(resource => {
+      if (definition.resources) {
+        definition.resources.forEach(resource => {
           const basePath = resource.relativeUri || '';
 
           (resource.methods || []).forEach(method => {
@@ -280,8 +307,8 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
         });
       }
     } else if (format === 'APIBlueprint') {
-      if (apiDefinition.ast && apiDefinition.ast.resourceGroups) {
-        apiDefinition.ast.resourceGroups.forEach(group => {
+      if (definition.ast && definition.ast.resourceGroups) {
+        definition.ast.resourceGroups.forEach(group => {
           (group.resources || []).forEach(resource => {
             (resource.actions || []).forEach(action => {
               endpoints.push({
@@ -305,6 +332,25 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
               });
             });
           });
+        });
+      }
+    }
+    
+    // Fallback for simple/custom API definitions
+    if (endpoints.length === 0 && typeof definition === 'object') {
+      // Try to extract from top-level endpoints array if it exists
+      if (Array.isArray(definition.endpoints)) {
+        definition.endpoints.forEach((endpoint: any) => {
+          if (endpoint.path && endpoint.method) {
+            endpoints.push({
+              id: `${endpoint.method}-${endpoint.path}`.replace(/[^a-zA-Z0-9]/g, '-'),
+              path: endpoint.path,
+              method: endpoint.method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
+              description: endpoint.description || '',
+              parameters: Array.isArray(endpoint.parameters) ? endpoint.parameters : [],
+              responses: Array.isArray(endpoint.responses) ? endpoint.responses : []
+            });
+          }
         });
       }
     }
