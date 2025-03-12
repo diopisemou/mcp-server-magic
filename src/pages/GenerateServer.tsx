@@ -46,8 +46,14 @@ export const GenerateServer = () => {
       if (error) throw error;
       setProject(data);
 
+      const { dataApiDef, errorDataApiDef } = await supabase
+        .from('api_definitions')
+        .select('*')
+        .eq('project_id', data.id)
+        .single();
+
       // Fetch API definition from storage
-      if (data.api_definition_id) {
+      if (data.endpoint_definition) {
         await fetchApiDefinition(data.api_definition_id);
       }
 
@@ -73,6 +79,7 @@ export const GenerateServer = () => {
         .select('*')
         .eq('id', apiDefinitionId)
         .single();
+
 
       if (error) throw error;
 
@@ -343,7 +350,7 @@ export const GenerateServer = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ServerGenerationSection 
+              <ServerGenerationSection
                 serverUrl={serverUrl}
                 isGenerating={isGenerating}
                 error={error}

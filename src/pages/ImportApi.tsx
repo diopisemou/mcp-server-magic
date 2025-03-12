@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { McpProject, ApiDefinition } from '@/types';
+import { McpProject, ApiDefinition, Endpoint } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import ApiUploader from '@/components/ApiUploader';
+import AdvancedEndpointMapper from '@/components/AdvancedEndpointMapper';
 
 const ImportApi = () => {
   const { user, loading } = useAuth();
@@ -19,7 +20,7 @@ const ImportApi = () => {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const projectIdParam = searchParams.get('projectId');
-  
+
   const [projects, setProjects] = useState<McpProject[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projectIdParam);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
@@ -28,7 +29,8 @@ const ImportApi = () => {
   const [newProjectDescription, setNewProjectDescription] = useState('');
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  
+  const [mappedEndpoints, setMappedEndpoints] = useState<Endpoint[] | null>(null);
+
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
@@ -39,7 +41,7 @@ const ImportApi = () => {
       fetchProjects();
     }
   }, [user, loading, navigate]);
-  
+
   const fetchProjects = async () => {
     try {
       setIsLoadingProjects(true);
@@ -53,7 +55,7 @@ const ImportApi = () => {
       }
 
       setProjects(data || []);
-      
+
       // If no project is selected and we have projects, select the first one
       if (!selectedProjectId && data && data.length > 0) {
         setSelectedProjectId(data[0].id);
@@ -65,31 +67,35 @@ const ImportApi = () => {
       setIsLoadingProjects(false);
     }
   };
-  
+
   const handleApiUpload = (definition: ApiDefinition) => {
     setApiDefinition(definition);
-    
+
     // If there's no selected project or project ID parameter, ask user if they want to create a new project
     if (!selectedProjectId) {
       setShowProjectDialog(true);
     }
   };
-  
+
+  const handleEndpointMapping = (endpoints: Endpoint[]) => {
+    setMappedEndpoints(endpoints);
+  };
+
   const createNewProject = async () => {
     if (!newProjectName.trim()) {
       toast.error('Project name is required');
       return;
     }
-    
+
     try {
       setIsSaving(true);
       const { data, error } = await supabase
         .from('mcp_projects')
         .insert([
-          { 
-            name: newProjectName, 
-            description: newProjectDescription || null, 
-            user_id: user?.id 
+          {
+            name: newProjectName,
+            description: newProjectDescription || null,
+            user_id: user?.id
           }
         ])
         .select()
@@ -103,7 +109,7 @@ const ImportApi = () => {
       setSelectedProjectId(data.id);
       setShowProjectDialog(false);
       toast.success('Project created successfully');
-      
+
       // Save the API definition to the new project
       await saveApiDefinition(data.id);
     } catch (error) {
@@ -113,13 +119,13 @@ const ImportApi = () => {
       setIsSaving(false);
     }
   };
-  
+
   const saveApiDefinition = async (projectId: string) => {
     if (!apiDefinition) {
       toast.error('No API definition to save');
       return;
     }
-    
+
     try {
       setIsSaving(true);
       const { error } = await supabase
@@ -129,7 +135,9 @@ const ImportApi = () => {
             project_id: projectId,
             name: apiDefinition.name,
             format: apiDefinition.format,
-            content: apiDefinition.content
+            content: apiDefinition.content,
+            endpoint_definition: apiDefinition.endpoint_definition,
+            //endpoint_definition: mappedEndpoints
           }
         ]);
 
@@ -147,21 +155,21 @@ const ImportApi = () => {
       setIsSaving(false);
     }
   };
-  
+
   const handleContinue = () => {
     if (!selectedProjectId) {
       toast.error('Please select or create a project');
       return;
     }
-    
+
     if (!apiDefinition) {
       toast.error('Please upload an API definition');
       return;
     }
-    
+
     saveApiDefinition(selectedProjectId);
   };
-  
+
   return (
     <div className="container py-8">
       <div className="flex justify-between items-center mb-8">
@@ -170,24 +178,33 @@ const ImportApi = () => {
           Back to Dashboard
         </Button>
       </div>
-      
+
       <div className="mb-8">
         <ApiUploader onUploadComplete={handleApiUpload} />
       </div>
-      
+
+      {apiDefinition && (
+        <div id="mapping-section" className="scroll-mt-20">
+          <AdvancedEndpointMapper
+            apiDefinition={apiDefinition}
+            onContinue={handleEndpointMapping}
+          />
+        </div>
+      )}
+
       {apiDefinition && (
         <div className="bg-white rounded-xl shadow-lg border border-border p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">Choose Project</h2>
           <p className="text-muted-foreground mb-6">
             Select an existing project or create a new one to store this API definition.
           </p>
-          
+
           <div className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="project">Project</Label>
               <div className="flex space-x-2">
-                <Select 
-                  value={selectedProjectId || ''} 
+                <Select
+                  value={selectedProjectId || ''}
                   onValueChange={(value) => setSelectedProjectId(value || null)}
                   disabled={isLoadingProjects}
                 >
@@ -207,10 +224,10 @@ const ImportApi = () => {
                 </Button>
               </div>
             </div>
-            
+
             <div className="pt-4 border-t">
-              <Button 
-                onClick={handleContinue} 
+              <Button
+                onClick={handleContinue}
                 disabled={!selectedProjectId || isSaving}
                 className="w-full"
               >
@@ -220,7 +237,7 @@ const ImportApi = () => {
           </div>
         </div>
       )}
-      
+
       <Dialog open={showProjectDialog} onOpenChange={setShowProjectDialog}>
         <DialogContent>
           <DialogHeader>
@@ -247,14 +264,14 @@ const ImportApi = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowProjectDialog(false)}
               disabled={isSaving}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={createNewProject}
               disabled={!newProjectName.trim() || isSaving}
             >

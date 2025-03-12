@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { ApiDefinition, Endpoint, Parameter, Response } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Toggle } from '@/components/ui/toggle';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { cn } from '@/lib/utils';
 import { extractEndpointsFromDefinition } from '@/utils/apiValidator';
-import { Edit, Trash2, Plus, Check, X, AlertCircle } from 'lucide-react';
+import { Edit, Trash2, Plus, Check, Save, X, AlertCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
 
@@ -17,7 +16,7 @@ interface EndpointMapperProps {
   onContinue: (endpoints: Endpoint[]) => void;
 }
 
-const AdvancedEndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
+const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [editingEndpoint, setEditingEndpoint] = useState<Endpoint | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -26,9 +25,7 @@ const AdvancedEndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperPro
 
   useEffect(() => {
     if (apiDefinition?.parsedDefinition) {
-      //const extractedEndpoints = extractEndpointsFromDefinition(apiDefinition.parsedDefinition, apiDefinition.format)
       const extractedEndpoints = extractEndpointsFromDefinition(apiDefinition.content, apiDefinition.file?.name)
-        //const extractedEndpoints = parseApiDefinition(apiDefinition)
         .map(endpoint => ({
           ...endpoint,
           id: uuidv4(),
@@ -141,7 +138,8 @@ const AdvancedEndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperPro
 
     const newResponse: Response = {
       statusCode: 200,
-      description: 'Success response'
+      description: 'Success response',
+      schema: {}
     };
 
     setEditingEndpoint({
@@ -203,7 +201,8 @@ const AdvancedEndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperPro
       responses: [
         {
           statusCode: 200,
-          description: 'Success response'
+          description: 'Success response',
+          schema: {}
         }
       ],
       mcpType: 'resource'
@@ -212,6 +211,12 @@ const AdvancedEndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperPro
     setEditingEndpoint(newEndpoint);
     setIsEditDialogOpen(true);
   };
+
+  const saveAllEndpoints = () => {
+    setEndpoints(endpoints);
+    apiDefinition.endpoint_definition = endpoints;
+  };
+
 
   const handleAddEndpoint = () => {
     if (!editingEndpoint) return;
@@ -266,6 +271,10 @@ const AdvancedEndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperPro
                 <Button onClick={addNewEndpoint} className="flex items-center gap-2">
                   <Plus className="h-4 w-4" />
                   Add Endpoint
+                </Button>
+                <Button onClick={saveAllEndpoints} className="flex items-center gap-2">
+                  <Save className="h-4 w-4" />
+                  Save Endpoints Mapping
                 </Button>
               </div>
 
@@ -353,14 +362,6 @@ const AdvancedEndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperPro
                 </div>
               )}
 
-              <div className="p-6 border-t border-border">
-                <Button
-                  onClick={handleContinue}
-                  className="w-full"
-                >
-                  Continue Server Configuration
-                </Button>
-              </div>
             </div>
           </div>
         </div>
@@ -617,4 +618,4 @@ const AdvancedEndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperPro
   );
 };
 
-export default AdvancedEndpointMapper;
+export default EndpointMapper;

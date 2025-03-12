@@ -51,18 +51,27 @@ export interface ValidationResult {
 }
 
 
-
 export interface Endpoint {
   id: string;
   path: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
   description: string;
-  parameters: Array<{ name: string; type: string; required: boolean; description: string }>;
-  responses: Array<{ statusCode: number | string; description: string; schema?: any }>;
+  parameters: Parameter[];
+  responses: Response[];
   selected?: boolean;
   mcpType?: 'resource' | 'tool' | 'none';
 }
 
+export interface EndpointDefinition {
+  id: string;
+  path: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
+  description: string;
+  parameters: Parameter[];
+  responses: Response[];
+  selected?: boolean;
+  mcpType?: 'resource' | 'tool' | 'none';
+}
 
 export interface ServerConfig {
   name: string;
