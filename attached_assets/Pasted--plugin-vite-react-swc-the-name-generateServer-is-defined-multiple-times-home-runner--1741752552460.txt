@@ -1,0 +1,977 @@
+[plugin:vite:react-swc] × the name `generateServer` is defined multiple times
+     ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:161:1]
+ 158 │     }
+ 159 │   };
+ 160 │ 
+ 161 │   const generateServer = async () => {
+     ·         ───────┬──────
+     ·                ╰── previous definition of `generateServer` here
+ 162 │     if (!config || !project) {
+ 163 │       toast.error('Missing required configuration');
+ 164 │       return;
+ 165 │     }
+ 166 │ 
+ 167 │     try {
+ 168 │       setIsGenerating(true);
+ 169 │       setGenerationError(null);
+ 170 │       
+ 171 │       // Create a new deployment record
+ 172 │       const { data: deploymentData, error: deploymentError } = await supabase
+ 173 │         .from('deployments')
+ 174 │         .insert([
+ 175 │           {
+ 176 │             project_id: projectId,
+ 177 │             configuration_id: configId,
+ 178 │             status: 'pending'
+ 179 │           }
+ 180 │         ])
+ 181 │         .select()
+ 182 │         .single();
+ 183 │ 
+ 184 │       if (deploymentError) {
+ 185 │         throw deploymentError;
+ 186 │       }
+ 187 │ 
+ 188 │       setDeploymentId(deploymentData.id);
+ 189 │       
+ 190 │       // Convert server config to the format expected by the server generation function
+ 191 │       const serverConfig: ServerConfig = {
+ 192 │         name: config.name,
+ 193 │         description: config.description || '',
+ 194 │         language: config.language,
+ 195 │         authentication: {
+ 196 │           type: config.authentication_type as any,
+ 197 │           location: config.authentication_details?.location,
+ 198 │           name: config.authentication_details?.name,
+ 199 │           value: config.authentication_details?.value
+ 200 │         },
+ 201 │         hosting: {
+ 202 │           provider: config.hosting_provider as any,
+ 203 │           type: config.hosting_type as any,
+ 204 │           region: config.hosting_region
+ 205 │         },
+ 206 │         endpoints: endpoints
+ 207 │       };
+ 208 │       
+ 209 │       // Call the server generation function (simulated)
+ 210 │       // In a real app, this would call an API to generate the server code
+ 211 │       setTimeout(async () => {
+ 212 │         try {
+ 213 │           // Generate a random server URL for demo purposes
+ 214 │           const demoServerUrl = `https://mcp-server-${Math.random().toString(36).substring(2, 10)}.example.com`;
+ 215 │           
+ 216 │           // Update the deployment status
+ 217 │           const { error: updateError } = await supabase
+ 218 │             .from('deployments')
+ 219 │             .update({
+ 220 │               status: 'success',
+ 221 │               server_url: demoServerUrl
+ 222 │             })
+ 223 │             .eq('id', deploymentData.id);
+ 224 │ 
+ 225 │           if (updateError) {
+ 226 │             throw updateError;
+ 227 │           }
+ 228 │ 
+ 229 │           setServerUrl(demoServerUrl);
+ 230 │           
+ 231 │           // Create a successful generation result
+ 232 │           setGenerationResult({
+ 233 │             success: true,
+ 234 │             serverUrl: demoServerUrl,
+ 235 │             files: [
+ 236 │               {
+ 237 │                 name: 'mcp_server.py',
+ 238 │                 path: '/src/',
+ 239 │                 content: `# Example MCP Server Code for ${config.name}
+ 240 │ from mcp_server import MCPServer
+ 241 │ from fastapi import FastAPI, HTTPException
+ 242 │ 
+ 243 │ app = FastAPI()
+ 244 │ server = MCPServer(app)
+ 245 │ 
+ 246 │ # Configuration
+ 247 │ server.set_name("${config.name}")
+ 248 │ server.set_description("${config.description || 'MCP Server for API integration'}")
+ 249 │ 
+ 250 │ # Authentication
+ 251 │ auth_config = {
+ 252 │     "type": "${config.authentication_type}",
+ 253 │     ${config.authentication_details ? JSON.stringify(config.authentication_details, null, 2) : ''}
+ 254 │ }
+ 255 │ server.configure_auth(auth_config)
+ 256 │ 
+ 257 │ # Endpoints
+ 258 │ ${endpoints.map(endpoint => `
+ 259 │ @server.${endpoint.mcpType}("${endpoint.path}")
+ 260 │ async def ${endpoint.path.replace(/[^\w]/g, '_').toLowerCase()}(${endpoint.parameters.map(p => `${p.name}: ${p.type}${p.required ? '' : ' = None'}`).join(', ')}):
+ 261 │     """${endpoint.description || ''}"""
+ 262 │     # Implementation
+ 263 │     return {"message": "This endpoint would call your API"}
+ 264 │ `).join('\n')}
+ 265 │ 
+ 266 │ # Start the server
+ 267 │ if __name__ == "__main__":
+ 268 │     import uvicorn
+ 269 │     uvicorn.run(app, host="0.0.0.0", port=8000)`,
+ 270 │                 type: 'code'
+ 271 │               },
+ 272 │               {
+ 273 │                 name: 'requirements.txt',
+ 274 │                 path: '/',
+ 275 │                 content: `fastapi==0.95.0
+ 276 │ uvicorn==0.22.0
+ 277 │ pydantic==2.0.0
+ 278 │ mcp-server==1.0.0`,
+ 279 │                 type: 'config'
+ 280 │               },
+ 281 │               {
+ 282 │                 name: 'README.md',
+ 283 │                 path: '/',
+ 284 │                 content: `# ${config.name}
+ 285 │ 
+ 286 │ This MCP server was generated by the MCP Server Generator.
+ 287 │ 
+ 288 │ ## Setup
+ 289 │ 
+ 290 │ 1. Install dependencies:
+ 291 │    \`\`\`
+ 292 │    pip install -r requirements.txt
+ 293 │    \`\`\`
+ 294 │ 
+ 295 │ 2. Run the server:
+ 296 │    \`\`\`
+ 297 │    python src/mcp_server.py
+ 298 │    \`\`\`
+ 299 │ 
+ 300 │ 3. The server will be available at \`http://localhost:8000\`
+ 301 │ 
+ 302 │ ## Authentication
+ 303 │ 
+ 304 │ This server uses ${config.authentication_type} authentication.
+ 305 │ 
+ 306 │ ## Endpoints
+ 307 │ 
+ 308 │ ${endpoints.map(endpoint => `- \`${endpoint.method} ${endpoint.path}\` - ${endpoint.description || 'No description'}`).join('\n')}`,
+ 309 │                 type: 'documentation'
+ 310 │               }
+ 311 │             ]
+ 312 │           });
+ 313 │           
+ 314 │           toast.success('Server generated and deployed successfully');
+ 315 │         } catch (error) {
+ 316 │           console.error('Error updating deployment:', error);
+ 317 │           setGenerationError('Failed to update deployment status');
+ 318 │           
+ 319 │           // Update deployment to failed status
+ 320 │           await supabase
+ 321 │             .from('deployments')
+ 322 │             .update({
+ 323 │               status: 'failed',
+ 324 │               logs: JSON.stringify(error)
+ 325 │             })
+ 326 │             .eq('id', deploymentData.id);
+ 327 │             
+ 328 │           // Create a failed generation result
+ 329 │           setGenerationResult({
+ 330 │             success: false,
+ 331 │             error: 'Failed to update deployment status'
+ 332 │           });
+ 333 │         } finally {
+ 334 │           setIsGenerating(false);
+ 335 │         }
+ 336 │       }, 3000); // Simulate a 3-second generation process
+ 337 │     } catch (error) {
+ 338 │       console.error('Error generating server:', error);
+ 339 │       setGenerationError('Failed to start server generation');
+ 340 │       setIsGenerating(false);
+ 341 │       
+ 342 │       // Create a failed generation result
+ 343 │       setGenerationResult({
+ 344 │         success: false,
+ 345 │         error: 'Failed to start server generation'
+ 346 │       });
+ 347 │     }
+ 348 │   };
+ 349 │ 
+ 350 │   const handleRestart = () => {
+ 351 │     setGenerationResult(null);
+ 352 │     setServerUrl(null);
+ 353 │     setDeploymentId(null);
+ 354 │     setGenerationError(null);
+ 355 │   };
+ 356 │ 
+ 357 │   const downloadServerCode = () => {
+ 358 │     // In a real app, this would download the generated server code
+ 359 │     toast.success('Download functionality would be implemented here');
+ 360 │   };
+ 361 │ 
+ 362 │   const testServer = () => {
+ 363 │     // In a real app, this would open a test interface for the server
+ 364 │     if (serverUrl) {
+ 365 │       window.open(serverUrl, '_blank');
+ 366 │     } else {
+ 367 │       toast.error('No server URL available');
+ 368 │     }
+ 369 │   };
+ 370 │ 
+ 371 │   if (isLoading) {
+ 372 │     return <LoadingState projectId={projectId} />;
+ 373 │   }
+ 374 │   
+ 375 │   // If we have a generation result, show the GenerationResult component
+ 376 │   if (generationResult) {
+ 377 │     return (
+ 378 │       <div className="container py-8">
+ 379 │         <div className="flex justify-between items-center mb-8">
+ 380 │           <h1 className="text-3xl font-bold">MCP Server Generation</h1>
+ 381 │           <Button variant="outline" onClick={() => navigate(`/project/${projectId}`)}>
+ 382 │             Back to Project
+ 383 │           </Button>
+ 384 │         </div>
+ 385 │         <GenerationResultComponent result={generationResult} onRestart={handleRestart} />
+ 386 │       </div>
+ 387 │     );
+ 388 │   }
+ 389 │ 
+ 390 │   return (
+ 391 │     <div className="container py-8">
+ 392 │       <div className="flex justify-between items-center mb-8">
+ 393 │         <div>
+ 394 │           <h1 className="text-3xl font-bold">Generate MCP Server</h1>
+ 395 │           <p className="text-muted-foreground mt-1">
+ 396 │             Project: {project?.name} | Configuration: {config?.name}
+ 397 │           </p>
+ 398 │         </div>
+ 399 │         <div className="space-x-2">
+ 400 │           <Button variant="outline" onClick={() => navigate(`/project/${projectId}`)}>
+ 401 │             Back to Project
+ 402 │           </Button>
+ 403 │         </div>
+ 404 │       </div>
+ 405 │ 
+ 406 │       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+ 407 │         <div className="lg:col-span-1">
+ 408 │           <Card className="p-6">
+ 409 │             <h2 className="text-xl font-semibold mb-4">Server Configuration</h2>
+ 410 │             <ServerConfigDisplay config={config} />
+ 411 │             <ServerGenerationSection
+ 412 │               serverUrl={serverUrl}
+ 413 │               isGenerating={isGenerating}
+ 414 │               error={generationError}
+ 415 │               config={config}
+ 416 │               apiDefinition={apiDefinition}
+ 417 │               endpoints={endpoints}
+ 418 │               onGenerateServer={generateServer}
+ 419 │               onDownloadCode={downloadServerCode}
+ 420 │               onTestServer={testServer}
+ 421 │             />
+ 422 │           </Card>
+ 423 │         </div>
+ 424 │         
+ 425 │         <div className="lg:col-span-2">
+ 426 │           <ServerPreview
+ 427 │             endpoints={endpoints}
+ 428 │             serverUrl={serverUrl}
+ 429 │             isGenerating={isGenerating}
+ 430 │             config={config}
+ 431 │             onGenerateServer={generateServer}
+ 432 │             onDownloadCode={downloadServerCode}
+ 433 │           />
+ 434 │         </div>
+ 435 │       </div>
+ 436 │     </div>
+ 437 │   );
+ 438 │   
+ 439 │   // Helper functions to handle server generation
+ 440 │   function generateServer() {
+     ·            ───────┬──────
+     ·                   ╰── `generateServer` redefined here
+ 441 │     if (!config || !project) {
+ 442 │       toast.error('Missing required configuration');
+ 443 │       return;
+     ╰────
+  × the name `handleRestart` is defined multiple times
+     ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:350:1]
+ 347 │     }
+ 348 │   };
+ 349 │ 
+ 350 │   const handleRestart = () => {
+     ·         ──────┬──────
+     ·               ╰── previous definition of `handleRestart` here
+ 351 │     setGenerationResult(null);
+ 352 │     setServerUrl(null);
+ 353 │     setDeploymentId(null);
+ 354 │     setGenerationError(null);
+ 355 │   };
+ 356 │ 
+ 357 │   const downloadServerCode = () => {
+ 358 │     // In a real app, this would download the generated server code
+ 359 │     toast.success('Download functionality would be implemented here');
+ 360 │   };
+ 361 │ 
+ 362 │   const testServer = () => {
+ 363 │     // In a real app, this would open a test interface for the server
+ 364 │     if (serverUrl) {
+ 365 │       window.open(serverUrl, '_blank');
+ 366 │     } else {
+ 367 │       toast.error('No server URL available');
+ 368 │     }
+ 369 │   };
+ 370 │ 
+ 371 │   if (isLoading) {
+ 372 │     return <LoadingState projectId={projectId} />;
+ 373 │   }
+ 374 │   
+ 375 │   // If we have a generation result, show the GenerationResult component
+ 376 │   if (generationResult) {
+ 377 │     return (
+ 378 │       <div className="container py-8">
+ 379 │         <div className="flex justify-between items-center mb-8">
+ 380 │           <h1 className="text-3xl font-bold">MCP Server Generation</h1>
+ 381 │           <Button variant="outline" onClick={() => navigate(`/project/${projectId}`)}>
+ 382 │             Back to Project
+ 383 │           </Button>
+ 384 │         </div>
+ 385 │         <GenerationResultComponent result={generationResult} onRestart={handleRestart} />
+ 386 │       </div>
+ 387 │     );
+ 388 │   }
+ 389 │ 
+ 390 │   return (
+ 391 │     <div className="container py-8">
+ 392 │       <div className="flex justify-between items-center mb-8">
+ 393 │         <div>
+ 394 │           <h1 className="text-3xl font-bold">Generate MCP Server</h1>
+ 395 │           <p className="text-muted-foreground mt-1">
+ 396 │             Project: {project?.name} | Configuration: {config?.name}
+ 397 │           </p>
+ 398 │         </div>
+ 399 │         <div className="space-x-2">
+ 400 │           <Button variant="outline" onClick={() => navigate(`/project/${projectId}`)}>
+ 401 │             Back to Project
+ 402 │           </Button>
+ 403 │         </div>
+ 404 │       </div>
+ 405 │ 
+ 406 │       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+ 407 │         <div className="lg:col-span-1">
+ 408 │           <Card className="p-6">
+ 409 │             <h2 className="text-xl font-semibold mb-4">Server Configuration</h2>
+ 410 │             <ServerConfigDisplay config={config} />
+ 411 │             <ServerGenerationSection
+ 412 │               serverUrl={serverUrl}
+ 413 │               isGenerating={isGenerating}
+ 414 │               error={generationError}
+ 415 │               config={config}
+ 416 │               apiDefinition={apiDefinition}
+ 417 │               endpoints={endpoints}
+ 418 │               onGenerateServer={generateServer}
+ 419 │               onDownloadCode={downloadServerCode}
+ 420 │               onTestServer={testServer}
+ 421 │             />
+ 422 │           </Card>
+ 423 │         </div>
+ 424 │         
+ 425 │         <div className="lg:col-span-2">
+ 426 │           <ServerPreview
+ 427 │             endpoints={endpoints}
+ 428 │             serverUrl={serverUrl}
+ 429 │             isGenerating={isGenerating}
+ 430 │             config={config}
+ 431 │             onGenerateServer={generateServer}
+ 432 │             onDownloadCode={downloadServerCode}
+ 433 │           />
+ 434 │         </div>
+ 435 │       </div>
+ 436 │     </div>
+ 437 │   );
+ 438 │   
+ 439 │   // Helper functions to handle server generation
+ 440 │   function generateServer() {
+ 441 │     if (!config || !project) {
+ 442 │       toast.error('Missing required configuration');
+ 443 │       return;
+ 444 │     }
+ 445 │ 
+ 446 │     try {
+ 447 │       setIsGenerating(true);
+ 448 │       setGenerationError(null);
+ 449 │       
+ 450 │       // Create a new deployment record
+ 451 │       supabase
+ 452 │         .from('deployments')
+ 453 │         .insert([
+ 454 │           {
+ 455 │             project_id: projectId,
+ 456 │             configuration_id: configId,
+ 457 │             status: 'pending'
+ 458 │           }
+ 459 │         ])
+ 460 │         .select()
+ 461 │         .single()
+ 462 │         .then(({ data: deploymentData, error: deploymentError }) => {
+ 463 │           if (deploymentError) {
+ 464 │             throw deploymentError;
+ 465 │           }
+ 466 │ 
+ 467 │           setDeploymentId(deploymentData.id);
+ 468 │           
+ 469 │           // Simulate server generation (3-second delay)
+ 470 │           setTimeout(async () => {
+ 471 │             try {
+ 472 │               // Generate a random server URL for demo purposes
+ 473 │               const demoServerUrl = `https://mcp-server-${Math.random().toString(36).substring(2, 10)}.example.com`;
+ 474 │               
+ 475 │               // Update the deployment status
+ 476 │               const { error: updateError } = await supabase
+ 477 │                 .from('deployments')
+ 478 │                 .update({
+ 479 │                   status: 'success',
+ 480 │                   server_url: demoServerUrl
+ 481 │                 })
+ 482 │                 .eq('id', deploymentData.id);
+ 483 │ 
+ 484 │               if (updateError) {
+ 485 │                 throw updateError;
+ 486 │               }
+ 487 │ 
+ 488 │               setServerUrl(demoServerUrl);
+ 489 │               
+ 490 │               // Create a successful generation result
+ 491 │               setGenerationResult({
+ 492 │                 success: true,
+ 493 │                 serverUrl: demoServerUrl,
+ 494 │                 files: [
+ 495 │                   {
+ 496 │                     name: 'mcp_server.py',
+ 497 │                     path: '/src/',
+ 498 │                     content: generateServerCode(config, endpoints),
+ 499 │                     type: 'code'
+ 500 │                   },
+ 501 │                   {
+ 502 │                     name: 'requirements.txt',
+ 503 │                     path: '/',
+ 504 │                     content: generateRequirementsFile(),
+ 505 │                     type: 'config'
+ 506 │                   },
+ 507 │                   {
+ 508 │                     name: 'README.md',
+ 509 │                     path: '/',
+ 510 │                     content: generateReadme(config, endpoints),
+ 511 │                     type: 'documentation'
+ 512 │                   }
+ 513 │                 ]
+ 514 │               });
+ 515 │               
+ 516 │               toast.success('Server generated and deployed successfully');
+ 517 │             } catch (error) {
+ 518 │               console.error('Error updating deployment:', error);
+ 519 │               setGenerationError('Failed to update deployment status');
+ 520 │               
+ 521 │               // Update deployment to failed status
+ 522 │               await supabase
+ 523 │                 .from('deployments')
+ 524 │                 .update({
+ 525 │                   status: 'failed',
+ 526 │                   logs: JSON.stringify(error)
+ 527 │                 })
+ 528 │                 .eq('id', deploymentData.id);
+ 529 │                 
+ 530 │               // Create a failed generation result
+ 531 │               setGenerationResult({
+ 532 │                 success: false,
+ 533 │                 error: 'Failed to update deployment status'
+ 534 │               });
+ 535 │             } finally {
+ 536 │               setIsGenerating(false);
+ 537 │             }
+ 538 │           }, 3000);
+ 539 │         })
+ 540 │         .catch((error) => {
+ 541 │           console.error('Error generating server:', error);
+ 542 │           setGenerationError('Failed to start server generation');
+ 543 │           setIsGenerating(false);
+ 544 │           
+ 545 │           // Create a failed generation result
+ 546 │           setGenerationResult({
+ 547 │             success: false,
+ 548 │             error: 'Failed to start server generation'
+ 549 │           });
+ 550 │         });
+ 551 │     } catch (error) {
+ 552 │       console.error('Error generating server:', error);
+ 553 │       setGenerationError('Failed to start server generation');
+ 554 │       setIsGenerating(false);
+ 555 │       
+ 556 │       // Create a failed generation result
+ 557 │       setGenerationResult({
+ 558 │         success: false,
+ 559 │         error: 'Failed to start server generation'
+ 560 │       });
+ 561 │     }
+ 562 │   }
+ 563 │ 
+ 564 │   function handleRestart() {
+     ·            ──────┬──────
+     ·                  ╰── `handleRestart` redefined here
+ 565 │     setGenerationResult(null);
+ 566 │     setServerUrl(null);
+ 567 │     setDeploymentId(null);
+     ╰────
+  × the name `downloadServerCode` is defined multiple times
+     ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:357:1]
+ 354 │     setGenerationError(null);
+ 355 │   };
+ 356 │ 
+ 357 │   const downloadServerCode = () => {
+     ·         ─────────┬────────
+     ·                  ╰── previous definition of `downloadServerCode` here
+ 358 │     // In a real app, this would download the generated server code
+ 359 │     toast.success('Download functionality would be implemented here');
+ 360 │   };
+ 361 │ 
+ 362 │   const testServer = () => {
+ 363 │     // In a real app, this would open a test interface for the server
+ 364 │     if (serverUrl) {
+ 365 │       window.open(serverUrl, '_blank');
+ 366 │     } else {
+ 367 │       toast.error('No server URL available');
+ 368 │     }
+ 369 │   };
+ 370 │ 
+ 371 │   if (isLoading) {
+ 372 │     return <LoadingState projectId={projectId} />;
+ 373 │   }
+ 374 │   
+ 375 │   // If we have a generation result, show the GenerationResult component
+ 376 │   if (generationResult) {
+ 377 │     return (
+ 378 │       <div className="container py-8">
+ 379 │         <div className="flex justify-between items-center mb-8">
+ 380 │           <h1 className="text-3xl font-bold">MCP Server Generation</h1>
+ 381 │           <Button variant="outline" onClick={() => navigate(`/project/${projectId}`)}>
+ 382 │             Back to Project
+ 383 │           </Button>
+ 384 │         </div>
+ 385 │         <GenerationResultComponent result={generationResult} onRestart={handleRestart} />
+ 386 │       </div>
+ 387 │     );
+ 388 │   }
+ 389 │ 
+ 390 │   return (
+ 391 │     <div className="container py-8">
+ 392 │       <div className="flex justify-between items-center mb-8">
+ 393 │         <div>
+ 394 │           <h1 className="text-3xl font-bold">Generate MCP Server</h1>
+ 395 │           <p className="text-muted-foreground mt-1">
+ 396 │             Project: {project?.name} | Configuration: {config?.name}
+ 397 │           </p>
+ 398 │         </div>
+ 399 │         <div className="space-x-2">
+ 400 │           <Button variant="outline" onClick={() => navigate(`/project/${projectId}`)}>
+ 401 │             Back to Project
+ 402 │           </Button>
+ 403 │         </div>
+ 404 │       </div>
+ 405 │ 
+ 406 │       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+ 407 │         <div className="lg:col-span-1">
+ 408 │           <Card className="p-6">
+ 409 │             <h2 className="text-xl font-semibold mb-4">Server Configuration</h2>
+ 410 │             <ServerConfigDisplay config={config} />
+ 411 │             <ServerGenerationSection
+ 412 │               serverUrl={serverUrl}
+ 413 │               isGenerating={isGenerating}
+ 414 │               error={generationError}
+ 415 │               config={config}
+ 416 │               apiDefinition={apiDefinition}
+ 417 │               endpoints={endpoints}
+ 418 │               onGenerateServer={generateServer}
+ 419 │               onDownloadCode={downloadServerCode}
+ 420 │               onTestServer={testServer}
+ 421 │             />
+ 422 │           </Card>
+ 423 │         </div>
+ 424 │         
+ 425 │         <div className="lg:col-span-2">
+ 426 │           <ServerPreview
+ 427 │             endpoints={endpoints}
+ 428 │             serverUrl={serverUrl}
+ 429 │             isGenerating={isGenerating}
+ 430 │             config={config}
+ 431 │             onGenerateServer={generateServer}
+ 432 │             onDownloadCode={downloadServerCode}
+ 433 │           />
+ 434 │         </div>
+ 435 │       </div>
+ 436 │     </div>
+ 437 │   );
+ 438 │   
+ 439 │   // Helper functions to handle server generation
+ 440 │   function generateServer() {
+ 441 │     if (!config || !project) {
+ 442 │       toast.error('Missing required configuration');
+ 443 │       return;
+ 444 │     }
+ 445 │ 
+ 446 │     try {
+ 447 │       setIsGenerating(true);
+ 448 │       setGenerationError(null);
+ 449 │       
+ 450 │       // Create a new deployment record
+ 451 │       supabase
+ 452 │         .from('deployments')
+ 453 │         .insert([
+ 454 │           {
+ 455 │             project_id: projectId,
+ 456 │             configuration_id: configId,
+ 457 │             status: 'pending'
+ 458 │           }
+ 459 │         ])
+ 460 │         .select()
+ 461 │         .single()
+ 462 │         .then(({ data: deploymentData, error: deploymentError }) => {
+ 463 │           if (deploymentError) {
+ 464 │             throw deploymentError;
+ 465 │           }
+ 466 │ 
+ 467 │           setDeploymentId(deploymentData.id);
+ 468 │           
+ 469 │           // Simulate server generation (3-second delay)
+ 470 │           setTimeout(async () => {
+ 471 │             try {
+ 472 │               // Generate a random server URL for demo purposes
+ 473 │               const demoServerUrl = `https://mcp-server-${Math.random().toString(36).substring(2, 10)}.example.com`;
+ 474 │               
+ 475 │               // Update the deployment status
+ 476 │               const { error: updateError } = await supabase
+ 477 │                 .from('deployments')
+ 478 │                 .update({
+ 479 │                   status: 'success',
+ 480 │                   server_url: demoServerUrl
+ 481 │                 })
+ 482 │                 .eq('id', deploymentData.id);
+ 483 │ 
+ 484 │               if (updateError) {
+ 485 │                 throw updateError;
+ 486 │               }
+ 487 │ 
+ 488 │               setServerUrl(demoServerUrl);
+ 489 │               
+ 490 │               // Create a successful generation result
+ 491 │               setGenerationResult({
+ 492 │                 success: true,
+ 493 │                 serverUrl: demoServerUrl,
+ 494 │                 files: [
+ 495 │                   {
+ 496 │                     name: 'mcp_server.py',
+ 497 │                     path: '/src/',
+ 498 │                     content: generateServerCode(config, endpoints),
+ 499 │                     type: 'code'
+ 500 │                   },
+ 501 │                   {
+ 502 │                     name: 'requirements.txt',
+ 503 │                     path: '/',
+ 504 │                     content: generateRequirementsFile(),
+ 505 │                     type: 'config'
+ 506 │                   },
+ 507 │                   {
+ 508 │                     name: 'README.md',
+ 509 │                     path: '/',
+ 510 │                     content: generateReadme(config, endpoints),
+ 511 │                     type: 'documentation'
+ 512 │                   }
+ 513 │                 ]
+ 514 │               });
+ 515 │               
+ 516 │               toast.success('Server generated and deployed successfully');
+ 517 │             } catch (error) {
+ 518 │               console.error('Error updating deployment:', error);
+ 519 │               setGenerationError('Failed to update deployment status');
+ 520 │               
+ 521 │               // Update deployment to failed status
+ 522 │               await supabase
+ 523 │                 .from('deployments')
+ 524 │                 .update({
+ 525 │                   status: 'failed',
+ 526 │                   logs: JSON.stringify(error)
+ 527 │                 })
+ 528 │                 .eq('id', deploymentData.id);
+ 529 │                 
+ 530 │               // Create a failed generation result
+ 531 │               setGenerationResult({
+ 532 │                 success: false,
+ 533 │                 error: 'Failed to update deployment status'
+ 534 │               });
+ 535 │             } finally {
+ 536 │               setIsGenerating(false);
+ 537 │             }
+ 538 │           }, 3000);
+ 539 │         })
+ 540 │         .catch((error) => {
+ 541 │           console.error('Error generating server:', error);
+ 542 │           setGenerationError('Failed to start server generation');
+ 543 │           setIsGenerating(false);
+ 544 │           
+ 545 │           // Create a failed generation result
+ 546 │           setGenerationResult({
+ 547 │             success: false,
+ 548 │             error: 'Failed to start server generation'
+ 549 │           });
+ 550 │         });
+ 551 │     } catch (error) {
+ 552 │       console.error('Error generating server:', error);
+ 553 │       setGenerationError('Failed to start server generation');
+ 554 │       setIsGenerating(false);
+ 555 │       
+ 556 │       // Create a failed generation result
+ 557 │       setGenerationResult({
+ 558 │         success: false,
+ 559 │         error: 'Failed to start server generation'
+ 560 │       });
+ 561 │     }
+ 562 │   }
+ 563 │ 
+ 564 │   function handleRestart() {
+ 565 │     setGenerationResult(null);
+ 566 │     setServerUrl(null);
+ 567 │     setDeploymentId(null);
+ 568 │     setGenerationError(null);
+ 569 │   }
+ 570 │ 
+ 571 │   function downloadServerCode() {
+     ·            ─────────┬────────
+     ·                     ╰── `downloadServerCode` redefined here
+ 572 │     // In a real app, this would download the generated server code
+ 573 │     toast.success('Download functionality would be implemented here');
+ 574 │   }
+     ╰────
+  × the name `testServer` is defined multiple times
+     ╭─[/home/runner/workspace/src/pages/GenerateServer.tsx:362:1]
+ 359 │     toast.success('Download functionality would be implemented here');
+ 360 │   };
+ 361 │ 
+ 362 │   const testServer = () => {
+     ·         ─────┬────
+     ·              ╰── previous definition of `testServer` here
+ 363 │     // In a real app, this would open a test interface for the server
+ 364 │     if (serverUrl) {
+ 365 │       window.open(serverUrl, '_blank');
+ 366 │     } else {
+ 367 │       toast.error('No server URL available');
+ 368 │     }
+ 369 │   };
+ 370 │ 
+ 371 │   if (isLoading) {
+ 372 │     return <LoadingState projectId={projectId} />;
+ 373 │   }
+ 374 │   
+ 375 │   // If we have a generation result, show the GenerationResult component
+ 376 │   if (generationResult) {
+ 377 │     return (
+ 378 │       <div className="container py-8">
+ 379 │         <div className="flex justify-between items-center mb-8">
+ 380 │           <h1 className="text-3xl font-bold">MCP Server Generation</h1>
+ 381 │           <Button variant="outline" onClick={() => navigate(`/project/${projectId}`)}>
+ 382 │             Back to Project
+ 383 │           </Button>
+ 384 │         </div>
+ 385 │         <GenerationResultComponent result={generationResult} onRestart={handleRestart} />
+ 386 │       </div>
+ 387 │     );
+ 388 │   }
+ 389 │ 
+ 390 │   return (
+ 391 │     <div className="container py-8">
+ 392 │       <div className="flex justify-between items-center mb-8">
+ 393 │         <div>
+ 394 │           <h1 className="text-3xl font-bold">Generate MCP Server</h1>
+ 395 │           <p className="text-muted-foreground mt-1">
+ 396 │             Project: {project?.name} | Configuration: {config?.name}
+ 397 │           </p>
+ 398 │         </div>
+ 399 │         <div className="space-x-2">
+ 400 │           <Button variant="outline" onClick={() => navigate(`/project/${projectId}`)}>
+ 401 │             Back to Project
+ 402 │           </Button>
+ 403 │         </div>
+ 404 │       </div>
+ 405 │ 
+ 406 │       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+ 407 │         <div className="lg:col-span-1">
+ 408 │           <Card className="p-6">
+ 409 │             <h2 className="text-xl font-semibold mb-4">Server Configuration</h2>
+ 410 │             <ServerConfigDisplay config={config} />
+ 411 │             <ServerGenerationSection
+ 412 │               serverUrl={serverUrl}
+ 413 │               isGenerating={isGenerating}
+ 414 │               error={generationError}
+ 415 │               config={config}
+ 416 │               apiDefinition={apiDefinition}
+ 417 │               endpoints={endpoints}
+ 418 │               onGenerateServer={generateServer}
+ 419 │               onDownloadCode={downloadServerCode}
+ 420 │               onTestServer={testServer}
+ 421 │             />
+ 422 │           </Card>
+ 423 │         </div>
+ 424 │         
+ 425 │         <div className="lg:col-span-2">
+ 426 │           <ServerPreview
+ 427 │             endpoints={endpoints}
+ 428 │             serverUrl={serverUrl}
+ 429 │             isGenerating={isGenerating}
+ 430 │             config={config}
+ 431 │             onGenerateServer={generateServer}
+ 432 │             onDownloadCode={downloadServerCode}
+ 433 │           />
+ 434 │         </div>
+ 435 │       </div>
+ 436 │     </div>
+ 437 │   );
+ 438 │   
+ 439 │   // Helper functions to handle server generation
+ 440 │   function generateServer() {
+ 441 │     if (!config || !project) {
+ 442 │       toast.error('Missing required configuration');
+ 443 │       return;
+ 444 │     }
+ 445 │ 
+ 446 │     try {
+ 447 │       setIsGenerating(true);
+ 448 │       setGenerationError(null);
+ 449 │       
+ 450 │       // Create a new deployment record
+ 451 │       supabase
+ 452 │         .from('deployments')
+ 453 │         .insert([
+ 454 │           {
+ 455 │             project_id: projectId,
+ 456 │             configuration_id: configId,
+ 457 │             status: 'pending'
+ 458 │           }
+ 459 │         ])
+ 460 │         .select()
+ 461 │         .single()
+ 462 │         .then(({ data: deploymentData, error: deploymentError }) => {
+ 463 │           if (deploymentError) {
+ 464 │             throw deploymentError;
+ 465 │           }
+ 466 │ 
+ 467 │           setDeploymentId(deploymentData.id);
+ 468 │           
+ 469 │           // Simulate server generation (3-second delay)
+ 470 │           setTimeout(async () => {
+ 471 │             try {
+ 472 │               // Generate a random server URL for demo purposes
+ 473 │               const demoServerUrl = `https://mcp-server-${Math.random().toString(36).substring(2, 10)}.example.com`;
+ 474 │               
+ 475 │               // Update the deployment status
+ 476 │               const { error: updateError } = await supabase
+ 477 │                 .from('deployments')
+ 478 │                 .update({
+ 479 │                   status: 'success',
+ 480 │                   server_url: demoServerUrl
+ 481 │                 })
+ 482 │                 .eq('id', deploymentData.id);
+ 483 │ 
+ 484 │               if (updateError) {
+ 485 │                 throw updateError;
+ 486 │               }
+ 487 │ 
+ 488 │               setServerUrl(demoServerUrl);
+ 489 │               
+ 490 │               // Create a successful generation result
+ 491 │               setGenerationResult({
+ 492 │                 success: true,
+ 493 │                 serverUrl: demoServerUrl,
+ 494 │                 files: [
+ 495 │                   {
+ 496 │                     name: 'mcp_server.py',
+ 497 │                     path: '/src/',
+ 498 │                     content: generateServerCode(config, endpoints),
+ 499 │                     type: 'code'
+ 500 │                   },
+ 501 │                   {
+ 502 │                     name: 'requirements.txt',
+ 503 │                     path: '/',
+ 504 │                     content: generateRequirementsFile(),
+ 505 │                     type: 'config'
+ 506 │                   },
+ 507 │                   {
+ 508 │                     name: 'README.md',
+ 509 │                     path: '/',
+ 510 │                     content: generateReadme(config, endpoints),
+ 511 │                     type: 'documentation'
+ 512 │                   }
+ 513 │                 ]
+ 514 │               });
+ 515 │               
+ 516 │               toast.success('Server generated and deployed successfully');
+ 517 │             } catch (error) {
+ 518 │               console.error('Error updating deployment:', error);
+ 519 │               setGenerationError('Failed to update deployment status');
+ 520 │               
+ 521 │               // Update deployment to failed status
+ 522 │               await supabase
+ 523 │                 .from('deployments')
+ 524 │                 .update({
+ 525 │                   status: 'failed',
+ 526 │                   logs: JSON.stringify(error)
+ 527 │                 })
+ 528 │                 .eq('id', deploymentData.id);
+ 529 │                 
+ 530 │               // Create a failed generation result
+ 531 │               setGenerationResult({
+ 532 │                 success: false,
+ 533 │                 error: 'Failed to update deployment status'
+ 534 │               });
+ 535 │             } finally {
+ 536 │               setIsGenerating(false);
+ 537 │             }
+ 538 │           }, 3000);
+ 539 │         })
+ 540 │         .catch((error) => {
+ 541 │           console.error('Error generating server:', error);
+ 542 │           setGenerationError('Failed to start server generation');
+ 543 │           setIsGenerating(false);
+ 544 │           
+ 545 │           // Create a failed generation result
+ 546 │           setGenerationResult({
+ 547 │             success: false,
+ 548 │             error: 'Failed to start server generation'
+ 549 │           });
+ 550 │         });
+ 551 │     } catch (error) {
+ 552 │       console.error('Error generating server:', error);
+ 553 │       setGenerationError('Failed to start server generation');
+ 554 │       setIsGenerating(false);
+ 555 │       
+ 556 │       // Create a failed generation result
+ 557 │       setGenerationResult({
+ 558 │         success: false,
+ 559 │         error: 'Failed to start server generation'
+ 560 │       });
+ 561 │     }
+ 562 │   }
+ 563 │ 
+ 564 │   function handleRestart() {
+ 565 │     setGenerationResult(null);
+ 566 │     setServerUrl(null);
+ 567 │     setDeploymentId(null);
+ 568 │     setGenerationError(null);
+ 569 │   }
+ 570 │ 
+ 571 │   function downloadServerCode() {
+ 572 │     // In a real app, this would download the generated server code
+ 573 │     toast.success('Download functionality would be implemented here');
+ 574 │   }
+ 575 │ 
+ 576 │   function testServer() {
+     ·            ─────┬────
+     ·                 ╰── `testServer` redefined here
+ 577 │     // In a real app, this would open a test interface for the server
+ 578 │     if (serverUrl) {
+ 579 │       window.open(serverUrl, '_blank');
+     ╰────

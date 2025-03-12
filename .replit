@@ -1,0 +1,12 @@
+modules = ["nodejs-20", "web", "angular-node-20", "bun-1.2", "nix", "replit-rtld-loader", "typescript-language-server", "docker", "deno-2", "gcloud", "hermit-0.38.2"]
+run = "npm run dev"
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["sh", "-c", "npm run dev"]
+
+[[ports]]
+localPort = 8080
+externalPort = 80
