@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { CheckCircle, AlertCircle, Info } from 'lucide-react';
 
 interface Log {
@@ -12,7 +12,27 @@ interface LogViewerProps {
 }
 
 export const LogViewer = ({ logs }: LogViewerProps) => {
-  if (!logs || logs.length === 0) {
+  const [fetchedLogs, setLogs] = useState<Log[]>([]);
+
+  useEffect(() => {
+    if (logs) return;
+    fetchLogs();
+  }, []);
+
+  const fetchLogs = async () => {
+    try {
+      // Add your log fetching logic here
+      // Example:  const response = await fetch('/api/logs');
+      //          const data = await response.json();
+      //          setLogs(data);
+
+    } catch (error) {
+      console.error('Error fetching logs:', error);
+      // Handle the error appropriately, e.g., display an error message
+    }
+  };
+
+  if (!fetchedLogs || fetchedLogs.length === 0) {
     return (
       <div className="bg-gray-50 rounded-md p-8 text-center text-gray-500">
         No logs available. Generate or deploy your server to see logs.
@@ -40,7 +60,7 @@ export const LogViewer = ({ logs }: LogViewerProps) => {
   return (
     <div className="bg-gray-50 rounded-md p-4 max-h-[500px] overflow-y-auto">
       <div className="space-y-2">
-        {logs.map((log, index) => (
+        {fetchedLogs.map((log, index) => (
           <div 
             key={index} 
             className={`flex items-start p-2 rounded-md ${

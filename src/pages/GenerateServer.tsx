@@ -31,7 +31,7 @@ export const GenerateServer = () => {
       if (!projectId) return;
 
       const { data, error } = await supabase
-        .from('mcp_projects') 
+        .from('mcp_projects')
         .select('*')
         .eq('id', projectId)
         .single();
@@ -39,7 +39,6 @@ export const GenerateServer = () => {
       if (error) throw error;
       setProject(data);
 
-      
       if (data.api_definition) {
         setApiDefinition(data.api_definition);
       }
@@ -74,10 +73,8 @@ export const GenerateServer = () => {
       setLoading(true);
       setLogs(prevLogs => [...prevLogs, { type: 'info', message: 'Generating server code...' }]);
 
-      
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      
       const mockCode = `
 import express from 'express';
 import { MCPServer } from '@anthropic-ai/mcp';
@@ -95,10 +92,9 @@ app.listen(3000, () => {
       setLogs(prevLogs => [...prevLogs, { type: 'success', message: 'Server code generated successfully' }]);
       setActiveTab('logs');
 
-      
       const { error } = await supabase
         .from('mcp_projects')
-        .update({ 
+        .update({
           generated_code: mockCode,
           updated_at: new Date().toISOString()
         })
@@ -118,17 +114,15 @@ app.listen(3000, () => {
       setLoading(true);
       setLogs(prevLogs => [...prevLogs, { type: 'info', message: 'Deploying server...' }]);
 
-      
       await new Promise(resolve => setTimeout(resolve, 3000));
 
       const mockDeploymentUrl = `https://mcp-server-${projectId}.example.com`;
       setDeploymentUrl(mockDeploymentUrl);
       setLogs(prevLogs => [...prevLogs, { type: 'success', message: `Server deployed at: ${mockDeploymentUrl}` }]);
 
-      
       const { error } = await supabase
         .from('mcp_projects')
-        .update({ 
+        .update({
           deployment_url: mockDeploymentUrl,
           updated_at: new Date().toISOString()
         })
@@ -186,21 +180,21 @@ app.listen(3000, () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ApiDefinitionEditor 
+              <ApiDefinitionEditor
                 value={apiDefinition}
                 onChange={handleApiDefinitionChange}
               />
             </CardContent>
             <CardFooter className="flex justify-end space-x-2">
-              <Button 
-                variant="outline" 
-                onClick={updateApiDefinition} 
+              <Button
+                variant="outline"
+                onClick={updateApiDefinition}
                 disabled={loading}
               >
                 Update Definition
               </Button>
-              <Button 
-                onClick={generateCode} 
+              <Button
+                onClick={generateCode}
                 disabled={loading || !apiDefinition}
               >
                 Generate Server Code
@@ -239,15 +233,15 @@ app.listen(3000, () => {
                 </div>
               </CardContent>
               <CardFooter className="flex justify-end space-x-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={downloadCode}
                   disabled={loading}
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Download as ZIP
                 </Button>
-                <Button 
+                <Button
                   onClick={deployCode}
                   disabled={loading || !generatedCode}
                 >
