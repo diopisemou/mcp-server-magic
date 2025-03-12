@@ -333,8 +333,8 @@ export const validateApiDefinition = async (content: string, filename: string): 
   }
 };
 
-// Extract endpoints from API definition
-export const extractEndpoints = (apiDefinition: any, format: ApiFormat) => {
+// Extract endpoints from URL (this is different from extractEndpoints above)
+export const extractEndpointsFromUrl = (apiDefinition: any, format: ApiFormat) => {
   let endpoints: Array<{
     path: string;
     method: string;
