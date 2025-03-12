@@ -39,20 +39,27 @@ interface ApiUploaderProps {
 }
 
 export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
-  const [uploadMethod, setUploadMethod] = useState('file');
-  const [apiUrl, setApiUrl] = useState('');
-  const [apiDefinitionText, setApiDefinitionText] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
+  const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [apiUrl, setApiUrl] = useState('');
+  const [urlType, setUrlType] = useState<'direct' | 'swagger'>('direct');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
-  const [authType, setAuthType] = useState('none');
+  const [authType, setAuthType] = useState<'none' | 'bearer' | 'api-key'>('none');
   const [authToken, setAuthToken] = useState('');
   const [apiKey, setApiKey] = useState('');
-  const [apiKeyName, setApiKeyName] = useState('api_key');
+  const [apiKeyName, setApiKeyName] = useState('X-Api-Key');
   const [queryParams, setQueryParams] = useState('');
-  const [headerParams, setHeaderParams] = useState('');
-  const [urlType, setUrlType] = useState('api-definition'); // 'api-definition' or 'swagger'
+  const [requestBody, setRequestBody] = useState('');
+  const [requestMethod, setRequestMethod] = useState<'GET' | 'POST'>('GET');
+  const [endpoints, setEndpoints] = useState<any[]>([]);
+  const [showEndpoints, setShowEndpoints] = useState(false);
+  const [testUrl, setTestUrl] = useState('');
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -89,46 +96,104 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
     }
   };
 
-  const handleFiles = async (files: FileList) => {
-    setUploading(true);
-    setValidationErrors([]);
+  const handleFiles = async (fileList: FileList | DataTransfer['items']) => {
+    // Reset errors
+    setFileError(null);
+    setEndpoints([]);
+    setShowEndpoints(false);
 
-    const file = files[0];
-    const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
-    const supportedFormats = ['json', 'yaml', 'yml', 'raml', 'md'];
+    const file = fileList instanceof FileList 
+      ? fileList[0] 
+      : fileList[0]?.getAsFile();
 
-    if (!supportedFormats.includes(fileExtension)) {
-      toast.error('Unsupported file format. Please upload a JSON, YAML, RAML, or Markdown file.');
-      setUploading(false);
+    if (!file) {
+      setFileError('No file selected');
       return;
     }
 
+    setSelectedFile(file);
+
+    // Validate file
+    if (!['.json', '.yaml', '.yml', '.raml', '.md'].some(ext => file.name.toLowerCase().endsWith(ext))) {
+      setFileError('Invalid file type. Supported types: JSON, YAML, RAML, and API Blueprint');
+      return;
+    }
+
+    // Read and validate file content
     try {
-      const content = await file.text();
-      const { isValid, format, errors, parsedDefinition } = await validateApiDefinition(content, file.name);
+      setIsUploading(true);
+      setUploadProgress(10);
 
-      if (!isValid) {
-        setValidationErrors(errors || ['Invalid API definition format']);
-        toast.error('API definition validation failed');
-        setUploading(false);
-        return;
-      }
+      const reader = new FileReader();
 
-      const apiDefinition: ApiDefinition = {
-        name: file.name,
-        format,
-        content,
-        parsedDefinition
+      reader.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 50);
+          setUploadProgress(progress);
+        }
       };
 
-      onUploadComplete(apiDefinition);
-      toast.success(`API definition (${format}) uploaded successfully`);
+      reader.onload = async (e) => {
+        const content = e.target?.result as string;
+
+        try {
+          setUploadProgress(60);
+
+          // Validate the API definition
+          const validationResult = await validateApiDefinition(content, file.name);
+
+          setUploadProgress(90);
+
+          if (!validationResult.isValid) {
+            setFileError(`Invalid API definition: ${validationResult.errors?.join(', ')}`);
+            setIsUploading(false);
+            return;
+          }
+
+          // Extract endpoints from the validated API definition
+          if (validationResult.parsedDefinition) {
+            const extractedEndpoints = extractEndpoints(
+              validationResult.parsedDefinition, 
+              validationResult.format
+            );
+            setEndpoints(extractedEndpoints);
+            setShowEndpoints(extractedEndpoints.length > 0);
+            console.log('Extracted endpoints:', extractedEndpoints);
+          }
+
+          setUploadProgress(100);
+
+          // Call the onUploadComplete callback with the validated API definition
+          onUploadComplete({
+            name: file.name,
+            format: validationResult.format,
+            content: JSON.stringify({
+              content,
+              format: validationResult.format,
+              parsedDefinition: validationResult.parsedDefinition
+            }),
+            parsedDefinition: validationResult.parsedDefinition
+          });
+
+        } catch (error) {
+          console.error('Error validating API definition:', error);
+          setFileError(`Error validating API definition: ${(error as Error).message}`);
+        } finally {
+          setIsUploading(false);
+        }
+      };
+
+      reader.onerror = () => {
+        setFileError('Error reading file');
+        setIsUploading(false);
+      };
+
+      reader.readAsText(file);
+
     } catch (error) {
-      console.error('Error processing file:', error);
-      toast.error('Error processing file');
-      setValidationErrors([String(error)]);
-    } finally {
-      setUploading(false);
+      console.error('Error uploading API definition:', error);
+      setFileError(`Error: ${(error as Error).message}`);
+      setIsUploading(false);
     }
   };
 
@@ -139,36 +204,26 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
 
 
   const handleUrlUpload = async () => {
+    setUploadError(null);
+    setEndpoints([]);
+    setShowEndpoints(false);
+    setTestResult(null);
+
     if (!apiUrl) {
-      setUploadError('Please enter a valid URL');
+      setUploadError('Please enter a URL');
       return;
     }
 
-    setIsUploading(true);
-    setUploadError('');
-
     try {
-      let content;
-      let fileName = apiUrl.split('/').pop() || 'API Definition';
+      setIsUploading(true);
+      setUploadProgress(10);
 
-      // Prepare request headers
+      // Prepare headers
       const headers = new Headers();
-      if (showAdvancedOptions) {
-        // Parse and add header parameters
-        try {
-          if (headerParams) {
-            const headerObj = JSON.parse(headerParams);
-            Object.entries(headerObj).forEach(([key, value]) => {
-              headers.append(key, value as string);
-            });
-          }
-        } catch (err) {
-          console.error('Error parsing header params:', err);
-          setUploadError('Invalid header parameters format. Use valid JSON.');
-          setIsUploading(false);
-          return;
-        }
+      headers.append('Content-Type', 'application/json');
 
+      // Add authentication if applicable
+      if (showAdvancedOptions) {
         // Add authentication headers if specified
         if (authType === 'bearer' && authToken) {
           headers.append('Authorization', `Bearer ${authToken}`);
@@ -197,14 +252,64 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         }
       }
 
+      // Prepare fetch options
+      const fetchOptions: RequestInit = { 
+        headers,
+        method: showAdvancedOptions ? requestMethod : 'GET'
+      };
+
+      // Add request body for POST requests
+      if (showAdvancedOptions && requestMethod === 'POST' && requestBody) {
+        try {
+          // Check if the body is valid JSON
+          JSON.parse(requestBody);
+          fetchOptions.body = requestBody;
+        } catch (err) {
+          console.error('Error parsing request body:', err);
+          setUploadError('Invalid request body format. Use valid JSON.');
+          setIsUploading(false);
+          return;
+        }
+      }
+
+      // If in advanced mode and testUrl is specified, test the endpoint
+      if (showAdvancedOptions && testUrl) {
+        try {
+          const testResponse = await fetch(testUrl, fetchOptions);
+
+          if (testResponse.ok) {
+            setTestResult({
+              success: true,
+              message: `Endpoint test successful! Status: ${testResponse.status} ${testResponse.statusText}`
+            });
+          } else {
+            setTestResult({
+              success: false,
+              message: `Endpoint test failed. Status: ${testResponse.status} ${testResponse.statusText}`
+            });
+          }
+        } catch (err) {
+          console.error('Error testing endpoint:', err);
+          setTestResult({
+            success: false,
+            message: `Error testing endpoint: ${(err as Error).message}`
+          });
+        }
+      }
+
       // Fetch the API definition
-      const response = await fetch(fetchUrl, { headers });
+      const response = await fetch(fetchUrl, fetchOptions);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch API definition: ${response.statusText} (${response.status})`);
       }
 
       let responseText = await response.text();
+      setUploadProgress(50);
+
+      // Extract filename from URL
+      const url = new URL(apiUrl);
+      let fileName = url.pathname.split('/').pop() || 'api-definition';
 
       // Handle different URL types
       if (urlType === 'swagger') {
@@ -214,10 +319,13 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
           const matches = responseText.match(/url:\s*['"](.*?)['"]/);
           if (matches && matches[1]) {
             const swaggerDefUrl = new URL(matches[1], apiUrl).href;
+            console.log('Found Swagger definition URL:', swaggerDefUrl);
             const swaggerResponse = await fetch(swaggerDefUrl);
+
             if (!swaggerResponse.ok) {
               throw new Error(`Failed to fetch Swagger definition: ${swaggerResponse.statusText}`);
             }
+
             responseText = await swaggerResponse.text();
             fileName = swaggerDefUrl.split('/').pop() || 'swagger';
           } else {
@@ -235,17 +343,34 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         return;
       }
 
+      // Extract endpoints from the validated API definition
+      if (validationResult.parsedDefinition) {
+        const extractedEndpoints = extractEndpoints(
+          validationResult.parsedDefinition, 
+          validationResult.format
+        );
+        setEndpoints(extractedEndpoints);
+        setShowEndpoints(extractedEndpoints.length > 0);
+        console.log('Extracted endpoints:', extractedEndpoints);
+      }
+
+      setUploadProgress(100);
+
       // Call the onUploadComplete callback with the validated API definition
       onUploadComplete({
         name: fileName,
         format: validationResult.format,
-        content: responseText, // Use the raw response text instead of JSON.stringify(validationResult)
+        content: JSON.stringify({
+          content: responseText,
+          format: validationResult.format,
+          parsedDefinition: validationResult.parsedDefinition
+        }),
         parsedDefinition: validationResult.parsedDefinition
       });
 
     } catch (error) {
       console.error('Error uploading API definition from URL:', error);
-      setUploadError(`Error: ${error.message}`);
+      setUploadError(`Error: ${(error as Error).message}`);
     } finally {
       setIsUploading(false);
     }
@@ -258,6 +383,20 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
       handleUrlUpload();
     }
   }
+
+  const extractEndpoints = (definition: any, format: string): any[] => {
+    // Implement endpoint extraction logic based on format (JSON, YAML, etc.)
+    if (format === 'json') {
+      //Extract endpoints from JSON
+      //Example: Assuming a specific structure in your JSON
+      return Object.keys(definition).map(key => ({path: key, methods: definition[key]}));
+    } else if (format === 'yaml') {
+      //Extract endpoints from YAML
+      //Example: Assuming a specific structure in your YAML
+      return Object.keys(definition).map(key => ({path: key, methods: definition[key]}));
+    }
+    return [];
+  };
 
   return (
     <div className="py-24 relative overflow-hidden" id="start">
@@ -358,8 +497,8 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                           <div className="flex items-center gap-2">
                             <RadioGroup value={urlType} onValueChange={setUrlType} className="flex space-x-2">
                               <div className="flex items-center space-x-1">
-                                <RadioGroupItem value="api-definition" id="api-definition" />
-                                <Label htmlFor="api-definition">API Definition URL (JSON/YAML)</Label>
+                                <RadioGroupItem value="direct" id="direct" />
+                                <Label htmlFor="direct">API Definition URL (JSON/YAML)</Label>
                               </div>
                               <div className="flex items-center space-x-1">
                                 <RadioGroupItem value="swagger" id="swagger" />
@@ -421,51 +560,71 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                             )}
 
                             {authType === 'api-key' && (
-                              <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                    <Label htmlFor="apiKeyName">API Key Name</Label>
-                                    <Input
-                                      id="apiKeyName"
-                                      value={apiKeyName}
-                                      onChange={(e) => setApiKeyName(e.target.value)}
-                                      className="mt-1"
-                                      placeholder="X-API-Key"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor="apiKeyValue">API Key Value</Label>
-                                    <Input
-                                      id="apiKeyValue"
-                                      value={apiKey}
-                                      onChange={(e) => setApiKey(e.target.value)}
-                                      className="mt-1"
-                                    />
-                                  </div>
-                                </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="api-key-name">API Key Header</Label>
+                                <Input 
+                                  id="api-key-name" 
+                                  placeholder="X-Api-Key" 
+                                  value={apiKeyName}
+                                  onChange={(e) => setApiKeyName(e.target.value)}
+                                />
+                                <Label htmlFor="api-key">API Key</Label>
+                                <Input 
+                                  id="api-key" 
+                                  placeholder="Your API key" 
+                                  value={apiKey}
+                                  onChange={(e) => setApiKey(e.target.value)}
+                                />
                               </div>
                             )}
 
-                            <div>
-                              <Label htmlFor="queryParams">Query Parameters (JSON)</Label>
-                              <Textarea
-                                id="queryParams"
+                            <div className="space-y-2">
+                              <Label htmlFor="query-params">Query Parameters (JSON object)</Label>
+                              <Textarea 
+                                id="query-params" 
+                                placeholder='{"param1": "value1", "param2": "value2"}' 
                                 value={queryParams}
                                 onChange={(e) => setQueryParams(e.target.value)}
-                                className="mt-1"
-                                placeholder={'{"param1": "value1", "param2": "value2"}'}
+                                className="h-20"
                               />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="test-url">Test Specific Endpoint URL (Optional)</Label>
+                              <Input 
+                                id="test-url" 
+                                placeholder="https://api.example.com/endpoint" 
+                                value={testUrl}
+                                onChange={(e) => setTestUrl(e.target.value)}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Enter a specific endpoint URL to test if it returns a successful response
+                              </p>
                             </div>
                             <div>
-                              <Label htmlFor="headerParams">Header Parameters (JSON)</Label>
-                              <Textarea
-                                id="headerParams"
-                                value={headerParams}
-                                onChange={(e) => setHeaderParams(e.target.value)}
-                                className="mt-1"
-                                placeholder={'{"Content-Type": "application/json"}'}
-                              />
+                              <Label htmlFor="request-method">Request Method</Label>
+                              <Select value={requestMethod} onValueChange={setRequestMethod}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select request method" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="GET">GET</SelectItem>
+                                  <SelectItem value="POST">POST</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </div>
+                            {requestMethod === 'POST' && (
+                              <div>
+                                <Label htmlFor="request-body">Request Body (JSON)</Label>
+                                <Textarea
+                                  id="request-body"
+                                  value={requestBody}
+                                  onChange={(e) => setRequestBody(e.target.value)}
+                                  className="mt-1"
+                                  placeholder='{"key": "value"}'
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -501,6 +660,15 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                     </AlertDescription>
                   </Alert>
                 )}
+                {testResult && (
+                  <Alert className="mb-4" variant={testResult.success ? 'success' : 'destructive'}>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>
+                      {testResult.success ? 'Success' : 'Error'}
+                    </AlertTitle>
+                    <AlertDescription>{testResult.message}</AlertDescription>
+                  </Alert>
+                )}
 
                 <Button 
                   onClick={handleUpload} 
@@ -519,6 +687,25 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                     </>
                   )}
                 </Button>
+                {showEndpoints && (
+                  <Accordion type="single" className="mt-4">
+                    <AccordionItem>
+                      <AccordionTrigger>
+                        Endpoints
+                        {showEndpoints ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <ul>
+                          {endpoints.map((endpoint, index) => (
+                            <li key={index}>
+                              {endpoint.path} ({endpoint.methods.join(', ')})
+                            </li>
+                          ))}
+                        </ul>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                )}
               </div>
             </div>
           </div>
