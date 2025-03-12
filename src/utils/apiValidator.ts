@@ -272,3 +272,138 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat) => {
 
   return endpoints;
 };
+
+/**
+ * Fetches an API definition from a URL
+ * @param url URL of the API definition
+ * @param authHeaders Optional auth headers for the request
+ * @returns The API definition JSON or null if fetch fails
+ */
+export const fetchApiDefinition = async (url: string, authHeaders?: Record<string, string>) => {
+  try {
+    const headers = new Headers();
+    
+    if (authHeaders) {
+      Object.entries(authHeaders).forEach(([key, value]) => {
+        headers.append(key, value);
+      });
+    }
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch API definition: ${response.statusText}`);
+    }
+    
+    // Check content type
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('text/html')) {
+      // This might be a Swagger UI page
+      const html = await response.text();
+      return parseSwaggerHtmlPage(html);
+    }
+    
+    // Assume it's JSON
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching API definition:', error);
+    return null;
+  }
+};
+
+/**
+ * Attempts to extract a Swagger/OpenAPI definition from an HTML page
+ * @param html HTML content of a Swagger UI page
+ * @returns Extracted OpenAPI definition or null
+ */
+const parseSwaggerHtmlPage = (html: string) => {
+  try {
+    // Common patterns for Swagger UI
+    const swaggerJsonUrlPattern = /url\s*:\s*['"](.*?\.json)['"]/;
+    const swaggerYamlUrlPattern = /url\s*:\s*['"](.*?\.yaml)['"]/;
+    const swaggerSpecPattern = /spec\s*:\s*({[\s\S]*?})/;
+    
+    // Try to find Swagger JSON URL
+    const jsonUrlMatch = html.match(swaggerJsonUrlPattern);
+    if (jsonUrlMatch && jsonUrlMatch[1]) {
+      // Return the URL to be fetched separately
+      return { swaggerUrl: jsonUrlMatch[1] };
+    }
+    
+    // Try to find Swagger YAML URL
+    const yamlUrlMatch = html.match(swaggerYamlUrlPattern);
+    if (yamlUrlMatch && yamlUrlMatch[1]) {
+      return { swaggerUrl: yamlUrlMatch[1] };
+    }
+    
+    // Try to extract inline spec
+    const specMatch = html.match(swaggerSpecPattern);
+    if (specMatch && specMatch[1]) {
+      try {
+        return JSON.parse(specMatch[1]);
+      } catch (e) {
+        console.error('Error parsing inline Swagger spec:', e);
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error parsing Swagger HTML:', error);
+    return null;
+  }
+};
+
+/**
+ * Test an API endpoint with the provided parameters
+ * @param url The endpoint URL
+ * @param method HTTP method
+ * @param params Request parameters
+ * @param headers Request headers
+ * @returns Response status and data
+ */
+export const testApiEndpoint = async (
+  url: string, 
+  method: string, 
+  params?: Record<string, any>,
+  headers?: Record<string, string>
+) => {
+  try {
+    const options: RequestInit = {
+      method,
+      headers: headers ? new Headers(headers) : undefined,
+    };
+    
+    // Add body for non-GET requests if params exist
+    if (method !== 'GET' && params) {
+      options.body = JSON.stringify(params);
+      if (!options.headers) options.headers = new Headers();
+      (options.headers as Headers).append('Content-Type', 'application/json');
+    }
+    
+    // Add query params for GET requests
+    let fetchUrl = url;
+    if (method === 'GET' && params) {
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        queryParams.append(key, String(value));
+      });
+      fetchUrl = `${url}?${queryParams.toString()}`;
+    }
+    
+    const response = await fetch(fetchUrl, options);
+    const responseData = await response.json().catch(() => null);
+    
+    return {
+      status: response.status,
+      ok: response.ok,
+      data: responseData
+    };
+  } catch (error) {
+    console.error('Error testing API endpoint:', error);
+    return {
+      status: 0,
+      ok: false,
+      error: (error as Error).message
+    };
+  }
+};

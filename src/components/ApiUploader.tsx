@@ -1,566 +1,591 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { AlertCircle, Check, Loader2 } from 'lucide-react';
+import { ApiDefinition, Endpoint } from '@/types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { toast } from 'sonner';
-import { ApiDefinition } from '@/types';
 import { 
-  Upload, 
-  FileJson, 
-  FileText, 
-  ChevronDown, 
-  ChevronUp, 
-  Lock 
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from '@/components/ui/textarea';
+import { validateApiDefinition, fetchApiDefinition, testApiEndpoint } from '@/utils/apiValidator';
 import { 
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from '@/components/ui/textarea';
-import { validateApiDefinition } from '@/utils/apiValidator';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
+import EndpointsList from './EndpointsList';
+import { toast } from 'sonner';
 
 interface ApiUploaderProps {
   onUploadComplete: (apiDefinition: ApiDefinition) => void;
 }
 
+interface EndpointTestConfig {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  queryParams: Record<string, string>;
+  body: string;
+}
+
 export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
-  const [isUrl, setIsUrl] = useState(false);
-  const [url, setUrl] = useState('');
-  const [dragActive, setDragActive] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [authType, setAuthType] = useState<'none' | 'basic' | 'bearer' | 'apiKey'>('none');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [token, setToken] = useState('');
-  const [apiKeyName, setApiKeyName] = useState('');
-  const [apiKeyValue, setApiKeyValue] = useState('');
-  const [apiKeyLocation, setApiKeyLocation] = useState<'header' | 'query'>('header');
-  const [queryParams, setQueryParams] = useState('');
-  const [isSwaggerUi, setIsSwaggerUi] = useState(false);
-  
-  const inputRef = useRef<HTMLInputElement>(null);
-  
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
+  const [content, setContent] = useState<string>('');
+  const [rawContent, setRawContent] = useState<string>('');
+  const [format, setFormat] = useState<string>('OpenAPI3');
+  const [sourceType, setSourceType] = useState<'raw' | 'url'>('raw');
+  const [apiUrl, setApiUrl] = useState<string>('');
+  const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [advancedMode, setAdvancedMode] = useState<boolean>(false);
+  const [testEndpoint, setTestEndpoint] = useState<EndpointTestConfig>({
+    url: '',
+    method: 'GET',
+    headers: {},
+    queryParams: {},
+    body: ''
+  });
+  const [testResult, setTestResult] = useState<any>(null);
+  const [isValidating, setIsValidating] = useState<boolean>(false);
+  const [testLoading, setTestLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    // When switching to URL mode, clear the content
+    if (sourceType === 'url') {
+      setContent('');
+      setRawContent('');
+    }
+  }, [sourceType]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setRawContent(e.target.value);
+    try {
+      // Try to parse as JSON to validate
+      if (e.target.value.trim()) {
+        const parsed = JSON.parse(e.target.value);
+        setContent(JSON.stringify(parsed));
+      } else {
+        setContent('');
+      }
+      setError(null);
+    } catch (err) {
+      setError('Invalid JSON format');
     }
   };
-  
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      await handleFiles(e.dataTransfer.files);
-    }
+
+  const handleAddHeader = () => {
+    setTestEndpoint({
+      ...testEndpoint,
+      headers: {
+        ...testEndpoint.headers,
+        '': ''
+      }
+    });
   };
-  
-  const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    if (e.target.files && e.target.files[0]) {
-      await handleFiles(e.target.files);
-    }
+
+  const handleAddQueryParam = () => {
+    setTestEndpoint({
+      ...testEndpoint,
+      queryParams: {
+        ...testEndpoint.queryParams,
+        '': ''
+      }
+    });
   };
-  
-  const handleFiles = async (files: FileList) => {
-    setUploading(true);
-    setValidationErrors([]);
-    
-    const file = files[0];
-    const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
-    const supportedFormats = ['json', 'yaml', 'yml', 'raml', 'md'];
-    
-    if (!supportedFormats.includes(fileExtension)) {
-      toast.error('Unsupported file format. Please upload a JSON, YAML, RAML, or Markdown file.');
-      setUploading(false);
+
+  const handleHeaderChange = (oldKey: string, newKey: string, value: string) => {
+    const newHeaders = { ...testEndpoint.headers };
+    if (oldKey !== newKey) {
+      delete newHeaders[oldKey];
+    }
+    newHeaders[newKey] = value;
+    setTestEndpoint({
+      ...testEndpoint,
+      headers: newHeaders
+    });
+  };
+
+  const handleQueryParamChange = (oldKey: string, newKey: string, value: string) => {
+    const newParams = { ...testEndpoint.queryParams };
+    if (oldKey !== newKey) {
+      delete newParams[oldKey];
+    }
+    newParams[newKey] = value;
+    setTestEndpoint({
+      ...testEndpoint,
+      queryParams: newParams
+    });
+  };
+
+  const handleRemoveHeader = (key: string) => {
+    const newHeaders = { ...testEndpoint.headers };
+    delete newHeaders[key];
+    setTestEndpoint({
+      ...testEndpoint,
+      headers: newHeaders
+    });
+  };
+
+  const handleRemoveQueryParam = (key: string) => {
+    const newParams = { ...testEndpoint.queryParams };
+    delete newParams[key];
+    setTestEndpoint({
+      ...testEndpoint,
+      queryParams: newParams
+    });
+  };
+
+  const handleFetchApiDefinition = async () => {
+    if (!apiUrl) {
+      setError('Please enter a URL');
       return;
     }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const apiDefinition = await fetchApiDefinition(apiUrl);
+      
+      if (!apiDefinition) {
+        setError('Failed to fetch API definition');
+        setLoading(false);
+        return;
+      }
+
+      // Handle Swagger URL redirection
+      if (apiDefinition.swaggerUrl) {
+        const fullUrl = new URL(apiDefinition.swaggerUrl, apiUrl).href;
+        const swaggerDef = await fetchApiDefinition(fullUrl);
+        
+        if (!swaggerDef) {
+          setError('Failed to fetch Swagger definition');
+          setLoading(false);
+          return;
+        }
+        
+        const jsonContent = JSON.stringify(swaggerDef, null, 2);
+        setContent(jsonContent);
+        setRawContent(jsonContent);
+        processApiDefinition(swaggerDef);
+      } else {
+        const jsonContent = JSON.stringify(apiDefinition, null, 2);
+        setContent(jsonContent);
+        setRawContent(jsonContent);
+        processApiDefinition(apiDefinition);
+      }
+    } catch (err) {
+      setError(`Error fetching API definition: ${(err as Error).message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const processApiDefinition = (apiDef: any) => {
+    // Try to determine the format automatically
+    let detectedFormat = format;
+    
+    if (apiDef.swagger && apiDef.swagger.startsWith('2.')) {
+      detectedFormat = 'OpenAPI2';
+    } else if (apiDef.openapi && apiDef.openapi.startsWith('3.')) {
+      detectedFormat = 'OpenAPI3';
+    } else if (apiDef.raml) {
+      detectedFormat = 'RAML';
+    } else if (apiDef.blueprint) {
+      detectedFormat = 'APIBlueprint';
+    }
+    
+    setFormat(detectedFormat);
+    
+    // Extract endpoints
+    const extractedEndpoints = validateApiDefinition(apiDef, detectedFormat);
+    setEndpoints(extractedEndpoints);
+  };
+
+  const handleUpload = () => {
+    setIsValidating(true);
     
     try {
-      const content = await file.text();
-      const { isValid, format, errors, parsedDefinition } = await validateApiDefinition(content, file.name);
+      if (sourceType === 'raw' && !content) {
+        setError('Please enter an API definition');
+        setIsValidating(false);
+        return;
+      }
       
-      if (!isValid) {
-        setValidationErrors(errors || ['Invalid API definition format']);
-        toast.error('API definition validation failed');
-        setUploading(false);
+      let parsedDefinition;
+      try {
+        parsedDefinition = JSON.parse(content);
+      } catch (err) {
+        setError('Invalid JSON format');
+        setIsValidating(false);
+        return;
+      }
+      
+      // Extract endpoints from the parsed definition
+      const extractedEndpoints = validateApiDefinition(parsedDefinition, format);
+      
+      if (extractedEndpoints.length === 0) {
+        setError('No valid endpoints found in the API definition');
+        setIsValidating(false);
         return;
       }
       
       const apiDefinition: ApiDefinition = {
-        name: file.name,
         format,
-        content,
-        parsedDefinition
+        content: JSON.stringify({
+          parsedDefinition,
+          format,
+          source: sourceType === 'url' ? apiUrl : 'manual'
+        }),
+        endpoints: extractedEndpoints
       };
       
       onUploadComplete(apiDefinition);
-      toast.success(`API definition (${format}) uploaded successfully`);
+      toast.success('API definition uploaded successfully');
     } catch (error) {
-      console.error('Error processing file:', error);
-      toast.error('Error processing file');
-      setValidationErrors([String(error)]);
+      setError(`Error validating API definition: ${(error as Error).message}`);
     } finally {
-      setUploading(false);
+      setIsValidating(false);
     }
   };
 
-  const buildFetchOptions = () => {
-    const options: RequestInit = {
-      method: 'GET',
-      headers: {}
-    };
-
-    // Add authentication
-    if (authType === 'basic') {
-      const base64Credentials = btoa(`${username}:${password}`);
-      options.headers = {
-        ...options.headers,
-        'Authorization': `Basic ${base64Credentials}`
-      };
-    } else if (authType === 'bearer') {
-      options.headers = {
-        ...options.headers,
-        'Authorization': `Bearer ${token}`
-      };
-    } else if (authType === 'apiKey') {
-      if (apiKeyLocation === 'header') {
-        options.headers = {
-          ...options.headers,
-          [apiKeyName]: apiKeyValue
-        };
-      }
-    }
-
-    return options;
-  };
-  
-  const handleUrlSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setUploading(true);
-    setValidationErrors([]);
-    
-    // Validate URL
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      toast.error('Please enter a valid URL');
-      setUploading(false);
+  const handleTestEndpoint = async () => {
+    if (!testEndpoint.url) {
+      toast.error('Please enter an endpoint URL');
       return;
     }
     
-    let fetchUrl = url;
+    setTestLoading(true);
+    setTestResult(null);
     
-    // Add query parameters if provided
-    if (queryParams && authType === 'apiKey' && apiKeyLocation === 'query') {
-      const separator = fetchUrl.includes('?') ? '&' : '?';
-      fetchUrl = `${fetchUrl}${separator}${apiKeyName}=${apiKeyValue}`;
-    }
-    
-    if (queryParams) {
-      try {
-        const parsedParams = JSON.parse(queryParams);
-        const params = new URLSearchParams();
-        for (const [key, value] of Object.entries(parsedParams)) {
-          params.append(key, String(value));
+    try {
+      let bodyParams = {};
+      if (testEndpoint.body) {
+        try {
+          bodyParams = JSON.parse(testEndpoint.body);
+        } catch (error) {
+          toast.error('Invalid JSON in request body');
+          setTestLoading(false);
+          return;
         }
-        
-        const separator = fetchUrl.includes('?') ? '&' : '?';
-        fetchUrl = `${fetchUrl}${separator}${params.toString()}`;
-      } catch (error) {
-        console.warn('Failed to parse query params as JSON, using as-is');
-        // If not valid JSON, assume it's already formatted as query string
-        const separator = fetchUrl.includes('?') ? '&' : '?';
-        fetchUrl = `${fetchUrl}${separator}${queryParams}`;
       }
-    }
-    
-    const options = buildFetchOptions();
-    
-    // Handle Swagger UI URLs by extracting the actual definition URL
-    if (isSwaggerUi) {
-      // First try to download the page to extract the API URL
-      fetch(fetchUrl, options)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-          }
-          return response.text();
-        })
-        .then(html => {
-          // Try to extract the URL to the actual API definition from Swagger UI HTML
-          const urlMatch = html.match(/url:\s*['"](.*?)['"]/);
-          if (urlMatch && urlMatch[1]) {
-            let swaggerDefinitionUrl = urlMatch[1];
-            
-            // If it's a relative URL, resolve it against the base URL
-            if (swaggerDefinitionUrl.startsWith('/')) {
-              const urlObj = new URL(fetchUrl);
-              swaggerDefinitionUrl = `${urlObj.origin}${swaggerDefinitionUrl}`;
-            }
-            
-            // Now fetch the actual API definition
-            return fetch(swaggerDefinitionUrl, options);
-          } else {
-            throw new Error('Could not find API definition URL in Swagger UI page');
-          }
-        })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-          }
-          return response.text();
-        })
-        .then(processApiDefinition)
-        .catch(handleFetchError);
-    } else {
-      // Standard API definition URL
-      fetch(fetchUrl, options)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-          }
-          return response.text();
-        })
-        .then(processApiDefinition)
-        .catch(handleFetchError);
+      
+      const result = await testApiEndpoint(
+        testEndpoint.url,
+        testEndpoint.method,
+        testEndpoint.method === 'GET' ? testEndpoint.queryParams : bodyParams,
+        testEndpoint.headers
+      );
+      
+      setTestResult(result);
+      
+      if (result.ok) {
+        toast.success(`API test successful: ${result.status}`);
+        
+        // Create an endpoint from the test
+        const newEndpoint: Endpoint = {
+          id: `endpoint-${Math.random().toString(36).substring(2)}`,
+          path: new URL(testEndpoint.url).pathname,
+          method: testEndpoint.method as any,
+          description: `Endpoint added from test: ${testEndpoint.url}`,
+          parameters: Object.entries(testEndpoint.method === 'GET' ? testEndpoint.queryParams : bodyParams).map(([name, value]) => ({
+            name,
+            type: typeof value,
+            required: false,
+            description: ''
+          })),
+          responses: [{ statusCode: result.status, description: 'Success' }],
+          mcpType: testEndpoint.method === 'GET' ? 'resource' : 'tool'
+        };
+        
+        setEndpoints([...endpoints, newEndpoint]);
+      } else {
+        toast.error(`API test failed: ${result.status}`);
+      }
+    } catch (error) {
+      toast.error(`Error testing endpoint: ${(error as Error).message}`);
+    } finally {
+      setTestLoading(false);
     }
   };
-  
-  const processApiDefinition = async (content: string) => {
-    const { isValid, format, errors, parsedDefinition } = await validateApiDefinition(content, url);
-    
-    if (!isValid) {
-      setValidationErrors(errors || ['Invalid API definition format']);
-      toast.error('API definition validation failed');
-      setUploading(false);
-      return;
-    }
-    
-    const apiDefinition: ApiDefinition = {
-      name: url.split('/').pop() || 'api-definition',
-      format,
-      content,
-      parsedDefinition,
-      url
-    };
-    
-    onUploadComplete(apiDefinition);
-    toast.success(`API definition (${format}) fetched successfully`);
-    setUploading(false);
-  };
-  
-  const handleFetchError = (error: Error) => {
-    console.error('Error fetching API definition:', error);
-    toast.error('Failed to fetch API definition. Please check the URL and try again.');
-    setValidationErrors([error.message]);
-    setUploading(false);
-  };
-  
+
   return (
-    <section className="py-24 relative overflow-hidden" id="start">
+    <div className="py-24 relative overflow-hidden" id="start">
       <div className="content-container">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Start Building Your Server</h2>
-            <p className="text-muted-foreground text-lg">
-              Upload your API definition or provide a URL to get started
+            <h1 className="font-bold text-3xl md:text-5xl mb-4">API Definition</h1>
+            <p className="text-md md:text-lg text-muted-foreground">
+              Upload your API definition to generate an MCP server
             </p>
           </div>
-          
-          <div className="bg-white rounded-xl shadow-lg border border-border overflow-hidden">
-            <div className="p-6 border-b border-border">
-              <div className="flex space-x-6">
-                <button
-                  className={cn(
-                    "pb-2 text-sm font-medium transition-colors",
-                    !isUrl ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground/80"
-                  )}
-                  onClick={() => setIsUrl(false)}
-                >
-                  Upload File
-                </button>
-                <button
-                  className={cn(
-                    "pb-2 text-sm font-medium transition-colors",
-                    isUrl ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground/80"
-                  )}
-                  onClick={() => setIsUrl(true)}
-                >
-                  Provide URL
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              {!isUrl ? (
-                <div 
-                  className={cn(
-                    "border-2 border-dashed rounded-lg transition-colors py-12 px-6",
-                    dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/30"
-                  )}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                >
-                  <div className="text-center">
-                    <Upload 
-                      className="mx-auto mb-4 text-muted-foreground"
-                      size={40}
-                    />
-                    <h3 className="text-lg font-medium mb-2">
-                      {dragActive 
-                        ? 'Drop your API definition file here' 
-                        : 'Drag and drop your API definition file here'
-                      }
-                    </h3>
-                    <p className="text-muted-foreground mb-4 flex items-center justify-center gap-2">
-                      <span>Supports OpenAPI</span>
-                      <FileJson className="h-4 w-4" />
-                      <span>RAML and API Blueprint formats</span>
-                      <FileText className="h-4 w-4" />
-                    </p>
-                    <input
-                      ref={inputRef}
-                      type="file"
-                      className="hidden"
-                      onChange={handleChange}
-                      accept=".json,.yaml,.yml,.raml,.md"
-                    />
-                    <div className="flex justify-center">
-                      <span className="text-sm text-muted-foreground mr-2">or</span>
-                      <button
-                        type="button"
-                        onClick={() => inputRef.current?.click()}
-                        className="text-sm text-primary font-medium"
-                      >
-                        browse files
-                      </button>
-                    </div>
-                  </div>
+
+          <Card className="mb-8">
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div className="flex space-x-4">
+                  <Button 
+                    variant={sourceType === 'raw' ? 'default' : 'outline'} 
+                    onClick={() => setSourceType('raw')}
+                    className="flex-1"
+                  >
+                    Manual Input
+                  </Button>
+                  <Button 
+                    variant={sourceType === 'url' ? 'default' : 'outline'} 
+                    onClick={() => setSourceType('url')}
+                    className="flex-1"
+                  >
+                    URL
+                  </Button>
                 </div>
-              ) : (
-                <form onSubmit={handleUrlSubmit}>
-                  <div className="space-y-6">
-                    <div>
-                      <Label htmlFor="api-url" className="mb-2 block">
-                        API Definition URL
-                      </Label>
+
+                {sourceType === 'url' ? (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="apiUrl">API Definition URL</Label>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Enter the URL of your OpenAPI, Swagger, or RAML definition, or a Swagger UI page
+                      </p>
                       <div className="flex space-x-2">
-                        <Input
-                          id="api-url"
-                          placeholder="https://example.com/api-spec.yaml"
-                          value={url}
-                          onChange={(e) => setUrl(e.target.value)}
-                          className="flex-1"
+                        <Input 
+                          id="apiUrl" 
+                          placeholder="https://example.com/openapi.json" 
+                          value={apiUrl}
+                          onChange={(e) => setApiUrl(e.target.value)}
                         />
-                        <Button type="submit" disabled={uploading || !url}>
-                          {uploading ? 'Loading...' : 'Fetch'}
+                        <Button 
+                          onClick={handleFetchApiDefinition}
+                          disabled={loading}
+                        >
+                          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Fetch
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Enter the URL of a publicly accessible API definition file
-                      </p>
                     </div>
-
                     <div className="flex items-center space-x-2">
-                      <Checkbox 
-                        id="swagger-ui" 
-                        checked={isSwaggerUi}
-                        onCheckedChange={(checked) => setIsSwaggerUi(checked === true)}
+                      <Switch
+                        id="advanced-mode"
+                        checked={advancedMode}
+                        onCheckedChange={setAdvancedMode}
                       />
-                      <label
-                        htmlFor="swagger-ui"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        This is a Swagger UI URL (not a direct API definition)
-                      </label>
+                      <Label htmlFor="advanced-mode">Advanced Mode</Label>
                     </div>
-
-                    <div className="flex items-center justify-between">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        className="flex items-center gap-1"
-                        onClick={() => setShowAdvanced(!showAdvanced)}
-                      >
-                        {showAdvanced ? 'Hide' : 'Show'} Advanced Options
-                        {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      </Button>
-                    </div>
-
-                    {showAdvanced && (
-                      <div className="border rounded-md p-4 space-y-4">
-                        <div className="flex items-center">
-                          <Lock className="h-4 w-4 text-muted-foreground mr-2" />
-                          <span className="text-sm text-muted-foreground">
-                            Advanced options (available for everyone during beta)
-                          </span>
-                        </div>
-
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="auth-type">Authentication Type</Label>
-                            <Select 
-                              value={authType} 
-                              onValueChange={(value) => setAuthType(value as any)}
-                            >
-                              <SelectTrigger className="w-full mt-1">
-                                <SelectValue placeholder="Select authentication type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">None</SelectItem>
-                                <SelectItem value="basic">Basic Auth</SelectItem>
-                                <SelectItem value="bearer">Bearer Token</SelectItem>
-                                <SelectItem value="apiKey">API Key</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {authType === 'basic' && (
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <Label htmlFor="username">Username</Label>
-                                <Input
-                                  id="username"
-                                  value={username}
-                                  onChange={(e) => setUsername(e.target.value)}
-                                  className="mt-1"
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor="password">Password</Label>
-                                <Input
-                                  id="password"
-                                  type="password"
-                                  value={password}
-                                  onChange={(e) => setPassword(e.target.value)}
-                                  className="mt-1"
-                                />
-                              </div>
-                            </div>
-                          )}
-
-                          {authType === 'bearer' && (
-                            <div>
-                              <Label htmlFor="token">Bearer Token</Label>
-                              <Input
-                                id="token"
-                                value={token}
-                                onChange={(e) => setToken(e.target.value)}
-                                className="mt-1"
-                              />
-                            </div>
-                          )}
-
-                          {authType === 'apiKey' && (
+                    
+                    {advancedMode && (
+                      <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="test-endpoint">
+                          <AccordionTrigger>Test Endpoint</AccordionTrigger>
+                          <AccordionContent>
                             <div className="space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <Label htmlFor="apiKeyName">API Key Name</Label>
-                                  <Input
-                                    id="apiKeyName"
-                                    value={apiKeyName}
-                                    onChange={(e) => setApiKeyName(e.target.value)}
-                                    className="mt-1"
-                                    placeholder="X-API-Key"
+                              <div className="space-y-2">
+                                <Label htmlFor="endpointUrl">Endpoint URL</Label>
+                                <Input
+                                  id="endpointUrl"
+                                  placeholder="https://api.example.com/users"
+                                  value={testEndpoint.url}
+                                  onChange={(e) => setTestEndpoint({...testEndpoint, url: e.target.value})}
+                                />
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <Label htmlFor="method">HTTP Method</Label>
+                                <Select 
+                                  value={testEndpoint.method} 
+                                  onValueChange={(val) => setTestEndpoint({...testEndpoint, method: val})}
+                                >
+                                  <SelectTrigger id="method">
+                                    <SelectValue placeholder="Select a method" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="GET">GET</SelectItem>
+                                    <SelectItem value="POST">POST</SelectItem>
+                                    <SelectItem value="PUT">PUT</SelectItem>
+                                    <SelectItem value="DELETE">DELETE</SelectItem>
+                                    <SelectItem value="PATCH">PATCH</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <Label>Headers</Label>
+                                  <Button size="sm" variant="outline" onClick={handleAddHeader}>
+                                    Add Header
+                                  </Button>
+                                </div>
+                                
+                                {Object.entries(testEndpoint.headers).map(([key, value], index) => (
+                                  <div key={`header-${index}`} className="flex items-center space-x-2">
+                                    <Input 
+                                      placeholder="Header name"
+                                      value={key}
+                                      onChange={(e) => handleHeaderChange(key, e.target.value, value)}
+                                    />
+                                    <Input 
+                                      placeholder="Value"
+                                      value={value}
+                                      onChange={(e) => handleHeaderChange(key, key, e.target.value)}
+                                    />
+                                    <Button 
+                                      size="icon" 
+                                      variant="ghost" 
+                                      onClick={() => handleRemoveHeader(key)}
+                                    >
+                                      ✕
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                              
+                              {testEndpoint.method === 'GET' ? (
+                                <div className="space-y-2">
+                                  <div className="flex justify-between items-center">
+                                    <Label>Query Parameters</Label>
+                                    <Button size="sm" variant="outline" onClick={handleAddQueryParam}>
+                                      Add Parameter
+                                    </Button>
+                                  </div>
+                                  
+                                  {Object.entries(testEndpoint.queryParams).map(([key, value], index) => (
+                                    <div key={`param-${index}`} className="flex items-center space-x-2">
+                                      <Input 
+                                        placeholder="Parameter name"
+                                        value={key}
+                                        onChange={(e) => handleQueryParamChange(key, e.target.value, value)}
+                                      />
+                                      <Input 
+                                        placeholder="Value"
+                                        value={value}
+                                        onChange={(e) => handleQueryParamChange(key, key, e.target.value)}
+                                      />
+                                      <Button 
+                                        size="icon" 
+                                        variant="ghost" 
+                                        onClick={() => handleRemoveQueryParam(key)}
+                                      >
+                                        ✕
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  <Label htmlFor="requestBody">Request Body (JSON)</Label>
+                                  <Textarea
+                                    id="requestBody"
+                                    placeholder='{ "name": "John Doe", "email": "john@example.com" }'
+                                    value={testEndpoint.body}
+                                    onChange={(e) => setTestEndpoint({...testEndpoint, body: e.target.value})}
+                                    rows={5}
                                   />
                                 </div>
-                                <div>
-                                  <Label htmlFor="apiKeyValue">API Key Value</Label>
-                                  <Input
-                                    id="apiKeyValue"
-                                    value={apiKeyValue}
-                                    onChange={(e) => setApiKeyValue(e.target.value)}
-                                    className="mt-1"
-                                  />
+                              )}
+                              
+                              <Button 
+                                onClick={handleTestEndpoint}
+                                disabled={testLoading}
+                                className="w-full"
+                              >
+                                {testLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                Test Endpoint
+                              </Button>
+                              
+                              {testResult && (
+                                <div className="mt-4">
+                                  <Alert variant={testResult.ok ? "default" : "destructive"}>
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertTitle>Status: {testResult.status}</AlertTitle>
+                                    <AlertDescription>
+                                      <pre className="mt-2 w-full rounded bg-slate-950 p-4 overflow-x-scroll text-white">
+                                        {JSON.stringify(testResult.data || testResult.error, null, 2)}
+                                      </pre>
+                                    </AlertDescription>
+                                  </Alert>
                                 </div>
-                              </div>
-                              <div>
-                                <Label>API Key Location</Label>
-                                <div className="flex space-x-4 mt-1">
-                                  <div className="flex items-center">
-                                    <input
-                                      type="radio"
-                                      id="header"
-                                      name="apiKeyLocation"
-                                      value="header"
-                                      checked={apiKeyLocation === 'header'}
-                                      onChange={() => setApiKeyLocation('header')}
-                                      className="mr-2"
-                                    />
-                                    <Label htmlFor="header" className="cursor-pointer">Header</Label>
-                                  </div>
-                                  <div className="flex items-center">
-                                    <input
-                                      type="radio"
-                                      id="query"
-                                      name="apiKeyLocation"
-                                      value="query"
-                                      checked={apiKeyLocation === 'query'}
-                                      onChange={() => setApiKeyLocation('query')}
-                                      className="mr-2"
-                                    />
-                                    <Label htmlFor="query" className="cursor-pointer">Query Parameter</Label>
-                                  </div>
-                                </div>
-                              </div>
+                              )}
                             </div>
-                          )}
-
-                          <div>
-                            <Label htmlFor="queryParams">Query Parameters (JSON or query string)</Label>
-                            <Textarea
-                              id="queryParams"
-                              value={queryParams}
-                              onChange={(e) => setQueryParams(e.target.value)}
-                              className="mt-1"
-                              placeholder={'{"version": "1.0", "format": "json"}\nor\nversion=1.0&format=json'}
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Enter parameters as JSON object or standard query string
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     )}
                   </div>
-                </form>
-              )}
-              
-              {validationErrors.length > 0 && (
-                <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-md">
-                  <h4 className="text-sm font-medium text-red-800 mb-2">Validation Errors:</h4>
-                  <ul className="text-sm text-red-700 list-disc pl-5">
-                    {validationErrors.map((error, index) => (
-                      <li key={index}>{error}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="apiFormat">API Definition Format</Label>
+                      <Select value={format} onValueChange={setFormat}>
+                        <SelectTrigger id="apiFormat">
+                          <SelectValue placeholder="Select format" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="OpenAPI3">OpenAPI 3.x</SelectItem>
+                          <SelectItem value="OpenAPI2">OpenAPI 2.0 / Swagger</SelectItem>
+                          <SelectItem value="RAML">RAML</SelectItem>
+                          <SelectItem value="APIBlueprint">API Blueprint</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="apiDefinition">API Definition (JSON)</Label>
+                      <Textarea
+                        id="apiDefinition"
+                        placeholder="Paste your API definition here..."
+                        value={rawContent}
+                        onChange={handleInputChange}
+                        rows={15}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                
+                {endpoints.length > 0 && (
+                  <div className="space-y-4 mb-4">
+                    <h3 className="text-lg font-semibold">Detected Endpoints</h3>
+                    <EndpointsList endpoints={endpoints} />
+                  </div>
+                )}
+                
+                <Button 
+                  onClick={handleUpload}
+                  disabled={isValidating || (!content && sourceType === 'raw')}
+                  className="w-full"
+                >
+                  {isValidating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Validating...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="mr-2 h-4 w-4" />
+                      Upload and Continue
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
