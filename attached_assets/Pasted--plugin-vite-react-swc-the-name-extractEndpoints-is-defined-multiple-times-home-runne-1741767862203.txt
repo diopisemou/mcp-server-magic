@@ -1,0 +1,173 @@
+[plugin:vite:react-swc] × the name `extractEndpoints` is defined multiple times
+     ╭─[/home/runner/workspace/src/utils/apiValidator.ts:179:1]
+ 176 │ };
+ 177 │ 
+ 178 │ // Extract endpoints from API definition
+ 179 │ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoint[] => {
+     ·              ────────┬───────
+     ·                      ╰── previous definition of `extractEndpoints` here
+ 180 │   const endpoints: Endpoint[] = [];
+ 181 │   console.log('Extracting endpoints from format:', format);
+ 182 │   console.log('API Definition:', JSON.stringify(apiDefinition, null, 2).substring(0, 500) + '...');
+ 183 │   
+ 184 │   try {
+ 185 │     if (format === 'OpenAPI2' || format === 'OpenAPI3') {
+ 186 │       const paths = apiDefinition.paths || {};
+ 187 │       
+ 188 │       Object.keys(paths).forEach(path => {
+ 189 │         const pathObj = paths[path];
+ 190 │         
+ 191 │         // Common HTTP methods
+ 192 │         const methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'];
+ 193 │         
+ 194 │         methods.forEach(method => {
+ 195 │           if (pathObj[method]) {
+ 196 │             const operation = pathObj[method];
+ 197 │             
+ 198 │             // Extract parameters
+ 199 │             const parameters = [...(pathObj.parameters || []), ...(operation.parameters || [])].map(param => ({
+ 200 │               name: param.name,
+ 201 │               type: param.schema?.type || param.type || 'string',
+ 202 │               required: !!param.required,
+ 203 │               description: param.description || ''
+ 204 │             }));
+ 205 │             
+ 206 │             // Extract responses
+ 207 │             const responses = Object.keys(operation.responses || {}).map(statusCode => ({
+ 208 │               statusCode: parseInt(statusCode, 10) || statusCode,
+ 209 │               description: operation.responses[statusCode].description || '',
+ 210 │               schema: operation.responses[statusCode].schema || operation.responses[statusCode].content
+ 211 │             }));
+ 212 │             
+ 213 │             endpoints.push({
+ 214 │               id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, '-'),
+ 215 │               path,
+ 216 │               method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
+ 217 │               description: operation.summary || operation.description || '',
+ 218 │               parameters,
+ 219 │               responses
+ 220 │             });
+ 221 │           }
+ 222 │         });
+ 223 │       });
+ 224 │     } else if (format === 'RAML') {
+ 225 │       if (apiDefinition.resources) {
+ 226 │         apiDefinition.resources.forEach(resource => {
+ 227 │           const basePath = resource.relativeUri || '';
+ 228 │           
+ 229 │           (resource.methods || []).forEach(method => {
+ 230 │             endpoints.push({
+ 231 │               id: `${method.method}-${basePath}`.replace(/[^a-zA-Z0-9]/g, '-'),
+ 232 │               path: basePath,
+ 233 │               method: method.method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
+ 234 │               description: method.description || '',
+ 235 │               parameters: (method.queryParameters || []).map(param => ({
+ 236 │                 name: param.name,
+ 237 │                 type: param.type || 'string',
+ 238 │                 required: !!param.required,
+ 239 │                 description: param.description || ''
+ 240 │               })),
+ 241 │               responses: Object.keys(method.responses || {}).map(statusCode => ({
+ 242 │                 statusCode: parseInt(statusCode, 10) || statusCode,
+ 243 │                 description: method.responses[statusCode].description || '',
+ 244 │                 schema: null
+ 245 │               }))
+ 246 │             });
+ 247 │           });
+ 248 │         });
+ 249 │       }
+ 250 │     } else if (format === 'APIBlueprint') {
+ 251 │       if (apiDefinition.ast && apiDefinition.ast.resourceGroups) {
+ 252 │         apiDefinition.ast.resourceGroups.forEach(group => {
+ 253 │           (group.resources || []).forEach(resource => {
+ 254 │             (resource.actions || []).forEach(action => {
+ 255 │               endpoints.push({
+ 256 │                 id: `${action.method}-${resource.uriTemplate}`.replace(/[^a-zA-Z0-9]/g, '-'),
+ 257 │                 path: resource.uriTemplate || '',
+ 258 │                 method: action.method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
+ 259 │                 description: action.description || resource.description || '',
+ 260 │                 parameters: (action.parameters || []).map(param => ({
+ 261 │                   name: param.name,
+ 262 │                   type: 'string',
+ 263 │                   required: !!param.required,
+ 264 │                   description: param.description || ''
+ 265 │                 })),
+ 266 │                 responses: (action.examples || []).flatMap(example => 
+ 267 │                   (example.responses || []).map(response => ({
+ 268 │                     statusCode: response.status || 200,
+ 269 │                     description: response.description || '',
+ 270 │                     schema: response.body || null
+ 271 │                   }))
+ 272 │                 )
+ 273 │               });
+ 274 │             });
+ 275 │           });
+ 276 │         });
+ 277 │       }
+ 278 │     }
+ 279 │   } catch (error) {
+ 280 │     console.error('Error extracting endpoints:', error);
+ 281 │   }
+ 282 │   
+ 283 │   console.log(`Extracted ${endpoints.length} endpoints`);
+ 284 │   return endpoints;
+ 285 │ };
+ 286 │ 
+ 287 │ // Main validation function
+ 288 │ export const validateApiDefinition = async (content: string, filename: string): Promise<ValidationResult> => {
+ 289 │   try {
+ 290 │     const contentType = detectContentType(content);
+ 291 │     const parsedContent = parseContent(content, contentType);
+ 292 │     
+ 293 │     if (!parsedContent) {
+ 294 │       return { 
+ 295 │         isValid: false, 
+ 296 │         format: 'OpenAPI3', 
+ 297 │         errors: ['Failed to parse API definition'] 
+ 298 │       };
+ 299 │     }
+ 300 │     
+ 301 │     const format = determineApiFormat(parsedContent);
+ 302 │     let errors: string[] = [];
+ 303 │     
+ 304 │     // Validate based on format
+ 305 │     switch (format) {
+ 306 │       case 'OpenAPI2':
+ 307 │         errors = validateOpenAPI2(parsedContent);
+ 308 │         break;
+ 309 │       case 'OpenAPI3':
+ 310 │         errors = validateOpenAPI3(parsedContent);
+ 311 │         break;
+ 312 │       case 'RAML':
+ 313 │         errors = validateRAML(parsedContent);
+ 314 │         break;
+ 315 │       case 'APIBlueprint':
+ 316 │         errors = validateAPIBlueprint(parsedContent);
+ 317 │         break;
+ 318 │     }
+ 319 │     
+ 320 │     return {
+ 321 │       isValid: errors.length === 0,
+ 322 │       format,
+ 323 │       errors: errors.length > 0 ? errors : undefined,
+ 324 │       parsedDefinition: parsedContent
+ 325 │     };
+ 326 │   } catch (error) {
+ 327 │     console.error('Validation error:', error);
+ 328 │     return {
+ 329 │       isValid: false,
+ 330 │       format: 'OpenAPI3',
+ 331 │       errors: [(error as Error).message]
+ 332 │     };
+ 333 │   }
+ 334 │ };
+ 335 │ 
+ 336 │ // Extract endpoints from API definition
+ 337 │ export const extractEndpoints = (apiDefinition: any, format: ApiFormat) => {
+     ·              ────────┬───────
+     ·                      ╰── `extractEndpoints` redefined here
+ 338 │   let endpoints: Array<{
+ 339 │     path: string;
+ 340 │     method: string;
+     ╰────
+/home/runner/workspace/src/utils/apiValidator.ts:179:1
