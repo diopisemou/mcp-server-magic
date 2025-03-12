@@ -236,10 +236,11 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
 
 
   return (
-    <div className="py-24 bg-white relative">
-      <div className="content-container">
-        <div className="max-w-5xl mx-auto">
-          <div className="mb-12">
+    <>
+      <div className="py-24 bg-white relative">
+        <div className="content-container">
+          <div className="max-w-5xl mx-auto">
+            <div className="mb-12">
             <div className="inline-block px-4 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
               API Mapping
             </div>
@@ -295,7 +296,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
                           </code>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {endpoint.descriptio</p>
+                          {endpoint.description}</p>
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -329,9 +330,9 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
               </Button>
             </div>
           </div>
+          </div>
         </div>
       </div>
-    </div>
 
       {/* Edit Endpoint Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -580,7 +581,7 @@ const EndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 };
 
