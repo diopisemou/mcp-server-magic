@@ -11,7 +11,7 @@ import { LogViewer } from '@/components/LogViewer';
 import { Download, ExternalLink } from 'lucide-react';
 import { ApiDefinition, ServerConfig, ServerFile, Endpoint } from '@/types';
 import { generateServer } from '@/utils/serverGenerator';
-import { ServerPreview } from '@/components/ServerPreview';
+import ServerPreview from '@/components/ServerPreview';
 import { ServerGenerationSection } from '@/components/ServerGenerationSection';
 
 export const GenerateServer = () => {
