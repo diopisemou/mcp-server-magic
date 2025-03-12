@@ -261,7 +261,7 @@ app.listen(3000, () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <LogViewer logs={logs} />
+              <LogViewer logs={logs && logs.length > 0 ? logs : []} /> {/* Added check for logs length */}
             </CardContent>
           </Card>
         </TabsContent>

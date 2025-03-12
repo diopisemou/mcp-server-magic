@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { CheckCircle, AlertCircle, Info } from 'lucide-react';
 
@@ -15,9 +16,12 @@ export const LogViewer = ({ logs }: LogViewerProps) => {
   const [fetchedLogs, setLogs] = useState<Log[]>([]);
 
   useEffect(() => {
-    if (logs) return;
+    if (logs && logs.length > 0) {
+      setLogs(logs);
+      return;
+    }
     fetchLogs();
-  }, []);
+  }, [logs]);
 
   const fetchLogs = async () => {
     try {
