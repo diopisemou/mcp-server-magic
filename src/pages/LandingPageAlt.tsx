@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -16,6 +15,11 @@ export default function LandingPageAlt() {
     navigate('/dashboard');
   };
 
+  const handleGenerateWithDescription = () => {
+    // Placeholder for actual generation logic
+    console.log("Generating with description:", inputValue);
+  };
+
   const toggleRecording = () => {
     if (!isRecording) {
       startVoiceRecording();
@@ -29,22 +33,22 @@ export default function LandingPageAlt() {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
-      
+
       recognition.continuous = true;
       recognition.interimResults = true;
-      
+
       recognition.onresult = (event) => {
         const transcript = Array.from(event.results)
           .map(result => result[0])
           .map(result => result.transcript)
           .join('');
-        
+
         setVoiceInput(transcript);
         setInputValue(transcript);
       };
-      
+
       recognition.start();
-      
+
       // Store recognition instance to stop it later
       window.recognition = recognition;
     } else {
@@ -87,38 +91,48 @@ export default function LandingPageAlt() {
               Upload your OpenAPI, Swagger, RAML or API Blueprint definitions and generate 
               production-ready MCP servers that AI models can interact with.
             </p>
-            
+
             <div className="mb-8 flex flex-col items-center space-y-4">
               <div className="flex items-center space-x-2 w-full max-w-lg">
                 <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300">
                   <Sparkles className="h-3 w-3 mr-1" />
                   BETA
                 </Badge>
-                <Input 
-                  placeholder="Describe the MCP server you want to generate..." 
-                  className="flex-1"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                />
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={toggleRecording}
-                  className={isRecording ? "bg-red-100 text-red-600 border-red-300" : ""}
-                >
-                  {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                <div className="relative">
+                  <Input 
+                    placeholder="Describe the MCP server you want to generate..." 
+                    className="flex-1 h-12 pr-24"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                  />
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={toggleRecording}
+                    className={`absolute right-1 top-1 h-10 w-10 ${isRecording ? 'bg-red-100 animate-pulse' : ''}`}
+                    aria-label={isRecording ? "Stop recording" : "Start recording"}
+                    title={isRecording ? "Stop recording" : "Start recording"}
+                  >
+                    {isRecording ? <MicOff className="h-5 w-5 text-red-500" /> : <Mic className="h-5 w-5" />}
+                  </Button>
+                </div>
+                {isRecording && (
+                  <div className="text-sm text-center text-muted-foreground">
+                    Speaking: {voiceInput || "Listening..."}
+                  </div>
+                )}
+                <Button onClick={handleGenerateWithDescription} className="px-8" disabled={!inputValue.trim()}>
+                  Generate MCP Server <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
-              <Button onClick={handleGetStarted} className="px-8" disabled={!inputValue.trim()}>
-                Generate MCP Server <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+
             </div>
 
             <div className="flex justify-center space-x-4 mb-10">
               <Button variant="outline" onClick={handleGetStarted}>Upload API Definition</Button>
               <Button variant="outline" onClick={() => navigate('/templates')}>Browse Templates</Button>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16">
               <div className="bg-card p-6 rounded-lg border shadow-sm">
                 <div className="h-12 w-12 rounded-md bg-primary/10 flex items-center justify-center text-primary mb-4">
@@ -155,7 +169,7 @@ export default function LandingPageAlt() {
             </div>
           </div>
         </section>
-        
+
         <section className="py-16 px-4 sm:px-6 lg:px-8">
           <div className="max-w-6xl mx-auto">
             <h2 className="text-3xl font-bold tracking-tight mb-12 text-center">How It Works</h2>
