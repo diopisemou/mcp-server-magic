@@ -195,3 +195,58 @@ const Auth = () => {
 };
 
 export default Auth;
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SignIn } from "@/components/auth/SignIn";
+import { SignUp } from "@/components/auth/SignUp";
+import { Footer } from "@/components/ui/footer";
+import { Button } from "@/components/ui/button";
+import { Home } from "lucide-react";
+
+export function Auth() {
+  const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
+  
+  return (
+    <div className="flex min-h-screen flex-col">
+      <header className="border-b py-4">
+        <div className="container flex justify-between items-center">
+          <Link to="/">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <Home size={16} />
+              <span>Home</span>
+            </Button>
+          </Link>
+          <h1 className="text-xl font-bold">MCP Server Generator</h1>
+          <div className="w-24"></div> {/* For balance */}
+        </div>
+      </header>
+      
+      <main className="flex-1 flex items-center justify-center py-10">
+        <div className="w-full max-w-md space-y-6 p-6">
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-bold">Welcome</h1>
+            <p className="text-muted-foreground">Sign in to your account or create a new one</p>
+          </div>
+          
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "signin" | "signup")}>
+            <TabsList className="grid grid-cols-2 w-full">
+              <TabsTrigger value="signin">Sign In</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            </TabsList>
+            <TabsContent value="signin">
+              <SignIn />
+            </TabsContent>
+            <TabsContent value="signup">
+              <SignUp />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </main>
+      
+      <Footer />
+    </div>
+  );
+}
+
+export default Auth;
