@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react';
 import LandingPage from './pages/LandingPage';
 import LandingPageAlt from './pages/LandingPageAlt';
 import { getUserVariant, trackPageView, Variant } from './utils/abTestingService';
-import HeaderLayout from "./layouts/HeaderLayout"; // Assumed to exist
+import HeaderLayout from "./components/layouts/HeaderLayout"; // Assumed to exist
 import Docs from "./pages/Docs"; // Assumed to exist
 
 
