@@ -18,16 +18,17 @@ import { useEffect, useState } from 'react';
 import LandingPage from './pages/LandingPage';
 import LandingPageAlt from './pages/LandingPageAlt';
 import { getUserVariant, trackPageView, Variant } from './utils/abTestingService';
+import HeaderLayout from "./layouts/HeaderLayout"; // Assumed to exist
+import Docs from "./pages/Docs"; // Assumed to exist
 
 
 const queryClient = new QueryClient();
 
-// Component to handle A/B testing for the landing page
-function LandingPageSelector() {
+const LandingPageSelector = () => {
   const [variant, setVariant] = useState<Variant | null>(null);
 
   useEffect(() => {
-    // Get the user's variant
+    // Get the user's assigned variant
     const userVariant = getUserVariant();
     setVariant(userVariant);
 
@@ -35,14 +36,12 @@ function LandingPageSelector() {
     trackPageView();
   }, []);
 
-  if (variant === null) {
-    // Loading state while determining variant
-    return <div className="flex h-screen items-center justify-center">Loading...</div>;
-  }
+  // Show loading until we determine the variant
+  if (!variant) return <div>Loading...</div>;
 
-  // Render the appropriate landing page based on the variant
+  // Render the appropriate landing page based on variant
   return variant === 'A' ? <LandingPage /> : <LandingPageAlt />;
-}
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -54,17 +53,22 @@ const App = () => (
           <BrowserRouter>
             <AuthProvider>
               <Routes>
+                {/* Routes with their own headers */}
                 <Route path="/" element={<LandingPageSelector />} />
                 <Route path="/landing-a" element={<LandingPage />} />
                 <Route path="/landing-b" element={<LandingPageAlt />} />
                 <Route path="/auth" element={<Auth />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/project/:projectId" element={<ProjectDetail />} />
-                <Route path="/import-api" element={<ImportApi />} />
-                <Route path="/configure-server/:projectId" element={<ConfigureServer />} />
-                <Route path="/generate-server/:projectId/:configId" element={<GenerateServer />} />
+
+                {/* Routes that need the common header */}
+                <Route path="/dashboard" element={<HeaderLayout><Dashboard /></HeaderLayout>} />
+                <Route path="/project/:projectId" element={<HeaderLayout><ProjectDetail /></HeaderLayout>} />
+                <Route path="/import-api" element={<HeaderLayout><ImportApi /></HeaderLayout>} />
+                <Route path="/configure-server/:projectId" element={<HeaderLayout><ConfigureServer /></HeaderLayout>} />
+                <Route path="/generate-server/:projectId/:configId" element={<HeaderLayout><GenerateServer /></HeaderLayout>} />
+                <Route path="/docs" element={<HeaderLayout><Docs /></HeaderLayout>} />
+
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
+                <Route path="*" element={<HeaderLayout><NotFound /></HeaderLayout>} />
               </Routes>
             </AuthProvider>
           </BrowserRouter>
