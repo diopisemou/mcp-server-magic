@@ -1,0 +1,7 @@
+
+project_id = "dtttswcmndibiglvhqqn"
+app_version = "1.0.0"
+
+[[functions]]
+name = "generate-server"
+verify_jwt = false

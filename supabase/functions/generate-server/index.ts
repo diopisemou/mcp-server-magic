@@ -1,188 +1,177 @@
 
-import type { ServerConfig, GenerationResult, ServerFile, ZipPackage } from '@/types';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.36.0';
 
-// Combined server generator that calls the appropriate language-specific generator
-export const generateServer = async (
-  config: ServerConfig
-): Promise<GenerationResult> => {
-  try {
-    console.log('Generating MCP server with config:', config);
-    
-    if (config.language === 'TypeScript') {
-      return generateTypeScriptServer(config);
-    } else if (config.language === 'Python') {
-      return generatePythonServer(config);
-    } else {
-      throw new Error(`Unsupported language: ${config.language}`);
-    }
-  } catch (error) {
-    console.error('Error generating server:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
-    };
-  }
+// Define the server file type
+interface ServerFile {
+  name: string;
+  path: string;
+  content: string;
+  type: 'code' | 'config' | 'documentation';
+}
+
+// Define the server generation result
+interface GenerationResult {
+  success: boolean;
+  serverUrl?: string;
+  files?: ServerFile[];
+  error?: string;
+}
+
+// Define server configuration
+interface ServerConfig {
+  name: string;
+  description: string;
+  language: 'TypeScript' | 'Python';
+  authentication: {
+    type: 'None' | 'API Key' | 'Bearer Token' | 'Basic Auth';
+    location?: 'header' | 'query' | 'cookie';
+    name?: string;
+    value?: string;
+  };
+  hosting: {
+    provider: 'AWS' | 'GCP' | 'Azure' | 'Self-hosted';
+    type: 'Serverless' | 'Container' | 'VM';
+    region?: string;
+  };
+  endpoints: Array<{
+    id: string;
+    path: string;
+    method: string;
+    description: string;
+    parameters: Array<{
+      name: string;
+      type: string;
+      required: boolean;
+      description: string;
+    }>;
+    responses: Array<{
+      statusCode: number | string;
+      description: string;
+      schema: any;
+    }>;
+    mcpType: 'none' | 'resource' | 'tool';
+  }>;
+}
+
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Generate TypeScript server
-const generateTypeScriptServer = async (
-  config: ServerConfig
-): Promise<GenerationResult> => {
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   try {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const files: ServerFile[] = [];
-    
-    // Generate TypeScript server files
-    files.push({
-      name: 'server.ts',
-      path: '/src/',
-      content: generateTypeScriptServerCode(config),
-      type: 'code'
-    });
+    // Get request body
+    const { deploymentId, config } = await req.json();
 
-    files.push({
-      name: 'tsconfig.json',
-      path: '/',
-      content: JSON.stringify({
-        "compilerOptions": {
-          "target": "es2018",
-          "module": "commonjs",
-          "outDir": "./dist",
-          "rootDir": "./src",
-          "strict": true,
-          "esModuleInterop": true,
-          "skipLibCheck": true,
-          "forceConsistentCasingInFileNames": true
-        },
-        "include": ["src/**/*"]
-      }, null, 2),
-      type: 'config'
-    });
-
-    files.push({
-      name: '.env.example',
-      path: '/',
-      content: `PORT=3000
-API_KEY=${config.authentication.type !== 'None' ? 'your-api-key-here' : ''}`,
-      type: 'config'
-    });
-
-    files.push({
-      name: 'package.json',
-      path: '/',
-      content: JSON.stringify({
-        "name": config.name.toLowerCase().replace(/\s+/g, '-'),
-        "version": "1.0.0",
-        "description": config.description,
-        "main": "dist/server.js",
-        "scripts": {
-          "build": "tsc",
-          "start": "node dist/server.js",
-          "dev": "ts-node src/server.ts",
-          "lint": "eslint . --ext .ts"
-        },
-        "dependencies": {
-          "express": "^4.18.2",
-          "dotenv": "^16.3.1",
-          "helmet": "^7.0.0",
-          "cors": "^2.8.5",
-          "@anthropic-ai/mcp": "^1.0.0"
-        },
-        "devDependencies": {
-          "@types/express": "^4.17.17",
-          "@types/node": "^20.4.2",
-          "@types/cors": "^2.8.13",
-          "typescript": "^5.1.6",
-          "ts-node": "^10.9.1",
-          "eslint": "^8.44.0",
-          "@typescript-eslint/parser": "^5.61.0",
-          "@typescript-eslint/eslint-plugin": "^5.61.0"
+    if (!deploymentId || !config) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required parameters' }),
+        { 
+          status: 400, 
+          headers: { 
+            'Content-Type': 'application/json',
+            ...corsHeaders 
+          } 
         }
-      }, null, 2),
-      type: 'config'
-    });
+      );
+    }
 
-    files.push({
-      name: 'README.md',
-      path: '/',
-      content: generateReadme(config, 'TypeScript'),
-      type: 'documentation'
-    });
+    console.log('Received request to generate server for deployment ID:', deploymentId);
+    console.log('Server config:', JSON.stringify(config, null, 2).substring(0, 500) + '...');
 
-    return {
-      success: true,
-      serverUrl: `https://mcp-${config.name.toLowerCase().replace(/\s+/g, '-')}.example.com`,
-      files
-    };
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Update deployment status to processing
+    const { error: updateError } = await supabase
+      .from('deployments')
+      .update({ status: 'processing' })
+      .eq('id', deploymentId);
+
+    if (updateError) {
+      console.error('Error updating deployment status:', updateError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to update deployment status' }),
+        { 
+          status: 500, 
+          headers: { 
+            'Content-Type': 'application/json',
+            ...corsHeaders 
+          } 
+        }
+      );
+    }
+
+    // Generate the server
+    const result = await generateServer(config as ServerConfig);
+
+    // Update deployment with the results
+    const { error: finalUpdateError } = await supabase
+      .from('deployments')
+      .update({
+        status: result.success ? 'success' : 'failed',
+        server_url: result.serverUrl,
+        logs: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          success: result.success,
+          message: result.success ? 'Server generated successfully' : result.error
+        }),
+        files: result.files
+      })
+      .eq('id', deploymentId);
+
+    if (finalUpdateError) {
+      console.error('Error saving generation results:', finalUpdateError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to save generation results' }),
+        { 
+          status: 500, 
+          headers: { 
+            'Content-Type': 'application/json',
+            ...corsHeaders 
+          } 
+        }
+      );
+    }
+
+    return new Response(
+      JSON.stringify(result),
+      { 
+        status: 200, 
+        headers: { 
+          'Content-Type': 'application/json',
+          ...corsHeaders 
+        } 
+      }
+    );
   } catch (error) {
-    console.error('Error generating TypeScript server:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
-    };
+    console.error('Error:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      }),
+      { 
+        status: 500, 
+        headers: { 
+          'Content-Type': 'application/json',
+          ...corsHeaders 
+        } 
+      }
+    );
   }
-};
-
-// Generate Python server
-const generatePythonServer = async (
-  config: ServerConfig
-): Promise<GenerationResult> => {
-  try {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const files: ServerFile[] = [];
-    
-    files.push({
-      name: 'mcp_server.py',
-      path: '/',
-      content: generatePythonServerCode(config),
-      type: 'code'
-    });
-
-    files.push({
-      name: 'requirements.txt',
-      path: '/',
-      content: `fastapi==0.110.0
-uvicorn==0.29.0
-pydantic==2.6.4
-anthropic-mcp==1.0.0
-python-dotenv==1.0.1
-gunicorn==21.2.0`,
-      type: 'config'
-    });
-
-    files.push({
-      name: '.env.example',
-      path: '/',
-      content: `PORT=8000
-${config.authentication.type !== 'None' ? 'API_KEY=your-api-key-here' : ''}`,
-      type: 'config'
-    });
-
-    files.push({
-      name: 'README.md',
-      path: '/',
-      content: generateReadme(config, 'Python'),
-      type: 'documentation'
-    });
-
-    return {
-      success: true,
-      serverUrl: `https://mcp-${config.name.toLowerCase().replace(/\s+/g, '-')}.example.com`,
-      files
-    };
-  } catch (error) {
-    console.error('Error generating Python server:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
-    };
-  }
-};
+});
 
 // TypeScript server code generator
-const generateTypeScriptServerCode = (config: ServerConfig): string => {
+function generateTypeScriptServerCode(config: ServerConfig): string {
   const hasAuth = config.authentication.type !== 'None';
 
   const paramInterfaces = config.endpoints.map(endpoint => {
@@ -304,10 +293,10 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 `;
-};
+}
 
 // Python server code generator
-const generatePythonServerCode = (config: ServerConfig): string => {
+function generatePythonServerCode(config: ServerConfig): string {
   const hasAuth = config.authentication.type !== 'None';
 
   const imports = `
@@ -438,10 +427,10 @@ if __name__ == "__main__":
         print(f"Server failed to start: {str(e)}")
         sys.exit(1)
 `;
-};
+}
 
 // Generate README based on server config and language
-const generateReadme = (config: ServerConfig, language: 'TypeScript' | 'Python'): string => {
+function generateReadme(config: ServerConfig, language: 'TypeScript' | 'Python'): string {
   const isTypeScript = language === 'TypeScript';
   
   return `# ${config.name} MCP Server
@@ -515,29 +504,143 @@ ${config.endpoints.filter(e => e.mcpType !== 'none').map(e =>
 ).join('\n')}
 \`\`\`
 `;
-};
+}
 
-// Create a zip package from a list of server files
-export const createZipPackage = (
-  config: ServerConfig,
-  files: ServerFile[]
-): ZipPackage => {
-  const packageName = `${config.name.toLowerCase().replace(/\s+/g, '-')}-mcp-server`;
-  
-  // Convert server files to archive files
-  const archiveFiles = files.map(file => ({
-    name: file.name,
-    path: file.path === '/' ? '' : file.path,
-    content: file.content
-  }));
-  
-  return {
-    name: packageName,
-    files: archiveFiles
-  };
-};
+// Generate server code based on language
+async function generateServer(config: ServerConfig): Promise<GenerationResult> {
+  try {
+    // Simulate processing time
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    const files: ServerFile[] = [];
+    
+    // Generate server based on language
+    if (config.language === 'TypeScript') {
+      // Generate TypeScript server files
+      files.push({
+        name: 'server.ts',
+        path: '/src/',
+        content: generateTypeScriptServerCode(config),
+        type: 'code'
+      });
 
-export default {
-  generateServer,
-  createZipPackage
-};
+      files.push({
+        name: 'tsconfig.json',
+        path: '/',
+        content: JSON.stringify({
+          "compilerOptions": {
+            "target": "es2018",
+            "module": "commonjs",
+            "outDir": "./dist",
+            "rootDir": "./src",
+            "strict": true,
+            "esModuleInterop": true,
+            "skipLibCheck": true,
+            "forceConsistentCasingInFileNames": true
+          },
+          "include": ["src/**/*"]
+        }, null, 2),
+        type: 'config'
+      });
+
+      files.push({
+        name: '.env.example',
+        path: '/',
+        content: `PORT=3000
+API_KEY=${config.authentication.type !== 'None' ? 'your-api-key-here' : ''}`,
+        type: 'config'
+      });
+
+      files.push({
+        name: 'package.json',
+        path: '/',
+        content: JSON.stringify({
+          "name": config.name.toLowerCase().replace(/\s+/g, '-'),
+          "version": "1.0.0",
+          "description": config.description,
+          "main": "dist/server.js",
+          "scripts": {
+            "build": "tsc",
+            "start": "node dist/server.js",
+            "dev": "ts-node src/server.ts",
+            "lint": "eslint . --ext .ts"
+          },
+          "dependencies": {
+            "express": "^4.18.2",
+            "dotenv": "^16.3.1",
+            "helmet": "^7.0.0",
+            "cors": "^2.8.5",
+            "@anthropic-ai/mcp": "^1.0.0"
+          },
+          "devDependencies": {
+            "@types/express": "^4.17.17",
+            "@types/node": "^20.4.2",
+            "@types/cors": "^2.8.13",
+            "typescript": "^5.1.6",
+            "ts-node": "^10.9.1",
+            "eslint": "^8.44.0",
+            "@typescript-eslint/parser": "^5.61.0",
+            "@typescript-eslint/eslint-plugin": "^5.61.0"
+          }
+        }, null, 2),
+        type: 'config'
+      });
+
+      files.push({
+        name: 'README.md',
+        path: '/',
+        content: generateReadme(config, 'TypeScript'),
+        type: 'documentation'
+      });
+    } else if (config.language === 'Python') {
+      // Generate Python server files
+      files.push({
+        name: 'mcp_server.py',
+        path: '/',
+        content: generatePythonServerCode(config),
+        type: 'code'
+      });
+
+      files.push({
+        name: 'requirements.txt',
+        path: '/',
+        content: `fastapi==0.110.0
+uvicorn==0.29.0
+pydantic==2.6.4
+anthropic-mcp==1.0.0
+python-dotenv==1.0.1
+gunicorn==21.2.0`,
+        type: 'config'
+      });
+
+      files.push({
+        name: '.env.example',
+        path: '/',
+        content: `PORT=8000
+${config.authentication.type !== 'None' ? 'API_KEY=your-api-key-here' : ''}`,
+        type: 'config'
+      });
+
+      files.push({
+        name: 'README.md',
+        path: '/',
+        content: generateReadme(config, 'Python'),
+        type: 'documentation'
+      });
+    } else {
+      throw new Error(`Unsupported language: ${config.language}`);
+    }
+
+    return {
+      success: true,
+      serverUrl: `https://mcp-${config.name.toLowerCase().replace(/\s+/g, '-')}.example.com`,
+      files
+    };
+  } catch (error) {
+    console.error('Error generating server:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
