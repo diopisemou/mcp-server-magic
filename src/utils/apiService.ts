@@ -1,25 +1,22 @@
 
 import { supabase } from '../integrations/supabase/client';
 import type { ApiDefinition, EndpointDefinition } from '../types';
-import { convertRecordToApiDefinition, convertEndpointsToJson } from './typeConverters';
+import { 
+  convertRecordToApiDefinition, 
+  convertEndpointsToJson, 
+  prepareApiForDatabase 
+} from './typeConverters';
 
 export async function saveApiDefinition(
   apiDefinition: Partial<ApiDefinition>,
   endpointDefinitions?: EndpointDefinition[]
 ): Promise<ApiDefinition> {
   // Prepare the data for the database
-  const definition = { 
-    ...apiDefinition,
-    // Convert endpoint definitions to JSON-safe format
-    endpoint_definition: endpointDefinitions ? convertEndpointsToJson(endpointDefinitions) : undefined
-  };
+  const dbData = prepareApiForDatabase(apiDefinition, endpointDefinitions);
   
-  // Remove properties that might not be in the database schema
-  const { parsedDefinition, file, url, ...dbDefinition } = definition;
-
   const { data, error } = apiDefinition.id
-    ? await supabase.from('api_definitions').update(dbDefinition).eq('id', apiDefinition.id).select().single()
-    : await supabase.from('api_definitions').insert(dbDefinition).select().single();
+    ? await supabase.from('api_definitions').update(dbData).eq('id', apiDefinition.id).select().single()
+    : await supabase.from('api_definitions').insert(dbData).select().single();
 
   if (error) throw new Error(`Failed to save API definition: ${error.message}`);
   

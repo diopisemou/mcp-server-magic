@@ -26,13 +26,10 @@ const AdvancedEndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperPro
 
   useEffect(() => {
     if (apiDefinition?.parsedDefinition) {
-      //const extractedEndpoints = extractEndpointsFromDefinition(apiDefinition.parsedDefinition, apiDefinition.format)
       const extractedEndpoints = extractEndpointsFromDefinition(apiDefinition.content, apiDefinition.file?.name)
-        //const extractedEndpoints = parseApiDefinition(apiDefinition)
         .map(endpoint => ({
           ...endpoint,
           id: uuidv4(),
-          // Ensure method is cast to the correct union type
           method: endpoint.method.toUpperCase() as Endpoint['method'],
           mcpType: suggestMcpType(endpoint.method.toUpperCase() as Endpoint['method'])
         }));
@@ -141,13 +138,24 @@ const AdvancedEndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperPro
 
     const newResponse: Response = {
       statusCode: 200,
-      description: 'Success response'
+      description: 'Success',
+      schema: null
     };
 
     setEditingEndpoint({
       ...editingEndpoint,
       responses: [...editingEndpoint.responses, newResponse]
     });
+  };
+
+  const handleAddResponse = (endpointIndex: number) => {
+    const updatedEndpoints = [...endpoints];
+    updatedEndpoints[endpointIndex].responses.push({
+      statusCode: 200,
+      description: "Success",
+      schema: null
+    });
+    setEndpoints(updatedEndpoints);
   };
 
   const updateResponse = (index: number, field: keyof Response, value: any) => {
@@ -216,13 +224,11 @@ const AdvancedEndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperPro
   const handleAddEndpoint = () => {
     if (!editingEndpoint) return;
 
-    // Check if it's a new endpoint (not already in the list)
     const isNew = !endpoints.some(endpoint => endpoint.id === editingEndpoint.id);
 
     if (isNew) {
       setEndpoints([...endpoints, editingEndpoint]);
     } else {
-      // If not new, update existing
       handleSaveEndpoint();
       return;
     }
@@ -235,7 +241,6 @@ const AdvancedEndpointMapper = ({ apiDefinition, onContinue }: EndpointMapperPro
   const handleContinue = () => {
     onContinue(endpoints);
   };
-
 
   return (
     <>

@@ -1,4 +1,3 @@
-
 declare global {
   interface Window {
     webkitSpeechRecognition: any;
@@ -185,7 +184,7 @@ export interface ApiDefinitionRecord {
   endpoint_definition?: any; // Updated to allow any type for compatibility with Json
 }
 
-export interface ServerConfigRecord {
+export interface ServerConfiguration {
   id: string;
   project_id: string;
   name: string;
@@ -223,7 +222,8 @@ export interface ArchiveFile {
 export interface ZipPackage {
   fileName: string;
   blob: Blob;
-  name?: string; // Added for compatibility
+  name?: string; 
+  files?: ServerFile[];
 }
 
 export interface MCPCapability {

@@ -1,5 +1,6 @@
 
-import { ApiDefinition, EndpointDefinition, Endpoint } from '@/types';
+import { ApiDefinition, EndpointDefinition, Endpoint, Deployment, ServerConfig, ServerConfiguration } from '@/types';
+import type { Json } from '@supabase/supabase-js';
 
 // Helper to safely convert database JSON to endpoint definitions
 export function convertJsonToEndpointDefinitions(jsonData: any): EndpointDefinition[] {
@@ -15,10 +16,15 @@ export function convertJsonToEndpointDefinitions(jsonData: any): EndpointDefinit
         parameters: endpoint.parameters || [],
         responses: endpoint.responses?.map((r: any) => ({
           ...r,
-          schema: r.schema || null
+          schema: r.schema || null // Ensure schema is always present
         })) || [],
         selected: endpoint.selected !== undefined ? endpoint.selected : true,
-        mcpType: endpoint.mcpType || 'none'
+        mcpType: endpoint.mcpType || 'none',
+        summary: endpoint.summary,
+        operationId: endpoint.operationId,
+        requestBody: endpoint.requestBody,
+        security: endpoint.security,
+        tags: endpoint.tags
       }));
     }
     return [];
@@ -30,6 +36,10 @@ export function convertJsonToEndpointDefinitions(jsonData: any): EndpointDefinit
 
 // Helper to safely convert database record to ApiDefinition
 export function convertRecordToApiDefinition(record: any): ApiDefinition {
+  const endpointDefs = record.endpoint_definition 
+    ? convertJsonToEndpointDefinitions(record.endpoint_definition)
+    : [];
+    
   return {
     id: record.id || '',
     name: record.name || '',
@@ -40,7 +50,7 @@ export function convertRecordToApiDefinition(record: any): ApiDefinition {
     description: record.description,
     project_id: record.project_id,
     parsedDefinition: record.parsedDefinition || tryParseContent(record.content),
-    endpoint_definition: convertJsonToEndpointDefinitions(record.endpoint_definition),
+    endpoint_definition: endpointDefs,
   };
 }
 
@@ -62,4 +72,67 @@ export function convertEndpointsToJson(endpoints: Endpoint[]): any {
       schema: response.schema || null
     }))
   }));
+}
+
+// Convert ServerConfiguration DB record to ServerConfig
+export function convertToServerConfig(record: any): ServerConfig {
+  return {
+    name: record.name || '',
+    description: record.description || '',
+    language: record.language as "Python" | "TypeScript",
+    authentication: {
+      type: record.authentication_type as "None" | "API Key" | "Bearer Token" | "Basic Auth",
+      location: record.authentication_details?.location as "header" | "query" | "cookie",
+      name: record.authentication_details?.name,
+      value: record.authentication_details?.value
+    },
+    hosting: {
+      provider: record.hosting_provider as "AWS" | "GCP" | "Azure" | "Self-hosted" | "Supabase",
+      type: record.hosting_type as "Serverless" | "Container" | "VM" | "Shared" | "Dedicated",
+      region: record.hosting_region
+    },
+    endpoints: []
+  };
+}
+
+// Convert Deployment DB record to Deployment type
+export function convertToDeployment(record: any): Deployment {
+  const status = record.status as "pending" | "processing" | "success" | "failed";
+  const files = record.files ? record.files : [];
+  
+  return {
+    id: record.id || '',
+    project_id: record.project_id || '',
+    configuration_id: record.configuration_id || '',
+    status,
+    server_url: record.server_url,
+    logs: record.logs,
+    created_at: record.created_at || new Date().toISOString(),
+    updated_at: record.updated_at || new Date().toISOString(),
+    files
+  };
+}
+
+// Convert API data for Supabase insert/update
+export function prepareApiForDatabase(apiDefinition: Partial<ApiDefinition>, endpointDefinitions?: EndpointDefinition[]): any {
+  let endpointDefJson = null;
+  
+  if (endpointDefinitions) {
+    try {
+      endpointDefJson = JSON.stringify(convertEndpointsToJson(endpointDefinitions));
+    } catch (e) {
+      console.error("Error converting endpoints to JSON:", e);
+    }
+  }
+  
+  const { parsedDefinition, file, url, ...dbDefinition } = apiDefinition;
+  
+  return {
+    ...dbDefinition,
+    endpoint_definition: endpointDefJson,
+    content: apiDefinition.content || '',
+    format: apiDefinition.format || 'OpenAPI3',
+    name: apiDefinition.name || '',
+    project_id: apiDefinition.project_id || ''
+  };
 }

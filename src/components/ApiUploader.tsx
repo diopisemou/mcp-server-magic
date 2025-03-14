@@ -1,692 +1,366 @@
-import React from 'react';
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { toast } from 'sonner';
-import { ApiDefinition } from '@/types';
-import { 
-  Upload, 
-  FileJson, 
-  FileText, 
-  ChevronDown, 
-  ChevronUp, 
-  Lock,
-  Loader2,
-  AlertCircle
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { 
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger
-} from "@/components/ui/accordion";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { validateApiDefinition } from '@/utils/apiValidator';
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { extractEndpoints } from '@/utils/apiValidator';
+import { useToast } from '@/components/ui/use-toast';
+import { File as LucideFile, Upload, Link, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { validateApiDefinition, extractSwaggerUrl, extractEndpointsFromDefinition } from '@/utils/apiValidator';
+import { ApiDefinition, EndpointDefinition } from '@/types';
+import { saveApiDefinition } from '@/utils/apiService';
+import { v4 as uuidv4 } from 'uuid';
 
 interface ApiUploaderProps {
-  onUploadComplete: (apiDefinition: ApiDefinition) => void;
+  projectId: string;
+  onApiDefinitionUploaded: (apiDefinition: ApiDefinition) => void;
 }
 
-export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
-  const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [apiUrl, setApiUrl] = useState('');
-  const [urlType, setUrlType] = useState<'direct' | 'swagger'>('direct');
+const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUploaded }) => {
+  const [apiName, setApiName] = useState('');
+  const [apiFormat, setApiFormat] = useState<string | null>(null);
+  const [apiContent, setApiContent] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
-  const [authType, setAuthType] = useState<'none' | 'bearer' | 'api-key'>('none');
-  const [authToken, setAuthToken] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [apiKeyName, setApiKeyName] = useState('X-Api-Key');
-  const [queryParams, setQueryParams] = useState('');
-  const [requestBody, setRequestBody] = useState('');
-  const [requestMethod, setRequestMethod] = useState<'GET' | 'POST'>('GET');
-  const [endpoints, setEndpoints] = useState<any[]>([]);
-  const [showEndpoints, setShowEndpoints] = useState(false);
-  const [testUrl, setTestUrl] = useState('');
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
-
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [isUrl, setIsUrl] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [apiUrl, setApiUrl] = useState('');
+  const [isFetching, setIsFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const { toast } = useToast();
+  
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0) {
+      const file = acceptedFiles[0];
+      handleFileProcessing(file);
     }
+  }, []);
+  
+  const {getRootProps, getInputProps, isDragActive} = useDropzone({onDrop});
+  
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setApiName(e.target.value);
   };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      await handleFiles(e.dataTransfer.files);
-    }
+  
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setApiContent(e.target.value);
   };
-
-  const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    if (e.target.files && e.target.files[0]) {
-      await handleFiles(e.target.files);
-    }
+  
+  const handleApiUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setApiUrl(e.target.value);
   };
-
-  const handleFiles = async (fileList: FileList | DataTransfer['items']) => {
-    setFileError(null);
-    setEndpoints([]);
-    setShowEndpoints(false);
-
-    const file = fileList instanceof FileList 
-      ? fileList[0] 
-      : fileList[0]?.getAsFile();
-
-    if (!file) {
-      setFileError('No file selected');
-      return;
-    }
-
-    setSelectedFile(file);
-
-    if (!['.json', '.yaml', '.yml', '.raml', '.md'].some(ext => file.name.toLowerCase().endsWith(ext))) {
-      setFileError('Invalid file type. Supported types: JSON, YAML, RAML, and API Blueprint');
-      return;
-    }
-
+  
+  const handleFileProcessing = async (file: File) => {
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadSuccess(false);
+    
     try {
-      setIsUploading(true);
-      setUploadProgress(10);
-
       const reader = new FileReader();
-
-      reader.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const progress = Math.round((event.loaded / event.total) * 50);
-          setUploadProgress(progress);
-        }
-      };
-
-      reader.onload = async (e) => {
-        const content = e.target?.result as string;
-
-        try {
-          setUploadProgress(60);
-
+      reader.onload = async (event) => {
+        const content = event.target?.result;
+        if (typeof content === 'string') {
           const validationResult = await validateApiDefinition(content, file.name);
-
-          setUploadProgress(90);
-
-          if (!validationResult.isValid) {
-            setFileError(`Invalid API definition: ${validationResult.errors?.join(', ')}`);
-            setIsUploading(false);
-            return;
+          if (validationResult.isValid) {
+            setApiFormat(validationResult.format);
+            setApiContent(content);
+          } else {
+            setUploadError(`Invalid API definition: ${validationResult.errors?.join(', ') || 'Unknown error'}`);
           }
-
-          if (validationResult.parsedDefinition) {
-            const extractedEndpoints = extractEndpoints(
-              validationResult.parsedDefinition, 
-              validationResult.format
-            );
-            setEndpoints(extractedEndpoints);
-            setShowEndpoints(extractedEndpoints.length > 0);
-            console.log('Extracted endpoints:', extractedEndpoints);
-          }
-
-          setUploadProgress(100);
-
-          onUploadComplete({
-            id: '',
-            name: file.name,
-            format: validationResult.format,
-            content: JSON.stringify({
-              content,
-              format: validationResult.format,
-              parsedDefinition: validationResult.parsedDefinition
-            }),
-            parsedDefinition: validationResult.parsedDefinition,
-            created_at: new Date().toISOString(),
-            endpoint_definition: validationResult.endpoints
-          });
-
-        } catch (error) {
-          console.error('Error validating API definition:', error);
-          setFileError(`Error validating API definition: ${(error as Error).message}`);
-        } finally {
-          setIsUploading(false);
+        } else {
+          setUploadError('Failed to read file content.');
         }
-      };
-
-      reader.onerror = () => {
-        setFileError('Error reading file');
         setIsUploading(false);
       };
-
+      reader.onerror = () => {
+        setUploadError('Failed to read the file.');
+        setIsUploading(false);
+      };
       reader.readAsText(file);
-
     } catch (error) {
-      console.error('Error uploading API definition:', error);
-      setFileError(`Error: ${(error as Error).message}`);
+      console.error('File processing error:', error);
+      setUploadError('An unexpected error occurred while processing the file.');
       setIsUploading(false);
     }
   };
-
-  const handleUrlSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await handleUrlUpload();
-  };
-
-  const handleUrlUpload = async () => {
+  
+  const handleUpload = async () => {
+    setIsUploading(true);
     setUploadError(null);
-    setEndpoints([]);
-    setShowEndpoints(false);
-    setTestResult(null);
-
-    if (!apiUrl) {
-      setUploadError('Please enter a URL');
-      return;
-    }
-
+    setUploadSuccess(false);
+    
     try {
-      setIsUploading(true);
-      setUploadProgress(10);
-
-      const headers = new Headers();
-      headers.append('Content-Type', 'application/json');
-
-      if (showAdvancedOptions) {
-        if (authType === 'bearer' && authToken) {
-          headers.append('Authorization', `Bearer ${authToken}`);
-        } else if (authType === 'api-key' && apiKey) {
-          headers.append(apiKeyName, apiKey);
-        }
-      }
-
-      let fetchUrl = apiUrl;
-      if (showAdvancedOptions && queryParams) {
-        try {
-          const queryObj = JSON.parse(queryParams);
-          const searchParams = new URLSearchParams();
-          Object.entries(queryObj).forEach(([key, value]) => {
-            searchParams.append(key, value as string);
-          });
-
-          fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + searchParams.toString();
-        } catch (err) {
-          console.error('Error parsing query params:', err);
-          setUploadError('Invalid query parameters format. Use valid JSON.');
-          setIsUploading(false);
-          return;
-        }
-      }
-
-      const fetchOptions: RequestInit = { 
-        headers,
-        method: showAdvancedOptions ? requestMethod : 'GET'
-      };
-
-      if (showAdvancedOptions && requestMethod === 'POST' && requestBody) {
-        try {
-          JSON.parse(requestBody);
-          fetchOptions.body = requestBody;
-        } catch (err) {
-          console.error('Error parsing request body:', err);
-          setUploadError('Invalid request body format. Use valid JSON.');
-          setIsUploading(false);
-          return;
-        }
-      }
-
-      if (showAdvancedOptions && testUrl) {
-        try {
-          const testResponse = await fetch(testUrl, fetchOptions);
-
-          if (testResponse.ok) {
-            setTestResult({
-              success: true,
-              message: `Endpoint test successful! Status: ${testResponse.status} ${testResponse.statusText}`
-            });
-          } else {
-            setTestResult({
-              success: false,
-              message: `Endpoint test failed. Status: ${testResponse.status} ${testResponse.statusText}`
-            });
-          }
-        } catch (err) {
-          console.error('Error testing endpoint:', err);
-          setTestResult({
-            success: false,
-            message: `Error testing endpoint: ${(err as Error).message}`
-          });
-        }
-      }
-
-      const response = await fetch(fetchUrl, fetchOptions);
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch API definition: ${response.statusText} (${response.status})`);
-      }
-
-      let responseText = await response.text();
-      setUploadProgress(50);
-
-      const url = new URL(apiUrl);
-      let fileName = url.pathname.split('/').pop() || 'api-definition';
-
-      if (urlType === 'swagger') {
-        if (responseText.includes('swagger-ui')) {
-          const matches = responseText.match(/url:\s*['"](.*?)['"]/);
-          if (matches && matches[1]) {
-            const swaggerDefUrl = new URL(matches[1], apiUrl).href;
-            console.log('Found Swagger definition URL:', swaggerDefUrl);
-            const swaggerResponse = await fetch(swaggerDefUrl);
-
-            if (!swaggerResponse.ok) {
-              throw new Error(`Failed to fetch Swagger definition: ${swaggerResponse.statusText}`);
-            }
-
-            responseText = await swaggerResponse.text();
-            fileName = swaggerDefUrl.split('/').pop() || 'swagger';
-          } else {
-            throw new Error('Could not extract Swagger definition URL from the page');
-          }
-        }
-      }
-
-      const validationResult = await validateApiDefinition(responseText, fileName);
-
-      if (!validationResult.isValid) {
-        setUploadError(`Invalid API definition: ${validationResult.errors?.join(', ')}`);
+      if (!apiName) {
+        setUploadError('API Name is required.');
         setIsUploading(false);
         return;
       }
-
-      if (validationResult.parsedDefinition) {
-        const extractedEndpoints = extractEndpoints(
-          validationResult.parsedDefinition, 
-          validationResult.format
-        );
-        setEndpoints(extractedEndpoints);
-        setShowEndpoints(extractedEndpoints.length > 0);
-        console.log('Extracted endpoints:', extractedEndpoints);
+      
+      const validationResult = await validateApiDefinition(apiContent);
+      if (!validationResult.isValid) {
+        setUploadError(`Invalid API definition: ${validationResult.errors?.join(', ') || 'Unknown error'}`);
+        setIsUploading(false);
+        return;
       }
-
-      setUploadProgress(100);
-
-      onUploadComplete({
-        id: '',
-        name: fileName,
+      
+      const apiDefinition: ApiDefinition = {
+        id: uuidv4(),
+        project_id: projectId,
+        name: apiName,
         format: validationResult.format,
-        content: JSON.stringify({
-          content: responseText,
-          format: validationResult.format,
-          parsedDefinition: validationResult.parsedDefinition
-        }),
+        content: apiContent,
         parsedDefinition: validationResult.parsedDefinition,
+        endpoint_definition: extractEndpointsFromDefinition(apiContent),
         created_at: new Date().toISOString(),
-        endpoint_definition: validationResult.endpoints
+      };
+      
+      await saveApiDefinition(apiDefinition);
+      
+      setUploadSuccess(true);
+      toast({
+        title: "Success",
+        description: "API definition uploaded successfully.",
       });
-
+      
+      onApiDefinitionUploaded(apiDefinition);
     } catch (error) {
-      console.error('Error uploading API definition from URL:', error);
-      setUploadError(`Error: ${(error as Error).message}`);
+      console.error('API upload error:', error);
+      setUploadError('Failed to upload API definition. Please try again.');
     } finally {
       setIsUploading(false);
     }
   };
-
-  const handleUpload = () => {
-    if (uploadMethod === 'file' && selectedFile) {
-      handleFiles(new DataTransfer().items.add(selectedFile));
-    } else if (uploadMethod === 'url') {
-      handleUrlUpload();
+  
+  const handleFetchApi = async () => {
+    setIsFetching(true);
+    setFetchError(null);
+    setApiFormat(null);
+    
+    try {
+      if (!apiUrl) {
+        setFetchError('API URL is required.');
+        setIsFetching(false);
+        return;
+      }
+      
+      const response = await fetch(apiUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const contentType = response.headers.get('content-type');
+      let content = '';
+      
+      if (contentType?.includes('text/html')) {
+        const htmlContent = await response.text();
+        const swaggerUrl = extractSwaggerUrl(htmlContent, apiUrl);
+        if (swaggerUrl) {
+          setApiUrl(swaggerUrl);
+          const swaggerResponse = await fetch(swaggerUrl);
+          if (!swaggerResponse.ok) {
+            throw new Error(`HTTP error fetching Swagger file! status: ${swaggerResponse.status}`);
+          }
+          content = await swaggerResponse.text();
+        } else {
+          throw new Error('Could not extract Swagger URL from the HTML.');
+        }
+      } else {
+        content = await response.text();
+      }
+      
+      const validationResult = await validateApiDefinition(content);
+      if (validationResult.isValid) {
+        setApiFormat(validationResult.format);
+        setApiContent(content);
+        setApiName('Fetched API');
+        toast({
+          title: "Success",
+          description: "API definition fetched successfully.",
+        });
+      } else {
+        setFetchError(`Invalid API definition: ${validationResult.errors?.join(', ') || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('API fetch error:', error);
+      setFetchError(`Failed to fetch API definition: ${(error as Error).message}`);
+    } finally {
+      setIsFetching(false);
     }
   };
 
-  const extractEndpoints = (definition: any, format: string): any[] => {
-    if (format === 'json' || format === 'yaml') {
-      return Object.keys(definition).map(key => ({path: key, methods: definition[key]}));
-    }
-    return [];
-  };
+const handleFileProcessing = async (file: File) => {
+  setIsUploading(true);
+  setUploadError(null);
+  setUploadSuccess(false);
+  
+  try {
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const content = event.target?.result;
+      if (typeof content === 'string') {
+        const validationResult = await validateApiDefinition(content, file.name);
+        if (validationResult.isValid) {
+          setApiFormat(validationResult.format);
+          setApiContent(content);
+        } else {
+          setUploadError(`Invalid API definition: ${validationResult.errors?.join(', ') || 'Unknown error'}`);
+        }
+      } else {
+        setUploadError('Failed to read file content.');
+      }
+      setIsUploading(false);
+    };
+    reader.onerror = () => {
+      setUploadError('Failed to read the file.');
+      setIsUploading(false);
+    };
+    reader.readAsText(file);
+  } catch (error) {
+    console.error('File processing error:', error);
+    setUploadError('An unexpected error occurred while processing the file.');
+    setIsUploading(false);
+  }
+};
 
+const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+  event.preventDefault();
+  event.stopPropagation();
+  setIsDragging(false);
+  
+  const items = event.dataTransfer.items;
+  if (items) {
+    // Convert DataTransferItemList to array and process first file
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          await handleFileProcessing(file);
+          break;
+        }
+      }
+    }
+  } else {
+    const files = event.dataTransfer.files;
+    if (files.length) {
+      await handleFileProcessing(files[0]);
+    }
+  }
+};
+  
   return (
-    <div className="py-24 relative overflow-hidden" id="start">
-      <div className="content-container">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Start Building Your Server</h2>
-            <p className="text-muted-foreground text-lg">
-              Upload your API definition or provide a URL to get started
+    <Card>
+      <CardHeader>
+        <CardTitle>Upload API Definition</CardTitle>
+        <CardDescription>
+          Import your API definition from a file or URL.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4">
+          <Label htmlFor="apiName">API Name</Label>
+          <Input
+            id="apiName"
+            placeholder="My API"
+            value={apiName}
+            onChange={handleNameChange}
+          />
+        </div>
+        
+        <div 
+          {...getRootProps()}
+          className={`relative border-2 border-dashed rounded-md p-6 text-center cursor-pointer ${isDragging ? 'border-primary' : 'border-muted-foreground'}`}
+          onDragEnter={() => setIsDragging(true)}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={() => setIsDragging(false)}
+        >
+          <input {...getInputProps()} />
+          <div className="flex flex-col items-center justify-center space-y-3">
+            <LucideFile className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              {isDragActive ? 'Drop the file here...' : 'Click to upload or drag and drop your API definition file'}
             </p>
           </div>
-
-          <div className="bg-white rounded-xl shadow-lg border border-border overflow-hidden">
-            <div className="p-6 border-b border-border">
-              <div className="flex space-x-6">
-                <button
-                  className={cn(
-                    "pb-2 text-sm font-medium transition-colors",
-                    uploadMethod !== 'url' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground/80"
-                  )}
-                  onClick={() => setUploadMethod('file')}
-                >
-                  Upload File
-                </button>
-                <button
-                  className={cn(
-                    "pb-2 text-sm font-medium transition-colors",
-                    uploadMethod === 'url' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground/80"
-                  )}
-                  onClick={() => setUploadMethod('url')}
-                >
-                  Provide URL
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6">
-              {uploadMethod === 'file' ? (
-                <div 
-                  className={cn(
-                    "border-2 border-dashed rounded-lg transition-colors py-12 px-6",
-                    dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/30"
-                  )}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                >
-                  <div className="text-center">
-                    <Upload 
-                      className="mx-auto mb-4 text-muted-foreground"
-                      size={40}
-                    />
-                    <h3 className="text-lg font-medium mb-2">
-                      {dragActive 
-                        ? 'Drop your API definition file here' 
-                        : 'Drag and drop your API definition file here'
-                      }
-                    </h3>
-                    <p className="text-muted-foreground mb-4 flex items-center justify-center gap-2">
-                      <span>Supports OpenAPI</span>
-                      <FileJson className="h-4 w-4" />
-                      <span>RAML and API Blueprint formats</span>
-                      <FileText className="h-4 w-4" />
-                    </p>
-                    <input
-                      ref={inputRef}
-                      type="file"
-                      className="hidden"
-                      onChange={handleChange}
-                      accept=".json,.yaml,.yml,.raml,.md"
-                    />
-                    <div className="flex justify-center">
-                      <span className="text-sm text-muted-foreground mr-2">or</span>
-                      <button
-                        type="button"
-                        onClick={() => inputRef.current?.click()}
-                        className="text-sm text-primary font-medium"
-                      >
-                        browse files
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleUrlSubmit}>
-                  <div className="space-y-6">
-                    <div className="flex flex-col gap-4">
-                      <div>
-                        <Label htmlFor="api-url">API Definition URL</Label>
-                        <Input 
-                          id="api-url" 
-                          placeholder="https://example.com/api-definition.json" 
-                          value={apiUrl}
-                          onChange={(e) => setApiUrl(e.target.value)}
-                        />
-                        <div className="flex items-center gap-4 mt-2">
-                          <div className="flex items-center gap-2">
-                            <RadioGroup value={urlType} onValueChange={(value: any) => setUrlType(value)} className="flex space-x-2">
-                              <div className="flex items-center space-x-1">
-                                <RadioGroupItem value="direct" id="direct" />
-                                <Label htmlFor="direct">API Definition URL (JSON/YAML)</Label>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <RadioGroupItem value="swagger" id="swagger" />
-                                <Label htmlFor="swagger">Swagger UI URL</Label>
-                              </div>
-                            </RadioGroup>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Checkbox 
-                          id="advanced-options" 
-                          checked={showAdvancedOptions}
-                          onCheckedChange={(checked) => setShowAdvancedOptions(!!checked)}
-                        />
-                        <Label htmlFor="advanced-options" className="cursor-pointer">
-                          Show Advanced Options
-                        </Label>
-                      </div>
-
-                      {showAdvancedOptions && (
-                        <div className="border rounded-md p-4 space-y-4">
-                          <div className="flex items-center">
-                            <Lock className="h-4 w-4 text-muted-foreground mr-2" />
-                            <span className="text-sm text-muted-foreground">
-                              Advanced options (available for everyone during beta)
-                            </span>
-                          </div>
-
-                          <div className="space-y-4">
-                            <div>
-                              <Label htmlFor="auth-type">Authentication Type</Label>
-                              <Select 
-                                value={authType} 
-                                onValueChange={(value: any) => setAuthType(value)}
-                              >
-                                <SelectTrigger className="w-full mt-1">
-                                  <SelectValue placeholder="Select authentication type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">None</SelectItem>
-                                  <SelectItem value="bearer">Bearer Token</SelectItem>
-                                  <SelectItem value="api-key">API Key</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            {authType === 'bearer' && (
-                              <div>
-                                <Label htmlFor="token">Bearer Token</Label>
-                                <Input
-                                  id="token"
-                                  value={authToken}
-                                  onChange={(e) => setAuthToken(e.target.value)}
-                                  className="mt-1"
-                                />
-                              </div>
-                            )}
-
-                            {authType === 'api-key' && (
-                              <div className="space-y-2">
-                                <Label htmlFor="api-key-name">API Key Header</Label>
-                                <Input 
-                                  id="api-key-name" 
-                                  placeholder="X-Api-Key" 
-                                  value={apiKeyName}
-                                  onChange={(e) => setApiKeyName(e.target.value)}
-                                />
-                                <Label htmlFor="api-key">API Key</Label>
-                                <Input 
-                                  id="api-key" 
-                                  placeholder="Your API key" 
-                                  value={apiKey}
-                                  onChange={(e) => setApiKey(e.target.value)}
-                                />
-                              </div>
-                            )}
-
-                            <div className="space-y-2">
-                              <Label htmlFor="query-params">Query Parameters (JSON object)</Label>
-                              <Textarea 
-                                id="query-params" 
-                                placeholder='{"param1": "value1", "param2": "value2"}' 
-                                value={queryParams}
-                                onChange={(e) => setQueryParams(e.target.value)}
-                                className="h-20"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="test-url">Test Specific Endpoint URL (Optional)</Label>
-                              <Input 
-                                id="test-url" 
-                                placeholder="https://api.example.com/endpoint" 
-                                value={testUrl}
-                                onChange={(e) => setTestUrl(e.target.value)}
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Enter a specific endpoint URL to test if it returns a successful response
-                              </p>
-                            </div>
-                            <div>
-                              <Label htmlFor="request-method">Request Method</Label>
-                              <Select value={requestMethod} onValueChange={(value: any) => setRequestMethod(value)}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select request method" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="GET">GET</SelectItem>
-                                  <SelectItem value="POST">POST</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            {requestMethod === 'POST' && (
-                              <div>
-                                <Label htmlFor="request-body">Request Body (JSON)</Label>
-                                <Textarea
-                                  id="request-body"
-                                  value={requestBody}
-                                  onChange={(e) => setRequestBody(e.target.value)}
-                                  className="mt-1"
-                                  placeholder='{"key": "value"}'
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <Button type="submit" disabled={isUploading || !apiUrl}>
-                      {isUploading ? 'Fetching...' : 'Fetch'}
-                    </Button>
-                  </div>
-                </form>
-              )}
-
-              {validationErrors.length > 0 && (
-                <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-md">
-                  <h4 className="text-sm font-medium text-red-800 mb-2">Validation Errors:</h4>
-                  <ul className="text-sm text-red-700 list-disc pl-5">
-                    {validationErrors.map((error, index) => (
-                      <li key={index}>{error}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <div className="mt-6">
-                {uploadError && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>
-                      {uploadError}
-                      {uploadMethod === 'url' && uploadError.includes('Failed to fetch') && (
-                        <p className="mt-2 text-sm">
-                          This could be due to CORS restrictions. Try using the advanced options or uploading a file directly.
-                        </p>
-                      )}
-                    </AlertDescription>
-                  </Alert>
-                )}
-                {testResult && (
-                  <Alert className="mb-4" variant={testResult.success ? "default" : "destructive"}>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>
-                      {testResult.success ? 'Success' : 'Error'}
-                    </AlertTitle>
-                    <AlertDescription>{testResult.message}</AlertDescription>
-                  </Alert>
-                )}
-
-                <Button 
-                  onClick={handleUpload} 
-                  disabled={isUploading}
-                  className="w-full"
-                >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {uploadMethod === 'file' ? 'Processing...' : 'Fetching API...'}
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload API Definition
-                    </>
-                  )}
-                </Button>
-                {showEndpoints && (
-                  <Accordion type="single" className="mt-4">
-                    <AccordionItem value="endpoints">
-                      <AccordionTrigger>
-                        Endpoints
-                        {showEndpoints ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <ul>
-                          {endpoints.map((endpoint, index) => (
-                            <li key={index}>
-                              {endpoint.path} ({endpoint.methods.join(', ')})
-                            </li>
-                          ))}
-                        </ul>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
+        
+        <div className="grid gap-4">
+          <Label htmlFor="apiUrl">API URL</Label>
+          <div className="relative">
+            <Input
+              id="apiUrl"
+              placeholder="https://example.com/openapi.json"
+              value={apiUrl}
+              onChange={handleApiUrlChange}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="absolute right-1 top-1/2 transform -translate-y-1/2"
+              onClick={handleFetchApi}
+              disabled={isFetching}
+            >
+              {isFetching ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Fetching...
+                </>
+              ) : (
+                <>
+                  <Link className="mr-2 h-4 w-4" />
+                  Fetch
+                </>
+              )}
+            </Button>
+          </div>
+          {fetchError && (
+            <p className="text-sm text-red-500">{fetchError}</p>
+          )}
+        </div>
+        
+        <div className="grid gap-4">
+          <Label htmlFor="apiContent">API Definition</Label>
+          <Textarea
+            id="apiContent"
+            placeholder="Paste your API definition here"
+            value={apiContent}
+            onChange={handleContentChange}
+            className="min-h-[150px]"
+          />
+        </div>
+        
+        {uploadError && (
+          <div className="flex items-center text-sm text-red-500">
+            <XCircle className="h-4 w-4 mr-1" />
+            {uploadError}
+          </div>
+        )}
+        
+        {uploadSuccess && (
+          <div className="flex items-center text-sm text-green-500">
+            <CheckCircle className="h-4 w-4 mr-1" />
+            API definition uploaded successfully!
+          </div>
+        )}
+      </CardContent>
+      <div className="p-6 flex justify-end">
+        <Button onClick={handleUpload} disabled={isUploading}>
+          {isUploading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Uploading...
+            </>
+          ) : (
+            <>
+              <Upload className="mr-2 h-4 w-4" />
+              Upload API
+            </>
+          )}
+        </Button>
       </div>
-    </div>
+    </Card>
   );
-}
+};
+
+export default ApiUploader;

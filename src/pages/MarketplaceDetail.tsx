@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Copy, Download, ExternalLink, Github, Server, Wrench } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Download, ExternalLink, Github, Server, Wrench, Star, Users, Clock, CopyPlus } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +9,6 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { MCPServer } from '@/types';
 
-// Use Wrench instead of Tool which doesn't exist in lucide-react
 function MarketplaceDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -20,12 +18,9 @@ function MarketplaceDetail() {
   const [copiedText, setCopiedText] = useState('');
 
   useEffect(() => {
-    // Fetch server details
     const fetchServer = async () => {
       try {
         setIsLoading(true);
-        // This would normally be an API call
-        // For demo, let's simulate an API response
         const mockServer: MCPServer = {
           id: id || '1',
           name: 'Google Drive MCP Server',

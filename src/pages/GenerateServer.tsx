@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Project, ApiDefinition, ServerConfiguration, Endpoint, ServerConfig, GenerationResult, Deployment, ServerFile } from '@/types';
+import { Project, ApiDefinition, ServerConfig, GenerationResult, Deployment, ServerFile } from '@/types';
 import { toast } from 'sonner';
 import { 
   Cog, 
@@ -14,19 +14,20 @@ import {
   CheckCircle, 
   XCircle, 
   LucideIcon,
-  Loader2 
+  Loader2,
+  Copy
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { generateServer } from '@/utils/serverGenerator';
 import ServerFiles from '@/components/ServerFiles';
-import { Copy } from 'lucide-react';
+import { convertToDeployment, convertToServerConfig } from '@/utils/typeConverters';
 
 export default function GenerateServer() {
   const { projectId, configId } = useParams<{ projectId: string; configId: string }>();
   const navigate = useNavigate();
   
   const [project, setProject] = useState<Project | null>(null);
-  const [config, setConfig] = useState<ServerConfiguration | null>(null);
+  const [config, setConfig] = useState<ServerConfig | null>(null);
   const [apiDefinition, setApiDefinition] = useState<ApiDefinition | null>(null);
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -86,7 +87,7 @@ export default function GenerateServer() {
         throw configError;
       }
       
-      setConfig(configData);
+      setConfig(convertToServerConfig(configData));
       
       const { data: apiData, error: apiError } = await supabase
         .from('api_definitions')
@@ -101,19 +102,14 @@ export default function GenerateServer() {
           throw apiError;
         }
       } else {
-        setApiDefinition(apiData);
+        const convertedData = {
+          ...apiData,
+          parsedDefinition: tryParseContent(apiData.content)
+        };
+        setApiDefinition(convertedData);
         
-        if (apiData.parsedDefinition) {
-          parseEndpoints(apiData.parsedDefinition);
-        } else if (apiData.content) {
-          try {
-            const contentObj = JSON.parse(apiData.content);
-            if (contentObj.parsedDefinition) {
-              parseEndpoints(contentObj.parsedDefinition);
-            }
-          } catch (error) {
-            console.error('Error parsing API definition content:', error);
-          }
+        if (convertedData.parsedDefinition) {
+          parseEndpoints(convertedData.parsedDefinition);
         }
       }
       
@@ -130,19 +126,27 @@ export default function GenerateServer() {
       
       if (deploymentData && deploymentData.length > 0) {
         const latestDeployment = deploymentData[0];
-        setDeployment(latestDeployment);
-        setDeploymentId(latestDeployment.id);
-        setDeploymentStatus(latestDeployment.status as any);
-        setServerUrl(latestDeployment.server_url || null);
+        const convertedDeployment = {
+          ...latestDeployment,
+          files: latestDeployment.files || [],
+          status: latestDeployment.status as "pending" | "processing" | "success" | "failed"
+        };
+        setDeployment(convertedDeployment);
+        setDeploymentId(convertedDeployment.id);
+        setDeploymentStatus(convertedDeployment.status);
+        setServerUrl(convertedDeployment.server_url || null);
         
-        if (latestDeployment.files) {
-          setDeploymentFiles(latestDeployment.files);
+        if (convertedDeployment.files && convertedDeployment.files.length > 0) {
+          setDeploymentFiles(convertedDeployment.files);
           
-          if (latestDeployment.status === 'success') {
+          if (convertedDeployment.status === 'success') {
             setGenerationResult({
               success: true,
-              serverUrl: latestDeployment.server_url,
-              files: latestDeployment.files
+              serverUrl: convertedDeployment.server_url,
+              files: convertedDeployment.files,
+              parameters: [],
+              responses: [],
+              mcpType: 'resource'
             });
           }
         }
@@ -155,7 +159,15 @@ export default function GenerateServer() {
       setIsLoading(false);
     }
   };
-  
+
+  const tryParseContent = (content: string): any => {
+    try {
+      return JSON.parse(content);
+    } catch (e) {
+      return null;
+    }
+  };
+
   const checkDeploymentStatus = async () => {
     if (!deploymentId) return;
     

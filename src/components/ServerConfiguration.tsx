@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import type { Endpoint, ServerConfig } from '@/types';
+import type { Endpoint, ServerConfig, AuthType, AuthLocation, HostingProvider, HostingType } from '@/types';
 
 interface ServerConfigurationProps {
   serverConfig: ServerConfig;
@@ -23,11 +23,11 @@ const ServerConfiguration = ({ serverConfig, onConfigChange }: ServerConfigurati
     name: z.string().min(3, { message: "Server name must be at least 3 characters" }),
     description: z.string().optional(),
     language: z.enum(["Python", "TypeScript"]),
-    authType: z.enum(["ApiKey", "Basic", "Bearer", "None"]),
-    authLocation: z.enum(["header", "query"]).optional(),
+    authType: z.enum(["None", "API Key", "Bearer Token", "Basic Auth"]),
+    authLocation: z.enum(["header", "query", "cookie"]).optional(),
     authName: z.string().optional(),
     hostingProvider: z.enum(["AWS", "GCP", "Azure", "Supabase", "Self-hosted"]),
-    hostingType: z.enum(["Shared", "Dedicated"]),
+    hostingType: z.enum(["Serverless", "Container", "VM", "Shared", "Dedicated"]),
     hostingRegion: z.string().optional(),
   });
   
@@ -59,6 +59,7 @@ const ServerConfiguration = ({ serverConfig, onConfigChange }: ServerConfigurati
         type: values.authType,
         location: values.authLocation,
         name: values.authName,
+        value: serverConfig.authentication.value
       },
       hosting: {
         provider: values.hostingProvider,
@@ -186,9 +187,9 @@ const ServerConfiguration = ({ serverConfig, onConfigChange }: ServerConfigurati
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="None">No Authentication</SelectItem>
-                        <SelectItem value="ApiKey">API Key</SelectItem>
-                        <SelectItem value="Basic">Basic Auth</SelectItem>
-                        <SelectItem value="Bearer">Bearer Token</SelectItem>
+                        <SelectItem value="API Key">API Key</SelectItem>
+                        <SelectItem value="Basic Auth">Basic Auth</SelectItem>
+                        <SelectItem value="Bearer Token">Bearer Token</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormDescription>
@@ -206,17 +207,17 @@ const ServerConfiguration = ({ serverConfig, onConfigChange }: ServerConfigurati
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          {authType === "ApiKey" ? "Key Name" : "Header Name"}
+                          {authType === "API Key" ? "Key Name" : "Header Name"}
                         </FormLabel>
                         <FormControl>
                           <Input 
-                            placeholder={authType === "ApiKey" ? "x-api-key" : "Authorization"} 
+                            placeholder={authType === "API Key" ? "x-api-key" : "Authorization"} 
                             {...field} 
                             value={field.value || ''}
                           />
                         </FormControl>
                         <FormDescription>
-                          {authType === "ApiKey" 
+                          {authType === "API Key" 
                             ? "The name of the API key parameter" 
                             : "The name of the authorization header"}
                         </FormDescription>
@@ -224,7 +225,7 @@ const ServerConfiguration = ({ serverConfig, onConfigChange }: ServerConfigurati
                     )}
                   />
                   
-                  {authType === "ApiKey" && (
+                  {authType === "API Key" && (
                     <FormField
                       control={form.control}
                       name="authLocation"
@@ -243,6 +244,7 @@ const ServerConfiguration = ({ serverConfig, onConfigChange }: ServerConfigurati
                             <SelectContent>
                               <SelectItem value="header">Header</SelectItem>
                               <SelectItem value="query">Query Parameter</SelectItem>
+                              <SelectItem value="cookie">Cookie</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormDescription>
@@ -321,6 +323,9 @@ const ServerConfiguration = ({ serverConfig, onConfigChange }: ServerConfigurati
                       <SelectContent>
                         <SelectItem value="Shared">Shared Infrastructure</SelectItem>
                         <SelectItem value="Dedicated">Dedicated Infrastructure</SelectItem>
+                        <SelectItem value="Serverless">Serverless</SelectItem>
+                        <SelectItem value="Container">Container</SelectItem>
+                        <SelectItem value="VM">Virtual Machine</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormDescription>

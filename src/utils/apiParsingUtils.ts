@@ -43,12 +43,6 @@ export const parseApiDefinition = (apiDefinition: ApiDefinitionRecord): Endpoint
           ...endpoint,
           // Set default mcpType based on method
           mcpType: endpoint.mcpType || (endpoint.method === 'GET' ? 'resource' : 'tool'),
-          // Add optional properties for compatibility
-          summary: endpoint.description,
-          operationId: `${endpoint.method.toLowerCase()}${endpoint.path.replace(/[^a-zA-Z0-9]/g, '')}`,
-          requestBody: null,
-          security: [],
-          tags: [],
           // Ensure responses have schema property
           responses: endpoint.responses.map(r => ({
             ...r,
