@@ -211,6 +211,25 @@ export interface ArchiveFile {
 
 // Zip package format
 export interface ZipPackage {
+  fileName: string;
+  blob: Blob;
+}
+
+export interface MCPCapability {
+  type: 'resource' | 'tool';
   name: string;
-  files: ArchiveFile[];
+  description: string;
+}
+
+export interface MCPServer {
+  id: string;
+  name: string;
+  description: string;
+  author: string;
+  version: string;
+  stars: number;
+  downloads: number;
+  capabilities: MCPCapability[];
+  tags: string[];
+  updatedAt: string;
 }

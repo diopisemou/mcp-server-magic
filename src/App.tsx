@@ -12,6 +12,9 @@ import ImportApi from "./pages/ImportApi";
 import ConfigureServer from "./pages/ConfigureServer";
 import GenerateServer from "./pages/GenerateServer";
 import GenerateServerV1 from "./pages/GenerateServerV1";
+import Status from "./pages/Status"; // New Status page
+import Marketplace from "./pages/Marketplace"; // New Marketplace page
+import MarketplaceDetail from "./pages/MarketplaceDetail"; // New Marketplace Detail page
 import { AuthProvider } from "./contexts/AuthContext";
 import { LogProvider } from "@/contexts/LogContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -23,8 +26,8 @@ import {
   trackPageView,
   Variant,
 } from "./utils/abTestingService";
-import HeaderLayout from "./components/layouts/HeaderLayout"; // Assumed to exist
-import Docs from "./pages/Docs"; // Assumed to exist
+import HeaderLayout from "./components/layouts/HeaderLayout";
+import Docs from "./pages/Docs";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +67,7 @@ const App = () => (
                 <Route path="/auth" element={<Auth />} />
 
                 {/* Routes that need the common header */}
+
                 <Route
                   path="/dashboard"
                   element={
@@ -119,6 +123,14 @@ const App = () => (
                       <Docs />
                     </HeaderLayout>
                   }
+                />
+
+                {/* New routes */}
+                <Route path="/status" element={<Status />} />
+                <Route path="/marketplace" element={<Marketplace />} />
+                <Route
+                  path="/marketplace/:id"
+                  element={<MarketplaceDetail />}
                 />
 
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -5,7 +5,7 @@ import { Button } from './button';
 import { useAuth } from '@/contexts/AuthContext';
 import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger } from './navigation-menu';
 import { cn } from '@/lib/utils';
-import { User, LogOut } from 'lucide-react';
+import { User, LogOut, Package, Activity } from 'lucide-react';
 
 export function Header() {
   const { user, signOut } = useAuth();
@@ -58,6 +58,22 @@ export function Header() {
               <Link to="/docs">
                 <NavigationMenuLink className="px-4 py-2 hover:text-primary transition-colors">
                   Docs
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
+            <NavigationMenuItem>
+              <Link to="/marketplace">
+                <NavigationMenuLink className="px-4 py-2 hover:text-primary transition-colors flex items-center">
+                  <Package className="mr-1 h-4 w-4" />
+                  Marketplace
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
+            <NavigationMenuItem>
+              <Link to="/status">
+                <NavigationMenuLink className="px-4 py-2 hover:text-primary transition-colors flex items-center">
+                  <Activity className="mr-1 h-4 w-4" />
+                  Status
                 </NavigationMenuLink>
               </Link>
             </NavigationMenuItem>
