@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,6 +12,9 @@ import ProjectDetail from "./pages/ProjectDetail";
 import ImportApi from "./pages/ImportApi";
 import ConfigureServer from "./pages/ConfigureServer";
 import GenerateServer from "./pages/GenerateServer";
+import Status from "./pages/Status"; // New Status page
+import Marketplace from "./pages/Marketplace"; // New Marketplace page
+import MarketplaceDetail from "./pages/MarketplaceDetail"; // New Marketplace Detail page
 import { AuthProvider } from "./contexts/AuthContext";
 import { LogProvider } from "@/contexts/LogContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -18,9 +22,8 @@ import { useEffect, useState } from 'react';
 import LandingPage from './pages/LandingPage';
 import LandingPageAlt from './pages/LandingPageAlt';
 import { getUserVariant, trackPageView, Variant } from './utils/abTestingService';
-import HeaderLayout from "./components/layouts/HeaderLayout"; // Assumed to exist
-import Docs from "./pages/Docs"; // Assumed to exist
-
+import HeaderLayout from "./components/layouts/HeaderLayout";
+import Docs from "./pages/Docs";
 
 const queryClient = new QueryClient();
 
@@ -66,6 +69,11 @@ const App = () => (
                 <Route path="/configure-server/:projectId" element={<HeaderLayout><ConfigureServer /></HeaderLayout>} />
                 <Route path="/generate-server/:projectId/:configId" element={<HeaderLayout><GenerateServer /></HeaderLayout>} />
                 <Route path="/docs" element={<HeaderLayout><Docs /></HeaderLayout>} />
+                
+                {/* New routes */}
+                <Route path="/status" element={<Status />} />
+                <Route path="/marketplace" element={<Marketplace />} />
+                <Route path="/marketplace/:id" element={<MarketplaceDetail />} />
 
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<HeaderLayout><NotFound /></HeaderLayout>} />
