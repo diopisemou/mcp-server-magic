@@ -294,3 +294,112 @@ export function extractSwaggerUrl(htmlContent: string, baseUrl: string): string 
   }
   return null;
 }
+
+// Fix missing 'schema' property in Response objects
+export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoint[] => {
+  const endpoints: Endpoint[] = [];
+  console.log('Extracting endpoints from format:', format);
+  console.log('API Definition:', JSON.stringify(apiDefinition, null, 2).substring(0, 500) + '...');
+  
+  try {
+    if (format === 'OpenAPI2' || format === 'OpenAPI3') {
+      const paths = apiDefinition.paths || {};
+      
+      Object.keys(paths).forEach(path => {
+        const pathObj = paths[path];
+        
+        // Common HTTP methods
+        const methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'];
+        
+        methods.forEach(method => {
+          if (pathObj[method]) {
+            const operation = pathObj[method];
+            
+            // Extract parameters
+            const parameters = [...(pathObj.parameters || []), ...(operation.parameters || [])].map(param => ({
+              name: param.name,
+              type: param.schema?.type || param.type || 'string',
+              required: !!param.required,
+              description: param.description || ''
+            }));
+            
+            // Extract responses
+            const responses = Object.keys(operation.responses || {}).map(statusCode => ({
+              statusCode: parseInt(statusCode, 10) || statusCode,
+              description: operation.responses[statusCode].description || '',
+              schema: operation.responses[statusCode].schema || operation.responses[statusCode].content || null
+            }));
+            
+            endpoints.push({
+              id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, '-'),
+              path,
+              method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
+              description: operation.summary || operation.description || '',
+              parameters,
+              responses
+            });
+          }
+        });
+      });
+    } else if (format === 'RAML') {
+      if (apiDefinition.resources) {
+        apiDefinition.resources.forEach(resource => {
+          const basePath = resource.relativeUri || '';
+          
+          (resource.methods || []).forEach(method => {
+            endpoints.push({
+              id: `${method.method}-${basePath}`.replace(/[^a-zA-Z0-9]/g, '-'),
+              path: basePath,
+              method: method.method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
+              description: method.description || '',
+              parameters: (method.queryParameters || []).map(param => ({
+                name: param.name,
+                type: param.type || 'string',
+                required: !!param.required,
+                description: param.description || ''
+              })),
+              responses: Object.keys(method.responses || {}).map(statusCode => ({
+                statusCode: parseInt(statusCode, 10) || statusCode,
+                description: method.responses[statusCode].description || '',
+                schema: null // Add schema property
+              }))
+            });
+          });
+        });
+      }
+    } else if (format === 'APIBlueprint') {
+      if (apiDefinition.ast && apiDefinition.ast.resourceGroups) {
+        apiDefinition.ast.resourceGroups.forEach(group => {
+          (group.resources || []).forEach(resource => {
+            (resource.actions || []).forEach(action => {
+              endpoints.push({
+                id: `${action.method}-${resource.uriTemplate}`.replace(/[^a-zA-Z0-9]/g, '-'),
+                path: resource.uriTemplate || '',
+                method: action.method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
+                description: action.description || resource.description || '',
+                parameters: (action.parameters || []).map(param => ({
+                  name: param.name,
+                  type: 'string',
+                  required: !!param.required,
+                  description: param.description || ''
+                })),
+                responses: (action.examples || []).flatMap(example => 
+                  (example.responses || []).map(response => ({
+                    statusCode: response.status || 200,
+                    description: response.description || '',
+                    schema: response.body || null // Add schema property
+                  }))
+                )
+              });
+            });
+          });
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error extracting endpoints:', error);
+  }
+  
+  console.log(`Extracted ${endpoints.length} endpoints`);
+  return endpoints;
+};

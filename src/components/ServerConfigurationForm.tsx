@@ -1,366 +1,259 @@
 
-import React, { useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel } from '@/components/ui/form';
+import { useState } from 'react';
+import { ServerConfig } from '@/types';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import type { ServerConfig } from '@/types';
 
 interface ServerConfigurationFormProps {
   serverConfig: ServerConfig;
-  onConfigChange: (updatedConfig: ServerConfig) => void;
+  onConfigChange: (config: ServerConfig) => void;
 }
 
 const ServerConfigurationForm = ({ serverConfig, onConfigChange }: ServerConfigurationFormProps) => {
-  const [activeTab, setActiveTab] = React.useState("general");
-  
-  const serverConfigSchema = z.object({
-    name: z.string().min(3, { message: "Server name must be at least 3 characters" }),
-    description: z.string().optional(),
-    language: z.enum(["Python", "TypeScript"]),
-    authType: z.enum(["ApiKey", "Basic", "Bearer", "None"]),
-    authLocation: z.enum(["header", "query"]).optional(),
-    authName: z.string().optional(),
-    hostingProvider: z.enum(["AWS", "GCP", "Azure", "Supabase", "Self-hosted"]),
-    hostingType: z.enum(["Shared", "Dedicated"]),
-    hostingRegion: z.string().optional(),
-  });
-  
-  const form = useForm<z.infer<typeof serverConfigSchema>>({
-    resolver: zodResolver(serverConfigSchema),
-    defaultValues: {
-      name: serverConfig.name,
-      description: serverConfig.description,
-      language: serverConfig.language,
-      authType: serverConfig.authentication.type,
-      authLocation: serverConfig.authentication.location,
-      authName: serverConfig.authentication.name,
-      hostingProvider: serverConfig.hosting.provider,
-      hostingType: serverConfig.hosting.type,
-      hostingRegion: serverConfig.hosting.region,
-    },
-  });
-  
-  const authType = form.watch("authType");
-  
-  const onSubmit = (values: z.infer<typeof serverConfigSchema>) => {
-    // Update the server configuration
+  const [activeTab, setActiveTab] = useState('basic');
+
+  const handleInputChange = (field: string, value: string) => {
     onConfigChange({
       ...serverConfig,
-      name: values.name,
-      description: values.description || '',
-      language: values.language,
+      [field]: value
+    });
+  };
+
+  const handleAuthChange = (field: string, value: string) => {
+    onConfigChange({
+      ...serverConfig,
       authentication: {
-        type: values.authType,
-        location: values.authLocation,
-        name: values.authName,
-      },
-      hosting: {
-        provider: values.hostingProvider,
-        type: values.hostingType,
-        region: values.hostingRegion,
+        ...serverConfig.authentication,
+        [field]: value
       }
     });
   };
-  
-  // Update form when serverConfig changes
-  useEffect(() => {
-    form.reset({
-      name: serverConfig.name,
-      description: serverConfig.description,
-      language: serverConfig.language,
-      authType: serverConfig.authentication.type,
-      authLocation: serverConfig.authentication.location,
-      authName: serverConfig.authentication.name,
-      hostingProvider: serverConfig.hosting.provider,
-      hostingType: serverConfig.hosting.type,
-      hostingRegion: serverConfig.hosting.region,
+
+  const handleHostingChange = (field: string, value: string) => {
+    onConfigChange({
+      ...serverConfig,
+      hosting: {
+        ...serverConfig.hosting,
+        [field]: value
+      }
     });
-  }, [serverConfig, form]);
-  
+  };
+
   return (
-    <div className="w-full">
+    <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="auth">Authentication</TabsTrigger>
-          <TabsTrigger value="hosting">Hosting</TabsTrigger>
+          <TabsTrigger value="basic">Basic Information</TabsTrigger>
+          <TabsTrigger value="authentication">Authentication</TabsTrigger>
+          <TabsTrigger value="hosting">Hosting & Deployment</TabsTrigger>
         </TabsList>
         
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-6">
-            <TabsContent value="general" className="space-y-6">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Server Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="My MCP Server" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      A descriptive name for your MCP server
-                    </FormDescription>
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="A server that provides access to..." 
-                        {...field} 
-                        value={field.value || ''}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Brief description of what your server does
-                    </FormDescription>
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="language"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Server Language</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a language" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Python">Python</SelectItem>
-                        <SelectItem value="TypeScript">TypeScript</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      The programming language for your server
-                    </FormDescription>
-                  </FormItem>
-                )}
-              />
-              
-              <div className="flex justify-end">
-                <Button 
-                  type="button" 
-                  onClick={() => setActiveTab("auth")}
-                >
-                  Next: Authentication
-                </Button>
+        <TabsContent value="basic" className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Server Name</Label>
+            <Input
+              id="name"
+              value={serverConfig.name}
+              onChange={(e) => handleInputChange('name', e.target.value)}
+              placeholder="Enter server name"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="description">Description (Optional)</Label>
+            <Textarea
+              id="description"
+              value={serverConfig.description}
+              onChange={(e) => handleInputChange('description', e.target.value)}
+              placeholder="Enter a brief description of this MCP server"
+              className="h-24"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Server Language</Label>
+            <RadioGroup
+              value={serverConfig.language}
+              onValueChange={(value) => handleInputChange('language', value)}
+              className="flex flex-col space-y-1"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="Python" id="python" />
+                <Label htmlFor="python">Python</Label>
               </div>
-            </TabsContent>
-            
-            <TabsContent value="auth" className="space-y-6">
-              <FormField
-                control={form.control}
-                name="authType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Authentication Type</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select authentication type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="None">No Authentication</SelectItem>
-                        <SelectItem value="ApiKey">API Key</SelectItem>
-                        <SelectItem value="Basic">Basic Auth</SelectItem>
-                        <SelectItem value="Bearer">Bearer Token</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      How clients will authenticate with your server
-                    </FormDescription>
-                  </FormItem>
-                )}
-              />
-              
-              {authType !== "None" && (
-                <>
-                  <FormField
-                    control={form.control}
-                    name="authName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          {authType === "ApiKey" ? "Key Name" : "Header Name"}
-                        </FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder={authType === "ApiKey" ? "x-api-key" : "Authorization"} 
-                            {...field} 
-                            value={field.value || ''}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {authType === "ApiKey" 
-                            ? "The name of the API key parameter" 
-                            : "The name of the authorization header"}
-                        </FormDescription>
-                      </FormItem>
-                    )}
-                  />
-                  
-                  {authType === "ApiKey" && (
-                    <FormField
-                      control={form.control}
-                      name="authLocation"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Key Location</FormLabel>
-                          <Select 
-                            onValueChange={field.onChange} 
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select location" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="header">Header</SelectItem>
-                              <SelectItem value="query">Query Parameter</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormDescription>
-                            Where the API key should be included in requests
-                          </FormDescription>
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                </>
-              )}
-              
-              <div className="flex justify-between">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setActiveTab("general")}
-                >
-                  Previous: General
-                </Button>
-                <Button 
-                  type="button" 
-                  onClick={() => setActiveTab("hosting")}
-                >
-                  Next: Hosting
-                </Button>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="TypeScript" id="typescript" />
+                <Label htmlFor="typescript">TypeScript</Label>
               </div>
-            </TabsContent>
-            
-            <TabsContent value="hosting" className="space-y-6">
-              <FormField
-                control={form.control}
-                name="hostingProvider"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Hosting Provider</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select provider" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="AWS">AWS</SelectItem>
-                        <SelectItem value="GCP">Google Cloud</SelectItem>
-                        <SelectItem value="Azure">Azure</SelectItem>
-                        <SelectItem value="Supabase">Supabase</SelectItem>
-                        <SelectItem value="Self-hosted">Self-hosted</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      Where your MCP server will be deployed
-                    </FormDescription>
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="hostingType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Hosting Type</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select hosting type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Shared">Shared Infrastructure</SelectItem>
-                        <SelectItem value="Dedicated">Dedicated Infrastructure</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      Shared is more cost-effective, dedicated offers better performance
-                    </FormDescription>
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="hostingRegion"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Region (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="us-east-1" {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormDescription>
-                      The geographic region where your server will be hosted
-                    </FormDescription>
-                  </FormItem>
-                )}
-              />
-              
-              <div className="flex justify-between pt-4">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setActiveTab("auth")}
+            </RadioGroup>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="authentication" className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <Label htmlFor="auth-type">Authentication Type</Label>
+            <Select
+              value={serverConfig.authentication.type}
+              onValueChange={(value) => handleAuthChange('type', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select authentication type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="None">None</SelectItem>
+                <SelectItem value="API Key">API Key</SelectItem>
+                <SelectItem value="Bearer Token">Bearer Token</SelectItem>
+                <SelectItem value="Basic Auth">Basic Auth</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {serverConfig.authentication.type !== 'None' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="auth-location">Location</Label>
+                <Select
+                  value={serverConfig.authentication.location}
+                  onValueChange={(value) => handleAuthChange('location', value)}
                 >
-                  Previous: Authentication
-                </Button>
-                <Button type="submit">
-                  Apply Changes
-                </Button>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="header">Header</SelectItem>
+                    <SelectItem value="query">Query Parameter</SelectItem>
+                    <SelectItem value="cookie">Cookie</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </TabsContent>
-          </form>
-        </Form>
+
+              <div className="space-y-2">
+                <Label htmlFor="auth-name">Name</Label>
+                <Input
+                  id="auth-name"
+                  value={serverConfig.authentication.name || ''}
+                  onChange={(e) => handleAuthChange('name', e.target.value)}
+                  placeholder={
+                    serverConfig.authentication.type === 'API Key' ? 'X-API-Key' :
+                    serverConfig.authentication.type === 'Bearer Token' ? 'Authorization' :
+                    'Authorization'
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="auth-value">Default Value (Optional)</Label>
+                <Input
+                  id="auth-value"
+                  value={serverConfig.authentication.value || ''}
+                  onChange={(e) => handleAuthChange('value', e.target.value)}
+                  placeholder={
+                    serverConfig.authentication.type === 'API Key' ? 'your-api-key' :
+                    serverConfig.authentication.type === 'Bearer Token' ? 'Bearer your-token' :
+                    'Basic dXNlcm5hbWU6cGFzc3dvcmQ='
+                  }
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  This will be used for testing. Users will configure their own values when integrating.
+                </p>
+              </div>
+            </>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="hosting" className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <Label htmlFor="hosting-provider">Cloud Provider</Label>
+            <Select
+              value={serverConfig.hosting.provider}
+              onValueChange={(value) => handleHostingChange('provider', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select hosting provider" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="AWS">AWS</SelectItem>
+                <SelectItem value="GCP">Google Cloud (GCP)</SelectItem>
+                <SelectItem value="Azure">Microsoft Azure</SelectItem>
+                <SelectItem value="Supabase">Supabase</SelectItem>
+                <SelectItem value="Self-hosted">Self-hosted</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="hosting-type">Hosting Type</Label>
+            <Select
+              value={serverConfig.hosting.type}
+              onValueChange={(value) => handleHostingChange('type', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select hosting type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Serverless">Serverless</SelectItem>
+                <SelectItem value="Container">Container</SelectItem>
+                <SelectItem value="VM">Virtual Machine</SelectItem>
+                <SelectItem value="Shared">Shared Hosting</SelectItem>
+                <SelectItem value="Dedicated">Dedicated Hosting</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="hosting-region">Region</Label>
+            <Select
+              value={serverConfig.hosting.region || ''}
+              onValueChange={(value) => handleHostingChange('region', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select region" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="us-east-1">US East (N. Virginia)</SelectItem>
+                <SelectItem value="us-west-1">US West (N. California)</SelectItem>
+                <SelectItem value="eu-west-1">EU (Ireland)</SelectItem>
+                <SelectItem value="ap-southeast-1">Asia Pacific (Singapore)</SelectItem>
+                <SelectItem value="sa-east-1">South America (São Paulo)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </TabsContent>
       </Tabs>
+
+      {serverConfig.endpoints.length > 0 && (
+        <Accordion type="single" collapsible className="mt-6 border rounded-lg">
+          <AccordionItem value="endpoints">
+            <AccordionTrigger className="px-4">
+              Endpoints Configuration
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <p className="text-sm text-muted-foreground mb-2">
+                {serverConfig.endpoints.length} endpoints available for this server.
+              </p>
+              <div className="text-xs text-muted-foreground">
+                Note: You'll be able to edit endpoint configurations in the next step.
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      )}
     </div>
   );
 };

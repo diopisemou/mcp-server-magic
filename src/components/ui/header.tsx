@@ -30,6 +30,19 @@ export function Header() {
     }
   };
 
+  // Get display name safely from user object
+  const getDisplayName = () => {
+    if (!user) return '';
+    
+    // Check for user_metadata (for Supabase)
+    if (user.user_metadata && user.user_metadata.username) {
+      return user.user_metadata.username;
+    }
+    
+    // Fallback to email
+    return user.email;
+  };
+
   return (
     <header className={cn(
       "sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur transition-all duration-100", 
@@ -93,7 +106,7 @@ export function Header() {
           {user ? (
             <div className="flex items-center gap-4">
               <div className="text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{user.user_metadata?.username || user.email}</span>
+                <span className="font-medium text-foreground">{getDisplayName()}</span>
               </div>
               <Button variant="outline" size="sm" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-2" />

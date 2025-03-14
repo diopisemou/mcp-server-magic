@@ -1,82 +1,91 @@
+import { ApiDefinitionRecord, Endpoint } from '@/types';
+import { validateApiDefinition, extractEndpoints } from './apiValidator';
 
-import type { ApiDefinitionRecord, Endpoint } from "../types";
-import { validateApiDefinition } from "./apiValidator";
-import { extractEndpoints } from "./endpointExtractor";
-
-/**
- * Parses the API definition and extracts endpoints
- */
-export function parseApiDefinition(content: string, filename?: string): { 
-  validationResult: any; 
-  endpoints: Endpoint[];
-} {
+// Function to parse API definition and extract endpoints
+export const parseApiDefinition = (apiDefinition: ApiDefinitionRecord): Endpoint[] => {
   try {
-    // Validate and parse the API definition
-    const validationResult = validateApiDefinition(content, filename);
+    // Try to extract endpoints from endpoint_definition first if it exists
+    if (apiDefinition.endpoint_definition) {
+      // Check if endpoint_definition is an array
+      if (Array.isArray(apiDefinition.endpoint_definition)) {
+        return apiDefinition.endpoint_definition.map(ep => ({
+          ...ep,
+          // Ensure all required properties exist
+          responses: ep.responses?.map(r => ({
+            ...r,
+            schema: r.schema || null
+          })) || []
+        }));
+      }
+    }
     
-    // Extract endpoints if the definition is valid
-    const endpoints = validationResult.isValid 
-      ? extractEndpoints(validationResult.parsedDefinition, validationResult.format)
-      : [];
+    // Otherwise, try to parse from content
+    let parsedContent;
+    try {
+      // Parse the content as JSON if it's a string
+      parsedContent = typeof apiDefinition.content === 'string' 
+        ? JSON.parse(apiDefinition.content)
+        : apiDefinition.content;
+      
+      // Check if content contains a parsedDefinition
+      if (parsedContent.parsedDefinition) {
+        const format = parsedContent.format || 'OpenAPI3';
+        return extractEndpoints(parsedContent.parsedDefinition, format);
+      }
+      
+      // If there's no parsedDefinition, try to validate the content
+      const contentToValidate = parsedContent.content || apiDefinition.content;
+      const validationResult = validateApiDefinition(contentToValidate, apiDefinition.name);
+      
+      if (validationResult && validationResult.endpoints) {
+        // Add default mcpType based on HTTP method
+        return validationResult.endpoints.map(endpoint => ({
+          ...endpoint,
+          // Set default mcpType based on method
+          mcpType: endpoint.mcpType || (endpoint.method === 'GET' ? 'resource' : 'tool'),
+          // Add optional properties for compatibility
+          summary: endpoint.description,
+          operationId: `${endpoint.method.toLowerCase()}${endpoint.path.replace(/[^a-zA-Z0-9]/g, '')}`,
+          requestBody: null,
+          security: [],
+          tags: [],
+          // Ensure responses have schema property
+          responses: endpoint.responses.map(r => ({
+            ...r,
+            schema: r.schema || null
+          }))
+        }));
+      }
+    } catch (error) {
+      console.error('Error parsing API definition content:', error);
+    }
     
-    return { validationResult, endpoints };
+    // Return empty array if we couldn't extract endpoints
+    return [];
   } catch (error) {
     console.error('Error parsing API definition:', error);
-    return { 
-      validationResult: { 
-        isValid: false, 
-        format: 'Unknown', 
-        errors: [(error as Error).message], 
-        parsedDefinition: null 
-      }, 
-      endpoints: [] 
-    };
+    return [];
   }
-}
+};
 
-/**
- * Maps endpoints to their classification (tool, resource, or skipped)
- */
-export function mapEndpointsToDefinition(
-  endpoints: Endpoint[], 
-  existingDefinitions?: ApiDefinitionRecord['endpoint_definition']
-): ApiDefinitionRecord['endpoint_definition'] {
-  const mappedEndpoints = endpoints.map(endpoint => {
-    // Check if this endpoint already exists in the definitions
-    const existingEndpoint = existingDefinitions?.find(def => 
-      def.path === endpoint.path && def.method === endpoint.method
-    );
-    
-    return {
-      path: endpoint.path,
-      method: endpoint.method,
-      summary: endpoint.summary,
-      operationId: endpoint.operationId,
-      type: existingEndpoint?.type || 'endpoint', // Default to 'endpoint' if no existing type
-      parameters: endpoint.parameters,
-      responses: endpoint.responses,
-      requestBody: endpoint.requestBody,
-      security: endpoint.security,
-      tags: endpoint.tags,
-      id: endpoint.id
-    };
-  });
-  
-  return mappedEndpoints;
-}
+// Export helper functions to fix type issues across the application
+export const ensureEndpointResponse = (response: any) => {
+  return {
+    statusCode: response.statusCode || 200,
+    description: response.description || '',
+    schema: response.schema || null
+  };
+};
 
-/**
- * Updates endpoint definitions with classifications
- */
-export function updateEndpointDefinitions(
-  endpoints: ApiDefinitionRecord['endpoint_definition'],
-  endpointId: string, 
-  type: 'tool' | 'resource' | 'endpoint' | 'skipped'
-): ApiDefinitionRecord['endpoint_definition'] {
-  return endpoints.map(endpoint => {
-    if (endpoint.id === endpointId) {
-      return { ...endpoint, type };
-    }
-    return endpoint;
-  });
-}
+export const ensureEndpoint = (endpoint: any): Endpoint => {
+  return {
+    id: endpoint.id || `endpoint-${Math.random().toString(36).substring(2, 9)}`,
+    path: endpoint.path || '/',
+    method: endpoint.method || 'GET',
+    description: endpoint.description || '',
+    parameters: endpoint.parameters || [],
+    responses: (endpoint.responses || []).map(ensureEndpointResponse),
+    selected: endpoint.selected !== undefined ? endpoint.selected : true,
+    mcpType: endpoint.mcpType || (endpoint.method === 'GET' ? 'resource' : 'tool')
+  };
+};

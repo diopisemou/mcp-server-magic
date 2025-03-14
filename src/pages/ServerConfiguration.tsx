@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
@@ -9,9 +8,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
 import { useToast } from '../components/ui/use-toast';
 import { getApiDefinition, saveApiDefinition } from '../utils/apiService';
 import { generateServer } from '../utils/serverGenerator';
-import { EndpointMapper } from '../components/EndpointMapper';
-import type { ApiDefinition, EndpointDefinition } from '../types/api';
-import type { ServerConfig, GenerationResult } from '../types/server';
+import EndpointMapper from '../components/EndpointMapper';
+import type { ApiDefinition, EndpointDefinition, ServerConfig, GenerationResult } from '../types';
 
 export default function ServerConfiguration() {
   const { id } = useParams<{ id: string }>();

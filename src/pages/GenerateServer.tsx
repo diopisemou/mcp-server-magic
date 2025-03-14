@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,6 +19,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { generateServer } from '@/utils/serverGenerator';
 import ServerFiles from '@/components/ServerFiles';
+import { Copy } from 'lucide-react';
 
 export default function GenerateServer() {
   const { projectId, configId } = useParams<{ projectId: string; configId: string }>();
@@ -45,7 +45,6 @@ export default function GenerateServer() {
     }
   }, [projectId, configId]);
   
-  // Poll for deployment status updates
   useEffect(() => {
     let intervalId: number;
     
@@ -65,7 +64,6 @@ export default function GenerateServer() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Fetch project
       const { data: projectData, error: projectError } = await supabase
         .from('mcp_projects')
         .select('*')
@@ -78,7 +76,6 @@ export default function GenerateServer() {
       
       setProject(projectData);
       
-      // Fetch server configuration
       const { data: configData, error: configError } = await supabase
         .from('server_configurations')
         .select('*')
@@ -91,7 +88,6 @@ export default function GenerateServer() {
       
       setConfig(configData);
       
-      // Fetch API definition for the project
       const { data: apiData, error: apiError } = await supabase
         .from('api_definitions')
         .select('*')
@@ -101,17 +97,15 @@ export default function GenerateServer() {
         .single();
       
       if (apiError) {
-        if (apiError.code !== 'PGRST116') { // No rows returned
+        if (apiError.code !== 'PGRST116') {
           throw apiError;
         }
       } else {
         setApiDefinition(apiData);
         
         if (apiData.parsedDefinition) {
-          // If parsed definition exists in the database, use it
           parseEndpoints(apiData.parsedDefinition);
         } else if (apiData.content) {
-          // Try to parse the content
           try {
             const contentObj = JSON.parse(apiData.content);
             if (contentObj.parsedDefinition) {
@@ -123,7 +117,6 @@ export default function GenerateServer() {
         }
       }
       
-      // Check if there's an existing deployment for this configuration
       const { data: deploymentData, error: deploymentError } = await supabase
         .from('deployments')
         .select('*')
@@ -209,8 +202,6 @@ export default function GenerateServer() {
   };
   
   const parseEndpoints = (parsedDefinition: any) => {
-    // This would be replaced with actual logic to extract endpoints from parsed definition
-    // For now, let's assume we have some example endpoints
     const exampleEndpoints: Endpoint[] = [
       {
         id: 'get-users',
@@ -272,7 +263,6 @@ export default function GenerateServer() {
       setIsGenerating(true);
       setGenerationError(null);
       
-      // Create a new deployment record
       const { data: deploymentData, error: deploymentError } = await supabase
         .from('deployments')
         .insert([
@@ -292,7 +282,6 @@ export default function GenerateServer() {
       setDeploymentId(deploymentData.id);
       setDeploymentStatus('pending');
       
-      // Convert server config to the format expected by the server generation function
       const serverConfig: ServerConfig = {
         name: config.name,
         description: config.description || '',
@@ -311,7 +300,6 @@ export default function GenerateServer() {
         endpoints: endpoints
       };
       
-      // Call the edge function for server generation (heavy work)
       const { data, error } = await supabase.functions.invoke('generate-server', {
         body: {
           deploymentId: deploymentData.id,
@@ -323,15 +311,29 @@ export default function GenerateServer() {
         throw new Error(`Edge function error: ${error.message}`);
       }
       
-      // The edge function should update the deployment record
-      // We'll poll for updates to get the result
+      setDeploymentId(deploymentData.id);
+      setDeploymentStatus('processing');
+      
+      if (data.status === 'success') {
+        setGenerationResult({
+          success: true,
+          serverUrl: data.server_url,
+          files: data.files
+        });
+        
+        setIsGenerating(false);
+        toast.success('Server generated successfully!');
+      } else if (data.status === 'failed') {
+        setGenerationError('Failed to generate server');
+        setIsGenerating(false);
+        toast.error('Server generation failed');
+      }
       
     } catch (error) {
       console.error('Error generating server:', error);
       setGenerationError(error instanceof Error ? error.message : 'An error occurred');
       setIsGenerating(false);
       
-      // Update deployment status to failed if we have a deployment ID
       if (deploymentId) {
         await supabase
           .from('deployments')
