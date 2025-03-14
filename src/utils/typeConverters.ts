@@ -1,6 +1,6 @@
 
 import { ApiDefinition, EndpointDefinition, Endpoint, Deployment, ServerConfig, ServerConfiguration } from '@/types';
-import type { Json } from '@supabase/supabase-js';
+import { Json } from '@/types/json';
 
 // Helper to safely convert database JSON to endpoint definitions
 export function convertJsonToEndpointDefinitions(jsonData: any): EndpointDefinition[] {
@@ -95,6 +95,25 @@ export function convertToServerConfig(record: any): ServerConfig {
   };
 }
 
+// Convert ServerConfig to ServerConfigRecord format for the database
+export function convertServerConfigToRecord(config: ServerConfig, projectId: string): any {
+  return {
+    project_id: projectId,
+    name: config.name || '',
+    description: config.description || '',
+    language: config.language,
+    authentication_type: config.authentication.type,
+    authentication_details: {
+      location: config.authentication.location,
+      name: config.authentication.name,
+      value: config.authentication.value
+    },
+    hosting_provider: config.hosting.provider,
+    hosting_type: config.hosting.type,
+    hosting_region: config.hosting.region
+  };
+}
+
 // Convert Deployment DB record to Deployment type
 export function convertToDeployment(record: any): Deployment {
   const status = record.status as "pending" | "processing" | "success" | "failed";
@@ -135,4 +154,15 @@ export function prepareApiForDatabase(apiDefinition: Partial<ApiDefinition>, end
     name: apiDefinition.name || '',
     project_id: apiDefinition.project_id || ''
   };
+}
+
+// Function to prepare API definition for Supabase - ensures the endpoint_definition is properly stringified
+export function prepareApiDefinitionForDatabase(apiDefinition: ApiDefinition): any {
+  const preparedDefinition = { ...apiDefinition };
+  
+  if (apiDefinition.endpoint_definition && Array.isArray(apiDefinition.endpoint_definition)) {
+    preparedDefinition.endpoint_definition = JSON.stringify(apiDefinition.endpoint_definition);
+  }
+  
+  return preparedDefinition;
 }

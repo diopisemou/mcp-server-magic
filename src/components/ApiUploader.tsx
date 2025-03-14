@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { File as LucideFile, Upload, Link, Loader2, CheckCircle, XCircle } from 'lucide-react';
-import { validateApiDefinition, extractSwaggerUrl, extractEndpointsFromDefinition } from '@/utils/apiValidator';
+import { validateApiDefinition, extractSwaggerUrl } from '@/utils/apiValidator';
 import { ApiDefinition, EndpointDefinition } from '@/types';
 import { saveApiDefinition } from '@/utils/apiService';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,27 +30,6 @@ const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUpl
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const { toast } = useToast();
-  
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) {
-      const file = acceptedFiles[0];
-      handleFileProcessing(file);
-    }
-  }, []);
-  
-  const {getRootProps, getInputProps, isDragActive} = useDropzone({onDrop});
-  
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setApiName(e.target.value);
-  };
-  
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setApiContent(e.target.value);
-  };
-  
-  const handleApiUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setApiUrl(e.target.value);
-  };
   
   const handleFileProcessing = async (file: File) => {
     setIsUploading(true);
@@ -85,6 +65,27 @@ const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUpl
     }
   };
   
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0) {
+      const file = acceptedFiles[0];
+      handleFileProcessing(file);
+    }
+  }, []);
+  
+  const {getRootProps, getInputProps, isDragActive} = useDropzone({onDrop});
+  
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setApiName(e.target.value);
+  };
+  
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setApiContent(e.target.value);
+  };
+  
+  const handleApiUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setApiUrl(e.target.value);
+  };
+  
   const handleUpload = async () => {
     setIsUploading(true);
     setUploadError(null);
@@ -111,7 +112,7 @@ const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUpl
         format: validationResult.format,
         content: apiContent,
         parsedDefinition: validationResult.parsedDefinition,
-        endpoint_definition: extractEndpointsFromDefinition(apiContent),
+        endpoint_definition: validationResult.endpoints || [],
         created_at: new Date().toISOString(),
       };
       
@@ -189,65 +190,31 @@ const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUpl
     }
   };
 
-const handleFileProcessing = async (file: File) => {
-  setIsUploading(true);
-  setUploadError(null);
-  setUploadSuccess(false);
-  
-  try {
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const content = event.target?.result;
-      if (typeof content === 'string') {
-        const validationResult = await validateApiDefinition(content, file.name);
-        if (validationResult.isValid) {
-          setApiFormat(validationResult.format);
-          setApiContent(content);
-        } else {
-          setUploadError(`Invalid API definition: ${validationResult.errors?.join(', ') || 'Unknown error'}`);
-        }
-      } else {
-        setUploadError('Failed to read file content.');
-      }
-      setIsUploading(false);
-    };
-    reader.onerror = () => {
-      setUploadError('Failed to read the file.');
-      setIsUploading(false);
-    };
-    reader.readAsText(file);
-  } catch (error) {
-    console.error('File processing error:', error);
-    setUploadError('An unexpected error occurred while processing the file.');
-    setIsUploading(false);
-  }
-};
-
-const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
-  event.preventDefault();
-  event.stopPropagation();
-  setIsDragging(false);
-  
-  const items = event.dataTransfer.items;
-  if (items) {
-    // Convert DataTransferItemList to array and process first file
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.kind === 'file') {
-        const file = item.getAsFile();
-        if (file) {
-          await handleFileProcessing(file);
-          break;
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+    
+    const items = event.dataTransfer.items;
+    if (items) {
+      // Convert DataTransferItemList to array and process first file
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) {
+            await handleFileProcessing(file);
+            break;
+          }
         }
       }
+    } else {
+      const files = event.dataTransfer.files;
+      if (files.length) {
+        await handleFileProcessing(files[0]);
+      }
     }
-  } else {
-    const files = event.dataTransfer.files;
-    if (files.length) {
-      await handleFileProcessing(files[0]);
-    }
-  }
-};
+  };
   
   return (
     <Card>
@@ -273,7 +240,7 @@ const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
           className={`relative border-2 border-dashed rounded-md p-6 text-center cursor-pointer ${isDragging ? 'border-primary' : 'border-muted-foreground'}`}
           onDragEnter={() => setIsDragging(true)}
           onDragLeave={() => setIsDragging(false)}
-          onDrop={() => setIsDragging(false)}
+          onDrop={handleDrop}
         >
           <input {...getInputProps()} />
           <div className="flex flex-col items-center justify-center space-y-3">

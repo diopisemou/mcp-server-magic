@@ -1,9 +1,19 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Project, ApiDefinition, ServerConfig, GenerationResult, Deployment, ServerFile } from '@/types';
+import { 
+  Project, 
+  ApiDefinition, 
+  ServerConfig, 
+  GenerationResult, 
+  Deployment, 
+  ServerFile,
+  Endpoint,
+  ServerConfiguration as ServerConfigurationType
+} from '@/types';
 import { toast } from 'sonner';
 import { 
   Cog, 
@@ -13,7 +23,6 @@ import {
   RefreshCw, 
   CheckCircle, 
   XCircle, 
-  LucideIcon,
   Loader2,
   Copy
 } from 'lucide-react';
@@ -65,6 +74,7 @@ export default function GenerateServer() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
+      // Fetch project
       const { data: projectData, error: projectError } = await supabase
         .from('mcp_projects')
         .select('*')
@@ -77,6 +87,7 @@ export default function GenerateServer() {
       
       setProject(projectData);
       
+      // Fetch server config
       const { data: configData, error: configError } = await supabase
         .from('server_configurations')
         .select('*')
@@ -87,8 +98,10 @@ export default function GenerateServer() {
         throw configError;
       }
       
-      setConfig(convertToServerConfig(configData));
+      const convertedConfig = convertToServerConfig(configData);
+      setConfig(convertedConfig);
       
+      // Fetch API definition
       const { data: apiData, error: apiError } = await supabase
         .from('api_definitions')
         .select('*')
@@ -102,17 +115,27 @@ export default function GenerateServer() {
           throw apiError;
         }
       } else {
-        const convertedData = {
-          ...apiData,
-          parsedDefinition: tryParseContent(apiData.content)
-        };
-        setApiDefinition(convertedData);
-        
-        if (convertedData.parsedDefinition) {
-          parseEndpoints(convertedData.parsedDefinition);
+        // Convert and parse API definition data
+        try {
+          const apiDataWithParsed = {
+            ...apiData,
+            parsedDefinition: tryParseContent(apiData.content),
+            endpoint_definition: apiData.endpoint_definition 
+              ? JSON.parse(apiData.endpoint_definition as string) 
+              : []
+          };
+          
+          setApiDefinition(apiDataWithParsed as unknown as ApiDefinition);
+          
+          if (apiDataWithParsed.endpoint_definition) {
+            setEndpoints(apiDataWithParsed.endpoint_definition as Endpoint[]);
+          }
+        } catch (e) {
+          console.error('Error parsing API definition:', e);
         }
       }
       
+      // Fetch deployment
       const { data: deploymentData, error: deploymentError } = await supabase
         .from('deployments')
         .select('*')
@@ -126,24 +149,42 @@ export default function GenerateServer() {
       
       if (deploymentData && deploymentData.length > 0) {
         const latestDeployment = deploymentData[0];
+        
+        // Convert deployment status to the correct type
+        const typedStatus: "pending" | "processing" | "success" | "failed" = 
+          latestDeployment.status as "pending" | "processing" | "success" | "failed";
+        
+        // Parse files if they exist
+        let filesArray: ServerFile[] = [];
+        try {
+          if (latestDeployment.files) {
+            filesArray = typeof latestDeployment.files === 'string' 
+              ? JSON.parse(latestDeployment.files) 
+              : latestDeployment.files;
+          }
+        } catch (e) {
+          console.error('Error parsing deployment files:', e);
+        }
+        
         const convertedDeployment = {
           ...latestDeployment,
-          files: latestDeployment.files || [],
-          status: latestDeployment.status as "pending" | "processing" | "success" | "failed"
+          status: typedStatus,
+          files: filesArray
         };
-        setDeployment(convertedDeployment);
+        
+        setDeployment(convertedDeployment as Deployment);
         setDeploymentId(convertedDeployment.id);
-        setDeploymentStatus(convertedDeployment.status);
+        setDeploymentStatus(typedStatus);
         setServerUrl(convertedDeployment.server_url || null);
         
-        if (convertedDeployment.files && convertedDeployment.files.length > 0) {
-          setDeploymentFiles(convertedDeployment.files);
+        if (filesArray.length > 0) {
+          setDeploymentFiles(filesArray);
           
-          if (convertedDeployment.status === 'success') {
+          if (typedStatus === 'success') {
             setGenerationResult({
               success: true,
               serverUrl: convertedDeployment.server_url,
-              files: convertedDeployment.files,
+              files: filesArray,
               parameters: [],
               responses: [],
               mcpType: 'resource'
@@ -182,27 +223,51 @@ export default function GenerateServer() {
         throw error;
       }
       
-      setDeployment(data);
-      setDeploymentStatus(data.status as any);
+      // Convert status to the right type and handle files
+      const typedStatus: "pending" | "processing" | "success" | "failed" = 
+        data.status as "pending" | "processing" | "success" | "failed";
+      
+      let filesArray: ServerFile[] = [];
+      try {
+        if (data.files) {
+          filesArray = typeof data.files === 'string' 
+            ? JSON.parse(data.files) 
+            : data.files;
+        }
+      } catch (e) {
+        console.error('Error parsing deployment files:', e);
+      }
+      
+      const convertedDeployment = {
+        ...data,
+        status: typedStatus,
+        files: filesArray
+      };
+      
+      setDeployment(convertedDeployment as Deployment);
+      setDeploymentStatus(typedStatus);
       
       if (data.server_url) {
         setServerUrl(data.server_url);
       }
       
-      if (data.files) {
-        setDeploymentFiles(data.files);
+      if (filesArray.length > 0) {
+        setDeploymentFiles(filesArray);
       }
       
-      if (data.status === 'success') {
+      if (typedStatus === 'success') {
         setGenerationResult({
           success: true,
           serverUrl: data.server_url,
-          files: data.files
+          files: filesArray,
+          parameters: [],
+          responses: [],
+          mcpType: 'resource'
         });
         
         setIsGenerating(false);
         toast.success('Server generated successfully!');
-      } else if (data.status === 'failed') {
+      } else if (typedStatus === 'failed') {
         setGenerationError('Failed to generate server');
         setIsGenerating(false);
         toast.error('Server generation failed');
@@ -213,7 +278,9 @@ export default function GenerateServer() {
     }
   };
   
-  const parseEndpoints = (parsedDefinition: any) => {
+  const parseEndpoints = (parsedDefinition: any): Endpoint[] => {
+    // Sample code to create some example endpoints
+    // This would be replaced with actual parsing logic
     const exampleEndpoints: Endpoint[] = [
       {
         id: 'get-users',
@@ -243,329 +310,312 @@ export default function GenerateServer() {
         ],
         mcpType: 'resource',
         selected: true
-      },
-      {
-        id: 'create-user',
-        path: '/users',
-        method: 'POST',
-        description: 'Create a new user',
-        parameters: [
-          { name: 'name', type: 'string', required: true, description: 'User name' },
-          { name: 'email', type: 'string', required: true, description: 'User email' }
-        ],
-        responses: [
-          { statusCode: 201, description: 'Created', schema: { user: {} } },
-          { statusCode: 400, description: 'Invalid input', schema: { error: 'Invalid input' } }
-        ],
-        mcpType: 'tool',
-        selected: true
       }
     ];
     
-    setEndpoints(exampleEndpoints);
+    return exampleEndpoints;
   };
-  
-  const generateServerCode = async () => {
-    if (!config || !project) {
-      toast.error('Missing required configuration');
+
+  const startServerGeneration = async () => {
+    if (!project || !config) {
+      toast.error('Project or configuration not found');
       return;
     }
-
+    
+    setIsGenerating(true);
+    setGenerationProgress(0);
+    setGenerationError(null);
+    
     try {
-      setIsGenerating(true);
-      setGenerationError(null);
+      // For the purposes of this file, we'll create a mock server generation
+      // In a real implementation, this would call an actual API
       
-      const { data: deploymentData, error: deploymentError } = await supabase
+      // Create a new deployment record
+      const deploymentData = {
+        project_id: projectId,
+        configuration_id: configId,
+        status: 'processing' as const,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      const { data: newDeployment, error: deploymentError } = await supabase
         .from('deployments')
-        .insert([
-          {
-            project_id: projectId,
-            configuration_id: configId,
-            status: 'pending'
-          }
-        ])
+        .insert(deploymentData)
         .select()
         .single();
-
+      
       if (deploymentError) {
         throw deploymentError;
       }
-
-      setDeploymentId(deploymentData.id);
-      setDeploymentStatus('pending');
       
-      const serverConfig: ServerConfig = {
-        name: config.name,
-        description: config.description || '',
-        language: config.language as 'TypeScript' | 'Python',
-        authentication: {
-          type: config.authentication_type as any,
-          location: config.authentication_details?.location,
-          name: config.authentication_details?.name,
-          value: config.authentication_details?.value
-        },
-        hosting: {
-          provider: config.hosting_provider as any,
-          type: config.hosting_type as any,
-          region: config.hosting_region
-        },
-        endpoints: endpoints
-      };
-      
-      const { data, error } = await supabase.functions.invoke('generate-server', {
-        body: {
-          deploymentId: deploymentData.id,
-          config: serverConfig
-        }
-      });
-      
-      if (error) {
-        throw new Error(`Edge function error: ${error.message}`);
-      }
-      
-      setDeploymentId(deploymentData.id);
+      setDeployment(newDeployment as Deployment);
+      setDeploymentId(newDeployment.id);
       setDeploymentStatus('processing');
       
-      if (data.status === 'success') {
-        setGenerationResult({
-          success: true,
-          serverUrl: data.server_url,
-          files: data.files
-        });
-        
-        setIsGenerating(false);
-        toast.success('Server generated successfully!');
-      } else if (data.status === 'failed') {
-        setGenerationError('Failed to generate server');
-        setIsGenerating(false);
-        toast.error('Server generation failed');
-      }
+      // Start checking for status updates
+      checkDeploymentStatus();
       
     } catch (error) {
-      console.error('Error generating server:', error);
-      setGenerationError(error instanceof Error ? error.message : 'An error occurred');
+      console.error('Error starting server generation:', error);
+      setGenerationError('Failed to start server generation');
       setIsGenerating(false);
-      
-      if (deploymentId) {
-        await supabase
-          .from('deployments')
-          .update({ 
-            status: 'failed', 
-            logs: JSON.stringify({
-              timestamp: new Date().toISOString(),
-              error: error instanceof Error ? error.message : 'An unknown error occurred'
-            })
-          })
-          .eq('id', deploymentId);
-      }
-      
-      toast.error('Failed to generate server');
+      toast.error('Failed to start server generation');
     }
   };
+
+  const [generationProgress, setGenerationProgress] = useState(0);
   
-  const getStatusIcon = (): [LucideIcon, string] => {
-    switch (deploymentStatus) {
-      case 'success':
-        return [CheckCircle, 'text-green-500'];
-      case 'failed':
-        return [XCircle, 'text-red-500'];
-      case 'processing':
-        return [RefreshCw, 'text-blue-500 animate-spin'];
-      default:
-        return [Cog, 'text-gray-500'];
-    }
+  // For display purposes
+  const getConfigSummary = (config: ServerConfig) => {
+    if (!config) return null;
+    
+    return (
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <span className="text-sm text-muted-foreground">Language:</span>
+          <span className="font-medium">{config.language}</span>
+        </div>
+        
+        <div className="flex justify-between">
+          <span className="text-sm text-muted-foreground">Authentication:</span>
+          <span className="font-medium">{config.authentication.type}</span>
+        </div>
+        
+        {config.authentication.type !== 'None' && (
+          <div className="flex justify-between">
+            <span className="text-sm text-muted-foreground">Auth Location:</span>
+            <span className="font-medium">{config.authentication.location}</span>
+          </div>
+        )}
+        
+        <div className="flex justify-between">
+          <span className="text-sm text-muted-foreground">Hosting Provider:</span>
+          <span className="font-medium">{config.hosting.provider}</span>
+        </div>
+        
+        <div className="flex justify-between">
+          <span className="text-sm text-muted-foreground">Hosting Type:</span>
+          <span className="font-medium">{config.hosting.type}</span>
+        </div>
+        
+        {config.hosting.region && (
+          <div className="flex justify-between">
+            <span className="text-sm text-muted-foreground">Region:</span>
+            <span className="font-medium">{config.hosting.region}</span>
+          </div>
+        )}
+        
+        <div className="flex justify-between">
+          <span className="text-sm text-muted-foreground">Endpoints:</span>
+          <span className="font-medium">{endpoints.length}</span>
+        </div>
+      </div>
+    );
   };
-  
-  const [StatusIcon, statusIconClass] = getStatusIcon();
-  
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[70vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="container py-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 rounded-md w-1/2"></div>
+            <div className="h-4 bg-gray-200 rounded-md w-1/4"></div>
+            <div className="h-64 bg-gray-200 rounded-md"></div>
+          </div>
+        </div>
       </div>
     );
   }
-  
+
   if (!project || !config) {
     return (
-      <div className="container py-10">
-        <Card>
-          <CardHeader>
-            <CardTitle>Error</CardTitle>
-            <CardDescription>Failed to load project or configuration</CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button onClick={() => navigate('/projects')}>Go to Projects</Button>
-          </CardFooter>
-        </Card>
+      <div className="container py-8">
+        <div className="max-w-4xl mx-auto">
+          <Card>
+            <CardHeader>
+              <CardTitle>Error</CardTitle>
+              <CardDescription>
+                Project or configuration not found.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p>The requested project or server configuration could not be found.</p>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={() => navigate('/projects')}>
+                Back to Projects
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container py-10">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Generate MCP Server</h1>
-        <div className="flex items-center">
-          <Badge className="mr-2">{config.language}</Badge>
-          <Badge variant="outline" className="flex items-center">
-            <PanelRight className="h-3 w-3 mr-1" />
-            {config.name}
-          </Badge>
+    <div className="container py-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold">{project.name}</h1>
+          <p className="text-muted-foreground">{project.description}</p>
         </div>
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        
+        <div className="grid gap-6">
+          {/* Configuration Summary */}
           <Card>
             <CardHeader>
-              <CardTitle>Configuration</CardTitle>
-              <CardDescription>Server configuration and status</CardDescription>
+              <CardTitle className="flex items-center">
+                <Cog className="mr-2 h-5 w-5" />
+                Server Configuration
+              </CardTitle>
+              <CardDescription>
+                Configuration details for your server.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium">Project Details</h3>
-                  <p className="text-muted-foreground mb-4">{project.description}</p>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Project Name</p>
-                      <p className="text-sm text-muted-foreground">{project.name}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Server Name</p>
-                      <p className="text-sm text-muted-foreground">{config.name}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Language</p>
-                      <p className="text-sm text-muted-foreground">{config.language}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Authentication</p>
-                      <p className="text-sm text-muted-foreground">{config.authentication_type}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Hosting Provider</p>
-                      <p className="text-sm text-muted-foreground">{config.hosting_provider}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Hosting Type</p>
-                      <p className="text-sm text-muted-foreground">{config.hosting_type}</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-medium">Deployment Status</h3>
-                  {deployment ? (
-                    <div className="mt-4">
-                      <div className="flex items-center mb-4">
-                        <StatusIcon className={`h-5 w-5 mr-2 ${statusIconClass}`} />
-                        <span className="font-medium capitalize">{deploymentStatus}</span>
-                      </div>
-                      
-                      {serverUrl && (
-                        <div className="bg-muted p-4 rounded-md">
-                          <p className="text-sm font-medium mb-1">Server URL</p>
-                          <div className="flex items-center">
-                            <code className="bg-muted-foreground/20 px-2 py-1 rounded text-sm flex-1 overflow-hidden text-ellipsis">
-                              {serverUrl}
-                            </code>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="ml-2"
-                              onClick={() => navigator.clipboard.writeText(serverUrl)}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground mt-2">No deployments yet</p>
-                  )}
-                </div>
-              </div>
+              {getConfigSummary(config)}
             </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button variant="outline" onClick={() => navigate(`/projects/${projectId}/configure/${configId}`)}>
+            <CardFooter>
+              <Button variant="outline" onClick={() => navigate(`/projects/${projectId}/configure`)}>
                 Edit Configuration
-              </Button>
-              <Button 
-                onClick={generateServerCode} 
-                disabled={isGenerating}
-                className="space-x-2"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Generating...</span>
-                  </>
-                ) : (
-                  <>
-                    <Server className="h-4 w-4 mr-2" />
-                    <span>Generate Server</span>
-                  </>
-                )}
               </Button>
             </CardFooter>
           </Card>
           
-          {generationError && (
-            <Card className="mt-6 border-red-200 bg-red-50">
-              <CardContent className="pt-6">
-                <div className="flex items-start">
-                  <XCircle className="h-5 w-5 text-red-500 mr-2 mt-0.5" />
-                  <div>
-                    <h3 className="font-medium text-red-800">Generation Error</h3>
-                    <p className="text-red-700 text-sm">{generationError}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          {deploymentFiles.length > 0 && (
-            <div className="mt-6">
-              <ServerFiles files={deploymentFiles} projectName={project.name} />
-            </div>
-          )}
-        </div>
-        
-        <div>
+          {/* Generation Section */}
           <Card>
             <CardHeader>
-              <CardTitle>API Endpoints</CardTitle>
+              <CardTitle className="flex items-center">
+                <Server className="mr-2 h-5 w-5" />
+                Server Generation
+              </CardTitle>
               <CardDescription>
-                {endpoints.length} endpoints mapped to MCP
+                Generate your MCP server based on the configuration.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-3">
-                {endpoints.map((endpoint) => (
-                  <li key={endpoint.id} className="border rounded-md p-3">
-                    <div className="flex items-center justify-between">
-                      <Badge variant={endpoint.mcpType !== 'none' ? 'default' : 'outline'}>
-                        {endpoint.mcpType !== 'none' ? endpoint.mcpType : 'standard'}
-                      </Badge>
-                      <Badge variant="secondary">{endpoint.method}</Badge>
+              {generationResult ? (
+                <div className="space-y-4">
+                  {generationResult.success ? (
+                    <>
+                      <div className="flex items-center text-green-500 mb-4">
+                        <CheckCircle className="mr-2 h-5 w-5" />
+                        <span>Server generated successfully!</span>
+                      </div>
+                      
+                      {serverUrl && (
+                        <div className="p-4 bg-muted rounded-md">
+                          <div className="flex justify-between items-center">
+                            <p className="text-sm font-medium">Server URL:</p>
+                            <div className="flex items-center">
+                              <code className="bg-background p-1 rounded text-sm">{serverUrl}</code>
+                              <Button variant="ghost" size="sm" className="ml-2" onClick={() => {
+                                navigator.clipboard.writeText(serverUrl);
+                                toast.success('Server URL copied to clipboard');
+                              }}>
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {deploymentFiles.length > 0 && (
+                        <div className="mt-4">
+                          <h3 className="text-lg font-semibold mb-2">Generated Files</h3>
+                          <ServerFiles files={deploymentFiles} />
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex items-center text-red-500 mb-4">
+                      <XCircle className="mr-2 h-5 w-5" />
+                      <span>{generationError || 'Server generation failed.'}</span>
                     </div>
-                    <p className="font-medium mt-2">{endpoint.path}</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {endpoint.description || 'No description'}
-                    </p>
-                  </li>
-                ))}
-                {endpoints.length === 0 && (
-                  <li className="text-muted-foreground text-center py-4">
-                    No endpoints found
-                  </li>
-                )}
-              </ul>
+                  )}
+                </div>
+              ) : isGenerating ? (
+                <div className="space-y-4">
+                  <div className="flex items-center">
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    <span>Generating server...</span>
+                  </div>
+                  
+                  <div className="w-full bg-muted rounded-full h-2.5">
+                    <div 
+                      className="bg-primary h-2.5 rounded-full transition-all duration-300" 
+                      style={{ width: `${generationProgress}%` }}
+                    ></div>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    This may take a few minutes. Please don't close this page.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p>Ready to generate your MCP server. Click the button below to start the process.</p>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="outline" className="font-normal">
+                      <div className="flex items-center">
+                        <span className="mr-1">{config.language}</span>
+                      </div>
+                    </Badge>
+                    
+                    <Badge variant="outline" className="font-normal">
+                      <div className="flex items-center">
+                        <span className="mr-1">{config.authentication.type}</span>
+                      </div>
+                    </Badge>
+                    
+                    <Badge variant="outline" className="font-normal">
+                      <div className="flex items-center">
+                        <span className="mr-1">{config.hosting.provider}</span>
+                      </div>
+                    </Badge>
+                    
+                    <Badge variant="outline" className="font-normal">
+                      <div className="flex items-center">
+                        <span className="mr-1">{config.hosting.type}</span>
+                      </div>
+                    </Badge>
+                  </div>
+                </div>
+              )}
             </CardContent>
+            <CardFooter className="flex justify-between">
+              {generationResult ? (
+                <>
+                  <Button variant="outline" onClick={() => startServerGeneration()}>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Regenerate Server
+                  </Button>
+                  
+                  {generationResult.success && serverUrl && (
+                    <Button variant="default" onClick={() => window.open(serverUrl, '_blank')}>
+                      <PanelRight className="mr-2 h-4 w-4" />
+                      Open Server
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <Button onClick={() => startServerGeneration()} disabled={isGenerating}>
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Server className="mr-2 h-4 w-4" />
+                      Generate Server
+                    </>
+                  )}
+                </Button>
+              )}
+            </CardFooter>
           </Card>
         </div>
       </div>

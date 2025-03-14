@@ -1,3 +1,6 @@
+
+import { Json } from './json';
+
 declare global {
   interface Window {
     webkitSpeechRecognition: any;
@@ -42,7 +45,7 @@ export interface EndpointDefinition {
   responses: Response[];
   selected?: boolean;
   mcpType?: "resource" | "tool" | "none";
-  summary?: string; // Added optional properties that were causing errors
+  summary?: string; // Added optional properties
   operationId?: string;
   requestBody?: any;
   security?: any;
@@ -96,7 +99,7 @@ export interface Endpoint {
   responses: Response[];
   selected?: boolean;
   mcpType?: "resource" | "tool" | "none";
-  summary?: string; // Added optional properties that were causing errors
+  summary?: string;
   operationId?: string;
   requestBody?: any;
   security?: any;
@@ -131,9 +134,9 @@ export interface ServerConfig {
   authentication: AuthConfig;
   hosting: HostingConfig;
   endpoints: Endpoint[];
-  authSecret?: string; // Added for compatibility with server templates
-  database?: string; // Added for compatibility with server templates
-  framework?: string; // Added for compatibility
+  authSecret?: string; 
+  database?: string;
+  framework?: string;
 }
 
 export interface GenerationResult {
@@ -152,14 +155,14 @@ export interface ServerFile {
   path: string;
   content: string;
   type: "code" | "config" | "documentation";
-  language?: string; // Added for compatibility with server templates
+  language?: string;
 }
 
 export interface User {
   id: string;
   email: string;
   username?: string;
-  user_metadata?: { // Added for compatibility with Supabase
+  user_metadata?: {
     username?: string;
   };
 }
@@ -181,7 +184,8 @@ export interface ApiDefinitionRecord {
   content: string;
   created_at: string;
   updated_at: string;
-  endpoint_definition?: any; // Updated to allow any type for compatibility with Json
+  endpoint_definition?: Json;
+  endpoints?: EndpointDefinition[];
 }
 
 export interface ServerConfiguration {
@@ -208,7 +212,7 @@ export interface Deployment {
   logs?: string;
   created_at: string;
   updated_at: string;
-  files?: ServerFile[]; // Added for compatibility
+  files?: ServerFile[];
 }
 
 // Archive format for downloading files
@@ -244,3 +248,6 @@ export interface MCPServer {
   tags: string[];
   updatedAt: string;
 }
+
+// Re-export from server.ts for backward compatibility
+export { ServerConfigRecord } from './serverTypes';

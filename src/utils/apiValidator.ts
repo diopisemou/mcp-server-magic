@@ -1,4 +1,3 @@
-
 import yaml from 'js-yaml';
 import { supabase } from '../integrations/supabase/client';
 import type { ApiDefinition, EndpointDefinition, Endpoint, ValidationResult } from '../types';
@@ -60,9 +59,21 @@ export function parseContent(content: string | Uint8Array | object, contentType:
   }
 }
 
+// Function to convert an object to string if needed
+const contentToString = (content: string | object | Uint8Array): string => {
+  if (typeof content === 'string') {
+    return content;
+  } else if (content instanceof Uint8Array) {
+    return new TextDecoder().decode(content);
+  } else if (typeof content === 'object') {
+    return JSON.stringify(content);
+  }
+  return String(content);
+};
+
 // API Definition Validation
-export function validateApiDefinition(content: string | Uint8Array | object, filename?: string): ValidationResult {
-  const contentType = detectContentType(content, filename);
+export const validateApiDefinition = async (content: string | object | Uint8Array, fileName?: string): Promise<ValidationResult> => {
+  const contentType = detectContentType(content, fileName);
   const parsedContent = parseContent(content, contentType);
   const endpoints: EndpointDefinition[] = [];
 
@@ -73,7 +84,7 @@ export function validateApiDefinition(content: string | Uint8Array | object, fil
         isValid: true, 
         format: 'OpenAPI2', 
         parsedDefinition: parsedContent,
-        endpoints: extractEndpointsFromDefinition(content, filename)
+        endpoints: extractEndpointsFromDefinition(content, fileName)
       };
     }
     if (parsedContent.openapi && parsedContent.openapi.startsWith('3.')) {
@@ -81,7 +92,7 @@ export function validateApiDefinition(content: string | Uint8Array | object, fil
         isValid: true, 
         format: 'OpenAPI3', 
         parsedDefinition: parsedContent,
-        endpoints: extractEndpointsFromDefinition(content, filename)
+        endpoints: extractEndpointsFromDefinition(content, fileName)
       };
     }
     if (parsedContent.raml_version || String(content).startsWith('#%RAML')) {
@@ -89,7 +100,7 @@ export function validateApiDefinition(content: string | Uint8Array | object, fil
         isValid: true, 
         format: 'RAML', 
         parsedDefinition: parsedContent,
-        endpoints: extractEndpointsFromDefinition(content, filename)
+        endpoints: extractEndpointsFromDefinition(content, fileName)
       };
     }
   }
@@ -99,7 +110,7 @@ export function validateApiDefinition(content: string | Uint8Array | object, fil
       isValid: true, 
       format: 'APIBlueprint', 
       parsedDefinition: parsedContent,
-      endpoints: extractEndpointsFromDefinition(content, filename)
+      endpoints: extractEndpointsFromDefinition(content, fileName)
     };
   }
 
@@ -317,12 +328,12 @@ export function extractSwaggerUrl(htmlContent: string, baseUrl: string): string 
 }
 
 // Fix missing 'schema' property in Response objects
-export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoint[] => {
-  const endpoints: Endpoint[] = [];
+export const extractEndpoints = (apiSpec: any): EndpointDefinition[] => {
+  const endpoints: EndpointDefinition[] = [];
   
   try {
-    if (format === 'OpenAPI2' || format === 'OpenAPI3') {
-      const paths = apiDefinition.paths || {};
+    if (apiSpec.openapi && apiSpec.openapi.startsWith('3.')) {
+      const paths = apiSpec.paths || {};
       
       Object.keys(paths).forEach(path => {
         const pathObj = paths[path];
@@ -343,10 +354,10 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
             }));
             
             // Extract responses
-            const responses = Object.keys(operation.responses || {}).map(statusCode => ({
-              statusCode: parseInt(statusCode, 10) || statusCode,
-              description: operation.responses[statusCode].description || '',
-              schema: operation.responses[statusCode].schema || operation.responses[statusCode].content || null
+            const responsesList = Object.entries(operation.responses || {}).map(([statusCode, response]) => ({
+              statusCode,
+              description: response.description || '',
+              schema: response.schema || {} // Ensure schema is always present with at least an empty object
             }));
             
             endpoints.push({
@@ -355,65 +366,11 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
               method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
               description: operation.summary || operation.description || '',
               parameters,
-              responses
+              responses: responsesList
             });
           }
         });
       });
-    } else if (format === 'RAML') {
-      if (apiDefinition.resources) {
-        apiDefinition.resources.forEach(resource => {
-          const basePath = resource.relativeUri || '';
-          
-          (resource.methods || []).forEach(method => {
-            endpoints.push({
-              id: `${method.method}-${basePath}`.replace(/[^a-zA-Z0-9]/g, '-'),
-              path: basePath,
-              method: method.method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
-              description: method.description || '',
-              parameters: (method.queryParameters || []).map(param => ({
-                name: param.name,
-                type: param.type || 'string',
-                required: !!param.required,
-                description: param.description || ''
-              })),
-              responses: Object.keys(method.responses || {}).map(statusCode => ({
-                statusCode: parseInt(statusCode, 10) || statusCode,
-                description: method.responses[statusCode].description || '',
-                schema: null 
-              }))
-            });
-          });
-        });
-      }
-    } else if (format === 'APIBlueprint') {
-      if (apiDefinition.ast && apiDefinition.ast.resourceGroups) {
-        apiDefinition.ast.resourceGroups.forEach(group => {
-          (group.resources || []).forEach(resource => {
-            (resource.actions || []).forEach(action => {
-              endpoints.push({
-                id: `${action.method}-${resource.uriTemplate}`.replace(/[^a-zA-Z0-9]/g, '-'),
-                path: resource.uriTemplate || '',
-                method: action.method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
-                description: action.description || resource.description || '',
-                parameters: (action.parameters || []).map(param => ({
-                  name: param.name,
-                  type: 'string',
-                  required: !!param.required,
-                  description: param.description || ''
-                })),
-                responses: (action.examples || []).flatMap(example => 
-                  (example.responses || []).map(response => ({
-                    statusCode: response.status || 200,
-                    description: response.description || '',
-                    schema: response.body || null 
-                  }))
-                )
-              });
-            });
-          });
-        });
-      }
     }
   } catch (error) {
     console.error('Error extracting endpoints:', error);
