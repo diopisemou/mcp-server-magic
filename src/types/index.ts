@@ -41,6 +41,11 @@ export interface EndpointDefinition {
   responses: Response[];
   selected?: boolean;
   mcpType?: "resource" | "tool" | "none";
+  summary?: string; // Added optional properties that were causing errors
+  operationId?: string;
+  requestBody?: any;
+  security?: any;
+  tags?: string[];
 }
 
 export interface Parameter {
@@ -101,6 +106,11 @@ export interface EndpointDefinition {
   responses: Response[];
   selected?: boolean;
   mcpType?: "resource" | "tool" | "none";
+  summary?: string; // Added optional properties that were causing errors
+  operationId?: string;
+  requestBody?: any;
+  security?: any;
+  tags?: string[];
 }
 
 export interface ServerConfig {
@@ -110,9 +120,18 @@ export interface ServerConfig {
   authentication: AuthConfig;
   hosting: HostingConfig;
   endpoints: Endpoint[];
+  authSecret?: string; // Added for compatibility with server templates
+  database?: string; // Added for compatibility with server templates
+  framework?: string; // Added for compatibility
 }
 
+
 export interface GenerationResult {
+  summary?: string; // Added optional properties that were causing errors
+  operationId?: string;
+  requestBody?: any;
+  security?: any;
+  tags?: string[];
   success: boolean;
   serverUrl?: string;
   error?: string;
@@ -135,8 +154,8 @@ export interface AuthConfig {
 }
 
 // Hosting types
-export type HostingProvider = "AWS" | "GCP" | "Azure" | "Self-hosted";
-export type HostingType = "Serverless" | "Container" | "VM";
+export type HostingProvider = "AWS" | "GCP" | "Azure" | "Self-hosted" | "Supabase";
+export type HostingType = "Serverless" | "Container" | "VM" | "Shared" | "Dedicated";
 
 export interface HostingConfig {
   provider: HostingProvider;
@@ -149,12 +168,17 @@ export interface ServerFile {
   path: string;
   content: string;
   type: "code" | "config" | "documentation";
+   language?: string; // Added for compatibility with server templates
+  }
 }
 
 export interface User {
   id: string;
   email: string;
   username?: string;
+  user_metadata?: { // Added for compatibility with Supabase
+    username?: string;
+  };
 }
 
 export interface McpProject {
@@ -174,6 +198,7 @@ export interface ApiDefinitionRecord {
   content: string;
   created_at: string;
   updated_at: string;
+  endpoint_definition?: any; // Updated to allow any type for compatibility with Json
 }
 
 export interface ServerConfigRecord {
@@ -200,6 +225,7 @@ export interface Deployment {
   logs?: string;
   created_at: string;
   updated_at: string;
+  files?: ServerFile[]; // Added for compatibility
 }
 
 // Archive format for downloading files
@@ -211,10 +237,10 @@ export interface ArchiveFile {
 
 // Zip package format
 export interface ZipPackage {
-  name: string;
   files: ArchiveFile[];
   fileName: string;
   blob: Blob;
+  name?: string; // Added for compatibility
 }
 
 export interface MCPCapability {

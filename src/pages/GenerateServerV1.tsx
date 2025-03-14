@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
   Card,
   CardContent,
@@ -10,6 +9,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { toast } from "sonner";
+import { useNavigate, useParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LogViewer } from "@/components/LogViewer";
+import {
+  CheckCircle,
+  Cog,
+  Download,
+  ExternalLink,
+  Loader2,
+  LucideIcon,
+  PanelRight,
+  RefreshCw,
+  Server,
+  XCircle,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
   ApiDefinition,
   Deployment,
@@ -20,27 +37,24 @@ import {
   ServerConfiguration,
   ServerFile,
 } from "@/types";
-import { toast } from "sonner";
-import {
-  CheckCircle,
-  Cog,
-  Download,
-  Loader2,
-  LucideIcon,
-  PanelRight,
-  RefreshCw,
-  Server,
-  XCircle,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { generateServer } from "@/utils/serverGenerator";
+import { generateServer } from "@/utils/serverGeneratorv1";
 import ServerFiles from "@/components/ServerFiles";
+import ServerPreview from "@/components/ServerPreview";
+import { ServerGenerationSection } from "@/components/ServerGenerationSection";
 
-export default function GenerateServerV1() {
+export const GenerateServerV1 = () => {
   const { projectId, configId } = useParams<
     { projectId: string; configId: string }
   >();
   const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(false);
+  const [logs, setLogs] = useState<{ type: string; message: string }[]>([]);
+  const [activeTab, setActiveTab] = useState("config");
+
+  const [serverConfig, setServerConfig] = useState<ServerConfig | null>(null);
+  const [serverFiles, setServerFiles] = useState<ServerFile[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const [project, setProject] = useState<Project | null>(null);
   const [config, setConfig] = useState<ServerConfiguration | null>(null);
@@ -63,10 +77,8 @@ export default function GenerateServerV1() {
   const [deploymentFiles, setDeploymentFiles] = useState<ServerFile[]>([]);
 
   useEffect(() => {
-    if (projectId && configId) {
-      fetchData();
-    }
-  }, [projectId, configId]);
+    fetchProject();
+  }, [projectId]);
 
   // Poll for deployment status updates
   useEffect(() => {
@@ -87,106 +99,6 @@ export default function GenerateServerV1() {
       }
     };
   }, [deploymentId, deploymentStatus]);
-
-  const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      // Fetch project
-      const { data: projectData, error: projectError } = await supabase
-        .from("mcp_projects")
-        .select("*")
-        .eq("id", projectId)
-        .single();
-
-      if (projectError) {
-        throw projectError;
-      }
-
-      setProject(projectData);
-
-      // Fetch server configuration
-      const { data: configData, error: configError } = await supabase
-        .from("server_configurations")
-        .select("*")
-        .eq("id", configId)
-        .single();
-
-      if (configError) {
-        throw configError;
-      }
-
-      setConfig(configData);
-
-      // Fetch API definition for the project
-      const { data: apiData, error: apiError } = await supabase
-        .from("api_definitions")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      if (apiError) {
-        if (apiError.code !== "PGRST116") { // No rows returned
-          throw apiError;
-        }
-      } else {
-        setApiDefinition(apiData);
-
-        if (apiData.parsedDefinition) {
-          // If parsed definition exists in the database, use it
-          parseEndpoints(apiData.parsedDefinition);
-        } else if (apiData.content) {
-          // Try to parse the content
-          try {
-            const contentObj = JSON.parse(apiData.content);
-            if (contentObj.parsedDefinition) {
-              parseEndpoints(contentObj.parsedDefinition);
-            }
-          } catch (error) {
-            console.error("Error parsing API definition content:", error);
-          }
-        }
-      }
-
-      // Check if there's an existing deployment for this configuration
-      const { data: deploymentData, error: deploymentError } = await supabase
-        .from("deployments")
-        .select("*")
-        .eq("configuration_id", configId)
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      if (deploymentError) {
-        throw deploymentError;
-      }
-
-      if (deploymentData && deploymentData.length > 0) {
-        const latestDeployment = deploymentData[0];
-        setDeployment(latestDeployment);
-        setDeploymentId(latestDeployment.id);
-        setDeploymentStatus(latestDeployment.status as any);
-        setServerUrl(latestDeployment.server_url || null);
-
-        if (latestDeployment.files) {
-          setDeploymentFiles(latestDeployment.files);
-
-          if (latestDeployment.status === "success") {
-            setGenerationResult({
-              success: true,
-              serverUrl: latestDeployment.server_url,
-              files: latestDeployment.files,
-            });
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to load data");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const checkDeploymentStatus = async () => {
     if (!deploymentId) return;
@@ -232,178 +144,332 @@ export default function GenerateServerV1() {
     }
   };
 
-  const parseEndpoints = (parsedDefinition: any) => {
-    // This would be replaced with actual logic to extract endpoints from parsed definition
-    // For now, let's assume we have some example endpoints
-    const exampleEndpoints: Endpoint[] = [
-      {
-        id: "get-users",
-        path: "/users",
-        method: "GET",
-        description: "Get all users",
-        parameters: [
-          {
-            name: "limit",
-            type: "number",
-            required: false,
-            description: "Number of users to return",
-          },
-        ],
-        responses: [
-          { statusCode: 200, description: "Success", schema: { users: [] } },
-        ],
-        mcpType: "resource",
-        selected: true,
-      },
-      {
-        id: "get-user",
-        path: "/users/{id}",
-        method: "GET",
-        description: "Get a user by ID",
-        parameters: [
-          {
-            name: "id",
-            type: "string",
-            required: true,
-            description: "User ID",
-          },
-        ],
-        responses: [
-          { statusCode: 200, description: "Success", schema: { user: {} } },
-          {
-            statusCode: 404,
-            description: "User not found",
-            schema: { error: "User not found" },
-          },
-        ],
-        mcpType: "resource",
-        selected: true,
-      },
-      {
-        id: "create-user",
-        path: "/users",
-        method: "POST",
-        description: "Create a new user",
-        parameters: [
-          {
-            name: "name",
-            type: "string",
-            required: true,
-            description: "User name",
-          },
-          {
-            name: "email",
-            type: "string",
-            required: true,
-            description: "User email",
-          },
-        ],
-        responses: [
-          { statusCode: 201, description: "Created", schema: { user: {} } },
-          {
-            statusCode: 400,
-            description: "Invalid input",
-            schema: { error: "Invalid input" },
-          },
-        ],
-        mcpType: "tool",
-        selected: true,
-      },
-    ];
+  const fetchProject = async () => {
+    try {
+      if (!projectId) return;
 
-    setEndpoints(exampleEndpoints);
+      const { data, error } = await supabase
+        .from("mcp_projects")
+        .select("*")
+        .eq("id", projectId)
+        .single();
+
+      if (error) throw error;
+      setProject(data);
+
+      const { dataApiDef, errorDataApiDef } = await supabase
+        .from("api_definitions")
+        .select("*")
+        .eq("project_id", data.id)
+        .single();
+
+      // Fetch API definition from storage
+      if (data.endpoint_definition) {
+        await fetchApiDefinition(data.api_definition_id);
+      }
+
+      // Fetch server config
+      if (data.server_config_id) {
+        await fetchServerConfig(data.server_config_id);
+      }
+
+      // Set server URL if available
+      if (data.deployment_url) {
+        setServerUrl(data.deployment_url);
+      }
+    } catch (error: any) {
+      toast.error("Error fetching project: " + error.message);
+    }
   };
 
-  const generateServerCode = async () => {
-    if (!config || !project) {
-      toast.error("Missing required configuration");
+  const fetchApiDefinition = async (apiDefinitionId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("api_definitions")
+        .select("*")
+        .eq("id", apiDefinitionId)
+        .single();
+
+      if (error) throw error;
+
+      // Fetch the actual API definition from storage
+      const { data: fileData, error: fileError } = await supabase.storage
+        .from("api-definitions")
+        .download(`${apiDefinitionId}`);
+
+      if (fileError) throw fileError;
+
+      const definition = await fileData.text();
+      const apiDef = {
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        format: data.format,
+        definition: definition,
+      };
+
+      setApiDefinition(apiDef);
+
+      // Extract endpoints from the API definition
+      if (definition) {
+        try {
+          const extractedEndpoints = await extractEndpoints(
+            definition,
+            data.format,
+          );
+          console.log("Extracted endpoints:", extractedEndpoints);
+          setEndpoints(extractedEndpoints);
+
+          // Also update the server config with these endpoints
+          setServerConfig((prev) =>
+            prev
+              ? {
+                ...prev,
+                endpoints: extractedEndpoints,
+              }
+              : null
+          );
+
+          // Fetch saved endpoints from the database as well
+          const { data: endpointData, error: endpointError } = await supabase
+            .from("endpoints")
+            .select("*")
+            .eq("api_definition_id", apiDefinitionId);
+
+          if (!endpointError && endpointData && endpointData.length > 0) {
+            console.log("Found saved endpoints:", endpointData);
+            // If we have saved endpoints, use those instead
+            setEndpoints(endpointData);
+          }
+        } catch (extractError) {
+          console.error("Error extracting endpoints:", extractError);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching API definition:", err);
+    }
+  };
+
+  const fetchServerConfig = async (configId: string) => {
+    try {
+      const { data, error } = await supabase
+        .storage
+        .from("server_configs")
+        .download(`${projectId}/${configId}.json`);
+
+      if (error) throw error;
+
+      const config = JSON.parse(await data.text()) as ServerConfig;
+      setServerConfig(config);
+    } catch (error: any) {
+      toast.error("Error fetching server configuration: " + error.message);
+    }
+  };
+
+  const extractEndpointsFromDefinition = (
+    parsedDefinition: any,
+  ): Endpoint[] => {
+    // This is a placeholder function - implement actual extraction logic based on your API format
+    const extractedEndpoints: Endpoint[] = [];
+
+    try {
+      // Example for OpenAPI format
+      if (parsedDefinition.paths) {
+        Object.entries(parsedDefinition.paths).forEach(
+          ([path, pathItem]: [string, any]) => {
+            Object.entries(pathItem).forEach(
+              ([method, operation]: [string, any]) => {
+                const endpoint: Endpoint = {
+                  path,
+                  method: method.toUpperCase() as any,
+                  description: operation.summary || operation.description || "",
+                  parameters: [],
+                  responses: [],
+                  mcpType: "none",
+                };
+
+                // Extract parameters
+                if (operation.parameters) {
+                  endpoint.parameters = operation.parameters.map((
+                    param: any,
+                  ) => ({
+                    name: param.name,
+                    type: param.schema?.type || "string",
+                    required: param.required || false,
+                    description: param.description || "",
+                  }));
+                }
+
+                // Extract responses
+                if (operation.responses) {
+                  endpoint.responses = Object.entries(operation.responses).map((
+                    [statusCode, response]: [string, any],
+                  ) => ({
+                    statusCode: parseInt(statusCode),
+                    description: response.description || "",
+                    schema: response.schema || response.content,
+                  }));
+                }
+
+                extractedEndpoints.push(endpoint);
+              },
+            );
+          },
+        );
+      }
+    } catch (error) {
+      console.error("Error extracting endpoints:", error);
+    }
+
+    return extractedEndpoints;
+  };
+
+  const handleGenerateServer = async () => {
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      if (!apiDefinition) {
+        throw new Error(
+          "API definition is missing. Please import an API definition first.",
+        );
+      }
+
+      if (!endpoints || endpoints.length === 0) {
+        throw new Error(
+          "No endpoints configured. Please configure endpoints first.",
+        );
+      }
+
+      if (!serverConfig) {
+        throw new Error(
+          "Server configuration is missing. Please configure your server first.",
+        );
+      }
+
+      // Generate server code
+      const result = await generateServer(serverConfig, endpoints);
+      setServerFiles(result.files);
+      setServerUrl(result.deploymentUrl || "https://example.com/api");
+
+      // Show success toast
+      toast.success("Server generated successfully");
+    } catch (err: any) {
+      console.error("Error generating server:", err);
+      setError(`Error generating server:\n\n${err.message}`);
+      toast.error("Failed to generate server");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const saveGeneratedCode = async (codeContent: string) => {
+    try {
+      const timestamp = new Date().toISOString();
+      const fileName = `server_${timestamp}.txt`;
+
+      const { error } = await supabase
+        .storage
+        .from("generated_code")
+        .upload(
+          `${projectId}/${fileName}`,
+          new Blob([codeContent], { type: "text/plain" }),
+        );
+
+      if (error) throw error;
+
+      // Update project record with reference to the code file
+      await supabase
+        .from("mcp_projects")
+        .update({
+          generated_code_file: fileName,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", projectId);
+    } catch (error: any) {
+      console.error("Error saving generated code:", error);
+    }
+  };
+
+  const updateProjectServerUrl = async (url: string) => {
+    try {
+      const { error } = await supabase
+        .from("mcp_projects")
+        .update({
+          deployment_url: url,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", projectId);
+
+      if (error) throw error;
+    } catch (error: any) {
+      console.error("Error updating project server URL:", error);
+    }
+  };
+
+  const handleDownloadCode = () => {
+    if (serverFiles.length === 0) {
+      toast.error("No code generated to download");
       return;
     }
 
+    // Create a zip file with all generated files
+    import("jszip").then(({ default: JSZip }) => {
+      const zip = new JSZip();
+
+      serverFiles.forEach((file) => {
+        // Create directory structure if needed
+        const filePath = file.path === "/"
+          ? file.name
+          : `${file.path}${file.name}`;
+        zip.file(filePath, file.content);
+      });
+
+      zip.generateAsync({ type: "blob" }).then((content) => {
+        const element = document.createElement("a");
+        element.href = URL.createObjectURL(content);
+        element.download = `mcp-server-${projectId}.zip`;
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+      });
+    }).catch((error) => {
+      console.error("Error creating zip file:", error);
+      toast.error("Error creating zip file");
+    });
+  };
+
+  const handleTestServer = async () => {
+    if (!serverUrl) {
+      toast.error("No server available to test");
+      return;
+    }
+
+    setLogs(
+      (prevLogs) => [...prevLogs, {
+        type: "info",
+        message: `Testing server at ${serverUrl}...`,
+      }],
+    );
+
     try {
-      setIsGenerating(true);
-      setGenerationError(null);
-
-      // Create a new deployment record
-      const { data: deploymentData, error: deploymentError } = await supabase
-        .from("deployments")
-        .insert([
-          {
-            project_id: projectId,
-            configuration_id: configId,
-            status: "pending",
-          },
-        ])
-        .select()
-        .single();
-
-      if (deploymentError) {
-        throw deploymentError;
-      }
-
-      setDeploymentId(deploymentData.id);
-      setDeploymentStatus("pending");
-
-      // Convert server config to the format expected by the server generation function
-      const serverConfig: ServerConfig = {
-        name: config.name,
-        description: config.description || "",
-        language: config.language as "TypeScript" | "Python",
-        authentication: {
-          type: config.authentication_type as any,
-          location: config.authentication_details?.location,
-          name: config.authentication_details?.name,
-          value: config.authentication_details?.value,
-        },
-        hosting: {
-          provider: config.hosting_provider as any,
-          type: config.hosting_type as any,
-          region: config.hosting_region,
-        },
-        endpoints: endpoints,
-      };
-
-      // Call the edge function for server generation (heavy work)
-      const { data, error } = await supabase.functions.invoke(
-        "generate-server",
-        {
-          body: {
-            deploymentId: deploymentData.id,
-            config: serverConfig,
-          },
-        },
+      // For now just simulate a test
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      setLogs(
+        (prevLogs) => [...prevLogs, {
+          type: "success",
+          message: "Server test completed successfully",
+        }],
       );
-
-      if (error) {
-        throw new Error(`Edge function error: ${error.message}`);
-      }
-
-      // The edge function should update the deployment record
-      // We'll poll for updates to get the result
-    } catch (error) {
-      console.error("Error generating server:", error);
-      setGenerationError(
-        error instanceof Error ? error.message : "An error occurred",
+      toast.success("Server test completed");
+    } catch (error: any) {
+      setLogs(
+        (prevLogs) => [...prevLogs, {
+          type: "error",
+          message: `Server test failed: ${error.message}`,
+        }],
       );
-      setIsGenerating(false);
-
-      // Update deployment status to failed if we have a deployment ID
-      if (deploymentId) {
-        await supabase
-          .from("deployments")
-          .update({
-            status: "failed",
-            logs: JSON.stringify({
-              timestamp: new Date().toISOString(),
-              error: error instanceof Error
-                ? error.message
-                : "An unknown error occurred",
-            }),
-          })
-          .eq("id", deploymentId);
-      }
-
-      toast.error("Failed to generate server");
+      toast.error("Server test failed");
     }
   };
 
@@ -422,240 +488,140 @@ export default function GenerateServerV1() {
 
   const [StatusIcon, statusIconClass] = getStatusIcon();
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[70vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!project || !config) {
-    return (
-      <div className="container py-10">
-        <Card>
-          <CardHeader>
-            <CardTitle>Error</CardTitle>
-            <CardDescription>
-              Failed to load project or configuration
-            </CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button onClick={() => navigate("/projects")}>
-              Go to Projects
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
   return (
-    <div className="container py-10">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Generate MCP Server</h1>
-        <div className="flex items-center">
-          <Badge className="mr-2">{config.language}</Badge>
-          <Badge variant="outline" className="flex items-center">
-            <PanelRight className="h-3 w-3 mr-1" />
-            {config.name}
-          </Badge>
-        </div>
+    <div className="container mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Generate MCP Server</h1>
+        <Button variant="outline" onClick={() => navigate("/dashboard")}>
+          Back to Projects
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+      <Separator className="my-6" />
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="config">Configuration</TabsTrigger>
+          <TabsTrigger value="preview">Preview</TabsTrigger>
+          <TabsTrigger value="logs">Logs</TabsTrigger>
+          <TabsTrigger value="deployment">Deployment</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="config">
           <Card>
             <CardHeader>
-              <CardTitle>Configuration</CardTitle>
-              <CardDescription>Server configuration and status</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium">Project Details</h3>
-                  <p className="text-muted-foreground mb-4">
-                    {project.description}
-                  </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Project Name</p>
-                      <p className="text-sm text-muted-foreground">
-                        {project.name}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Server Name</p>
-                      <p className="text-sm text-muted-foreground">
-                        {config.name}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Language</p>
-                      <p className="text-sm text-muted-foreground">
-                        {config.language}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Authentication</p>
-                      <p className="text-sm text-muted-foreground">
-                        {config.authentication_type}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Hosting Provider</p>
-                      <p className="text-sm text-muted-foreground">
-                        {config.hosting_provider}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Hosting Type</p>
-                      <p className="text-sm text-muted-foreground">
-                        {config.hosting_type}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium">Deployment Status</h3>
-                  {deployment
-                    ? (
-                      <div className="mt-4">
-                        <div className="flex items-center mb-4">
-                          <StatusIcon
-                            className={`h-5 w-5 mr-2 ${statusIconClass}`}
-                          />
-                          <span className="font-medium capitalize">
-                            {deploymentStatus}
-                          </span>
-                        </div>
-
-                        {serverUrl && (
-                          <div className="bg-muted p-4 rounded-md">
-                            <p className="text-sm font-medium mb-1">
-                              Server URL
-                            </p>
-                            <div className="flex items-center">
-                              <code className="bg-muted-foreground/20 px-2 py-1 rounded text-sm flex-1 overflow-hidden text-ellipsis">
-                                {serverUrl}
-                              </code>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="ml-2"
-                                onClick={() =>
-                                  navigator.clipboard.writeText(serverUrl)}
-                              >
-                                <Copy className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                    : (
-                      <p className="text-muted-foreground mt-2">
-                        No deployments yet
-                      </p>
-                    )}
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button
-                variant="outline"
-                onClick={() =>
-                  navigate(`/projects/${projectId}/configure/${configId}`)}
-              >
-                Edit Configuration
-              </Button>
-              <Button
-                onClick={generateServerCode}
-                disabled={isGenerating}
-                className="space-x-2"
-              >
-                {isGenerating
-                  ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Generating...</span>
-                    </>
-                  )
-                  : (
-                    <>
-                      <Server className="h-4 w-4 mr-2" />
-                      <span>Generate Server</span>
-                    </>
-                  )}
-              </Button>
-            </CardFooter>
-          </Card>
-
-          {generationError && (
-            <Card className="mt-6 border-red-200 bg-red-50">
-              <CardContent className="pt-6">
-                <div className="flex items-start">
-                  <XCircle className="h-5 w-5 text-red-500 mr-2 mt-0.5" />
-                  <div>
-                    <h3 className="font-medium text-red-800">
-                      Generation Error
-                    </h3>
-                    <p className="text-red-700 text-sm">{generationError}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {deploymentFiles.length > 0 && (
-            <div className="mt-6">
-              <ServerFiles files={deploymentFiles} projectName={project.name} />
-            </div>
-          )}
-        </div>
-
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle>API Endpoints</CardTitle>
+              <CardTitle>Server Configuration</CardTitle>
               <CardDescription>
-                {endpoints.length} endpoints mapped to MCP
+                Configure and generate your MCP server
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-3">
-                {endpoints.map((endpoint) => (
-                  <li key={endpoint.id} className="border rounded-md p-3">
-                    <div className="flex items-center justify-between">
-                      <Badge
-                        variant={endpoint.mcpType !== "none"
-                          ? "default"
-                          : "outline"}
-                      >
-                        {endpoint.mcpType !== "none"
-                          ? endpoint.mcpType
-                          : "standard"}
-                      </Badge>
-                      <Badge variant="secondary">{endpoint.method}</Badge>
-                    </div>
-                    <p className="font-medium mt-2">{endpoint.path}</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {endpoint.description || "No description"}
-                    </p>
-                  </li>
-                ))}
-                {endpoints.length === 0 && (
-                  <li className="text-muted-foreground text-center py-4">
-                    No endpoints found
-                  </li>
-                )}
-              </ul>
+              <ServerGenerationSection
+                serverUrl={serverUrl}
+                isGenerating={isGenerating}
+                error={error}
+                config={serverConfig}
+                apiDefinition={apiDefinition}
+                endpoints={endpoints}
+                onGenerateServer={handleGenerateServer}
+                onDownloadCode={handleDownloadCode}
+                onTestServer={handleTestServer}
+              />
             </CardContent>
           </Card>
-        </div>
-      </div>
+        </TabsContent>
+
+        <TabsContent value="preview">
+          <Card>
+            <CardHeader>
+              <CardTitle>Server Preview</CardTitle>
+              <CardDescription>
+                Preview the endpoints and generated code
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ServerPreview
+                endpoints={endpoints}
+                serverUrl={serverUrl}
+                isGenerating={isGenerating}
+                config={serverConfig}
+                onGenerateServer={handleGenerateServer}
+                onDownloadCode={handleDownloadCode}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="logs">
+          <Card>
+            <CardHeader>
+              <CardTitle>Logs</CardTitle>
+              <CardDescription>
+                View the logs from the generation and deployment process
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <LogViewer logs={logs} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="deployment">
+          <Card>
+            <CardHeader>
+              <CardTitle>Deployment</CardTitle>
+              <CardDescription>
+                View the deployment process and status
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div>
+                <h3 className="text-lg font-medium">Deployment Status</h3>
+                {deployment
+                  ? (
+                    <div className="mt-4">
+                      <div className="flex items-center mb-4">
+                        <StatusIcon
+                          className={`h-5 w-5 mr-2 ${statusIconClass}`}
+                        />
+                        <span className="font-medium capitalize">
+                          {deploymentStatus}
+                        </span>
+                      </div>
+
+                      {serverUrl && (
+                        <div className="bg-muted p-4 rounded-md">
+                          <p className="text-sm font-medium mb-1">Server URL</p>
+                          <div className="flex items-center">
+                            <code className="bg-muted-foreground/20 px-2 py-1 rounded text-sm flex-1 overflow-hidden text-ellipsis">
+                              {serverUrl}
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="ml-2"
+                              onClick={() =>
+                                navigator.clipboard.writeText(serverUrl)}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                  : (
+                    <p className="text-muted-foreground mt-2">
+                      No deployments yet
+                    </p>
+                  )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
-}
+};
+
+export default GenerateServerV1;
