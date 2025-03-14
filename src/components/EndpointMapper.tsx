@@ -20,7 +20,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Switch } from "@/components/ui/switch"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { v4 as uuidv4 } from 'uuid';
 import { Endpoint, Parameter, Response } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
@@ -111,7 +111,6 @@ const EndpointMapper: React.FC<EndpointMapperProps> = ({ endpoint, onUpdate, onD
     setNewResponseDescription(e.target.value);
   };
 
-  // Update the handleAddResponse function to include a schema property
   const handleAddResponse = () => {
     if (!newResponseStatus || !newResponseDescription) return;
 
