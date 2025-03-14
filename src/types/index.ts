@@ -29,6 +29,7 @@ export interface ApiDefinition {
   file?: File;
   url?: string;
   created_at: string;
+  updated_at: string;
   user_id?: string;
   description?: string;
   endpoint_definition?: EndpointDefinition[];

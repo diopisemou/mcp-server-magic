@@ -1,285 +1,298 @@
-import yaml from 'js-yaml';
-import { supabase } from '../integrations/supabase/client';
-import type { ApiDefinition, EndpointDefinition, Endpoint } from '../types';
+import yaml from "js-yaml";
+import type { ApiDefinition, Endpoint, EndpointDefinition } from "../types";
+import { ApiFormat } from "@/types/api";
 
-// Polyfill for Buffer in browser environments
+// Buffer polyfill for browser environments
 const BufferPolyfill = {
-  isBuffer: (obj: any): boolean => obj instanceof Uint8Array || obj instanceof ArrayBuffer || (obj && typeof obj.byteLength === 'number'),
-  from: (data: string | Uint8Array): { toString: () => string } => ({
-    toString: () => typeof data === 'string' ? data : new TextDecoder().decode(data)
-  })
+  isBuffer: (obj: any): boolean =>
+    obj instanceof Uint8Array || obj instanceof ArrayBuffer ||
+    (obj && typeof obj.byteLength === "number"),
+  from: (data: string | Uint8Array | object): { toString: () => string } => ({
+    toString: () =>
+      typeof data === "string" ? data : new TextDecoder().decode(data),
+  }),
 };
-const BufferImpl = typeof Buffer !== 'undefined' ? Buffer : BufferPolyfill;
+const BufferImpl = typeof Buffer !== "undefined" ? Buffer : BufferPolyfill;
 
-export type ApiFormat = 'OpenAPI2' | 'OpenAPI3' | 'RAML' | 'APIBlueprint';
-
-interface ValidationResult {
-  isValid: boolean;
-  format: ApiFormat;
-  errors?: string[];
-  parsedDefinition: any;
-}
-
-// Content Type Detection and Parsing
-export function detectContentType(content: string | Uint8Array | object, filename?: string): 'json' | 'yaml' | 'raml' | 'apiblueprint' | 'unknown' {
-  if (BufferImpl.isBuffer(content)) content = BufferImpl.from(content).toString();
-  if (typeof content === 'object' && content !== null) return 'json';
+function detectContentType(
+  content: string | Uint8Array | object,
+  filename?: string,
+): "json" | "yaml" | "raml" | "apiblueprint" | "unknown" {
+  if (BufferImpl.isBuffer(content)) {
+    content = BufferImpl.from(content).toString();
+  }
+  if (typeof content === "object" && content !== null) return "json";
 
   const strContent = String(content).trim();
-  if (strContent.startsWith('#%RAML')) return 'raml';
-  if (strContent.startsWith('# ') || strContent.startsWith('FORMAT:')) return 'apiblueprint';
-  if (filename?.endsWith('.raml')) return 'raml';
-  if (filename?.endsWith('.md') || filename?.endsWith('.apib')) return 'apiblueprint';
+  if (strContent.startsWith("#%RAML")) return "raml";
+  if (strContent.startsWith("# ") || strContent.startsWith("FORMAT:")) {
+    return "apiblueprint";
+  }
+  if (filename?.endsWith(".raml")) return "raml";
+  if (filename?.endsWith(".md") || filename?.endsWith(".apib")) {
+    return "apiblueprint";
+  }
 
   try {
     JSON.parse(strContent);
-    return 'json';
+    return "json";
   } catch {
     try {
       yaml.load(strContent);
-      return 'yaml';
+      return "yaml";
     } catch {
-      return 'unknown';
+      return "unknown";
     }
   }
 }
 
-export function parseContent(content: string | Uint8Array | object, contentType: ReturnType<typeof detectContentType>): any {
-  if (BufferImpl.isBuffer(content)) content = BufferImpl.from(content).toString();
-  if (typeof content === 'object' && content !== null) return content;
+function parseContent(
+  content: string | Uint8Array | object,
+  contentType: ReturnType<typeof detectContentType>,
+): any {
+  if (BufferImpl.isBuffer(content)) {
+    content = BufferImpl.from(content).toString();
+  }
+  if (typeof content === "object" && content !== null) return content;
 
   const strContent = String(content).trim();
   try {
     switch (contentType) {
-      case 'json': return JSON.parse(strContent);
-      case 'yaml': return yaml.load(strContent);
-      case 'raml': 
-      case 'apiblueprint':
-      case 'unknown':
-      default:
-        return strContent;
+      case "json":
+        return JSON.parse(strContent);
+      case "yaml":
+        return yaml.load(strContent);
+      case "raml":
+        const ramlLines = strContent.split("\n");
+        return {
+          version: ramlLines.find((l) =>
+            l.startsWith("#%RAML")
+          )?.split(" ")[1] || "",
+          title: ramlLines.find((l) =>
+            l.startsWith("title:")
+          )?.split(":")[1]?.trim() || "",
+          isRaml: true,
+        };
+      case "apiblueprint":
+        return { isApiBlueprint: true, content: strContent };
+      case "unknown":
+        try {
+          return JSON.parse(strContent);
+        } catch {
+          return yaml.load(strContent);
+        }
     }
-  } catch (err) {
-    console.error('Error parsing content:', err);
-    return strContent;
+  } catch (error) {
+    throw new Error(`Failed to parse content: ${(error as Error).message}`);
   }
 }
 
-// API Definition Validation
-export function validateApiDefinition(content: string | Uint8Array | object, filename?: string): ValidationResult {
-  const contentType = detectContentType(content, filename);
-  const parsedContent = parseContent(content, contentType);
+// Format Detection and Validation
+function determineApiFormat(parsedContent: any): ApiFormat {
+  if (parsedContent.swagger === "2.0") return "OpenAPI2";
+  if (parsedContent.openapi?.startsWith("3.")) return "OpenAPI3";
+  if (parsedContent.isRaml) return "RAML";
+  if (parsedContent.isApiBlueprint) return "APIBlueprint";
+  return "OpenAPI3"; // Default
+}
 
-  // Simple validation based on content structure
-  if (typeof parsedContent === 'object' && parsedContent !== null) {
-    if (parsedContent.swagger === '2.0') {
-      return { isValid: true, format: 'OpenAPI2', parsedDefinition: parsedContent };
-    }
-    if (parsedContent.openapi && parsedContent.openapi.startsWith('3.')) {
-      return { isValid: true, format: 'OpenAPI3', parsedDefinition: parsedContent };
-    }
-    if (parsedContent.raml_version || String(content).startsWith('#%RAML')) {
-      return { isValid: true, format: 'RAML', parsedDefinition: parsedContent };
-    }
+export function validateApiDefinitionContent(
+  parsedContent: any,
+  format: ApiFormat,
+): string[] {
+  const errors: string[] = [];
+
+  switch (format) {
+    case "OpenAPI2":
+      if (parsedContent.swagger !== "2.0") {
+        errors.push("Invalid Swagger version");
+      }
+      if (!parsedContent.info?.title) errors.push("Missing API title");
+      if (!parsedContent.info?.version) errors.push("Missing API version");
+      if (!Object.keys(parsedContent.paths || {}).length) {
+        errors.push("No paths defined");
+      }
+      break;
+    case "OpenAPI3":
+      if (!parsedContent.openapi?.startsWith("3.")) {
+        errors.push("Invalid OpenAPI version");
+      }
+      if (!parsedContent.info?.title) errors.push("Missing API title");
+      if (!parsedContent.info?.version) errors.push("Missing API version");
+      if (!Object.keys(parsedContent.paths || {}).length) {
+        errors.push("No paths defined");
+      }
+      break;
+    case "RAML":
+      if (!parsedContent.version) errors.push("Missing RAML version");
+      if (!parsedContent.title) errors.push("Missing API title");
+      break;
+    case "APIBlueprint":
+      if (!parsedContent.content?.trim()) {
+        errors.push("Empty API Blueprint document");
+      }
+      if (
+        !parsedContent.content.includes("# ") &&
+        !parsedContent.content.includes("FORMAT:")
+      ) {
+        errors.push("Missing API Blueprint header");
+      }
+      break;
   }
-
-  if (contentType === 'apiblueprint') {
-    return { isValid: true, format: 'APIBlueprint', parsedDefinition: parsedContent };
-  }
-
-  return { 
-    isValid: false, 
-    format: 'OpenAPI3', 
-    errors: ['Could not determine API format or invalid structure'],
-    parsedDefinition: parsedContent
-  };
+  return errors;
 }
 
-// API Definition Management
-export async function saveApiDefinition(
-  apiDefinition: Partial<ApiDefinition>,
-  endpointDefinitions?: EndpointDefinition[]
-): Promise<ApiDefinition> {
-  const definition = { ...apiDefinition, endpoint_definition: endpointDefinitions };
-  const { data, error } = apiDefinition.id
-    ? await supabase.from('api_definitions').update(definition).eq('id', apiDefinition.id).select().single()
-    : await supabase.from('api_definitions').insert(definition).select().single();
-
-  if (error) throw new Error(`Failed to save API definition: ${error.message}`);
-  return data as ApiDefinition;
-}
-
-export async function getApiDefinition(id: string): Promise<ApiDefinition> {
-  const { data, error } = await supabase.from('api_definitions').select('*').eq('id', id).single();
-  if (error) throw new Error(`Failed to get API definition: ${error.message}`);
-  return data as ApiDefinition;
-}
-
-export async function getApiDefinitions(): Promise<ApiDefinition[]> {
-  const { data, error } = await supabase.from('api_definitions').select('*').order('created_at', { ascending: false });
-  if (error) throw new Error(`Failed to get API definitions: ${error.message}`);
-  return data as ApiDefinition[];
-}
-
-export async function deleteApiDefinition(id: string): Promise<boolean> {
-  const { error } = await supabase.from('api_definitions').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete API definition: ${error.message}`);
-  return true;
-}
-
-// Extract parameters from OpenAPI/Swagger definitions
-function extractParameters(pathObj: any, operation: any): any[] {
-  return [
-    ...(pathObj.parameters || []),
-    ...(operation.parameters || [])
-  ].map(param => ({
-    name: param.name,
-    type: param.schema?.type || param.type || 'string',
-    required: !!param.required,
-    description: param.description || ''
-  }));
-}
-
-// Extract responses from OpenAPI/Swagger definitions
-function extractResponses(operation: any): any[] {
-  return Object.entries(operation.responses || {}).map(([status, resp]: [string, any]) => ({
-    statusCode: parseInt(status) || status,
-    description: resp.description || '',
-    schema: resp.schema || resp.content || null
-  }));
-}
-
-// Extract endpoints from OpenAPI/Swagger definitions
-function extractOpenApiEndpoints(parsedContent: any): Endpoint[] {
-  const endpoints: Endpoint[] = [];
-  const methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'] as const;
-
-  for (const [path, pathObj] of Object.entries(parsedContent.paths || {})) {
-    for (const method of methods) {
-      const operation = pathObj?.[method];
-      if (!operation) continue;
-
-      const parameters = extractParameters(pathObj, operation);
-      const responses = extractResponses(operation);
-
-      endpoints.push({
-        id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, '-'),
-        path,
-        method: method.toUpperCase() as Endpoint['method'],
-        description: operation.summary || operation.description || '',
-        parameters,
-        responses,
-        mcpType: method === 'get' ? 'resource' : 'tool'
-      });
-    }
-  }
-
-  return endpoints;
-}
-
-// Extract endpoints from RAML definitions
-function extractRamlEndpoints(parsedContent: any, content: string | Uint8Array | object): Endpoint[] {
-  const endpoints: Endpoint[] = [];
-  const ramlLines = (parsedContent.content || String(content)).split('\n');
-  let currentPath = '';
-
-  ramlLines.forEach(line => {
-    if (line.match(/^\/[^:]+:/)) {
-      currentPath = line.split(':')[0].trim();
-    }
-    const methodMatch = line.match(/^\s+(get|post|put|delete|patch|options|head):/);
-    if (methodMatch) {
-      const method = methodMatch[1];
-      endpoints.push({
-        id: `${method}-${currentPath}`.replace(/[^a-zA-Z0-9]/g, '-'),
-        path: currentPath,
-        method: method.toUpperCase() as Endpoint['method'],
-        description: '',
-        parameters: [],
-        responses: [{ statusCode: 200, description: 'Success' }],
-        mcpType: method === 'get' ? 'resource' : 'tool'
-      });
-    }
-  });
-
-  return endpoints;
-}
-
-// Extract endpoints from API Blueprint definitions
-function extractApiBlueprintEndpoints(parsedContent: any, content: string | Uint8Array | object): Endpoint[] {
-  const endpoints: Endpoint[] = [];
-  const apibLines = (parsedContent.content || String(content)).split('\n');
-  let currentGroup = '';
-
-  apibLines.forEach(line => {
-    if (line.startsWith('# Group')) currentGroup = line.split('Group')[1].trim();
-    const endpointMatch = line.match(/^(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s+(.+)$/);
-    if (endpointMatch) {
-      const [, method, path] = endpointMatch;
-      endpoints.push({
-        id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, '-'),
-        path: path.trim(),
-        method: method as Endpoint['method'],
-        description: currentGroup,
-        parameters: [],
-        responses: [{ statusCode: 200, description: 'Success' }],
-        mcpType: method.toLowerCase() === 'get' ? 'resource' : 'tool'
-      });
-    }
-  });
-
-  return endpoints;
-}
-
-// Main endpoint extraction function
+// Endpoint Extraction
 export function extractEndpointsFromDefinition(
   content: string | Uint8Array | object,
-  filename?: string
+  filename?: string,
 ): Endpoint[] {
   try {
-    const { isValid, format, parsedDefinition } = validateApiDefinition(content, filename);
+    const contentType = detectContentType(content, filename);
+    const parsedContent = parseContent(content, contentType);
+    const format = determineApiFormat(parsedContent);
+    const validationErrors = validateApiDefinitionContent(
+      parsedContent,
+      format,
+    );
 
-    if (!isValid) {
-      throw new Error(`Invalid API definition: Could not determine API format or invalid structure`);
+    if (validationErrors.length && validationErrors!.length > 0) {
+      throw new Error(`Invalid API definition: ${validationErrors.join(", ")}`);
     }
 
-    let endpoints: Endpoint[] = [];
+    const endpoints: Endpoint[] = [];
+    const methods = [
+      "get",
+      "post",
+      "put",
+      "delete",
+      "patch",
+      "options",
+      "head",
+    ] as const;
 
     switch (format) {
-      case 'OpenAPI2':
-      case 'OpenAPI3':
-        endpoints = extractOpenApiEndpoints(parsedDefinition);
+      case "OpenAPI2":
+      case "OpenAPI3":
+        for (
+          const [path, pathObj] of Object.entries(parsedContent.paths || {})
+        ) {
+          for (const method of methods) {
+            const operation = pathObj?.[method];
+            if (!operation) continue;
+
+            const parameters = [
+              ...(pathObj.parameters || []),
+              ...(operation.parameters || []),
+            ].map((param) => ({
+              name: param.name,
+              type: param.schema?.type || param.type || "string",
+              required: !!param.required,
+              description: param.description || "",
+            }));
+
+            const responses = Object.entries(operation.responses || {}).map((
+              [status, resp]: [string, any],
+            ) => ({
+              statusCode: parseInt(status) || status,
+              description: resp.description || "",
+              schema: resp.schema || resp.content || null,
+            }));
+
+            endpoints.push({
+              id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, "-"),
+              path,
+              method: method.toUpperCase() as Endpoint["method"],
+              description: operation.summary || operation.description || "",
+              parameters,
+              responses,
+              mcpType: method === "get" ? "resource" : "tool",
+            });
+          }
+        }
         break;
 
-      case 'RAML':
-        endpoints = extractRamlEndpoints(parsedDefinition, content);
+      case "RAML":
+        // Note: Full RAML parsing requires a dedicated parser (e.g., raml-js-parser)
+        // This is a simplified version assuming parsedContent has resources
+        const ramlLines = (parsedContent.content || String(content)).split(
+          "\n",
+        );
+        let currentPath = "";
+        ramlLines.forEach((line) => {
+          if (line.match(/^\/[^:]+:/)) {
+            currentPath = line.split(":")[0].trim();
+          }
+          const methodMatch = line.match(
+            /^\s+(get|post|put|delete|patch|options|head):/,
+          );
+          if (methodMatch) {
+            const method = methodMatch[1];
+            endpoints.push({
+              id: `${method}-${currentPath}`.replace(/[^a-zA-Z0-9]/g, "-"),
+              path: currentPath,
+              method: method.toUpperCase() as Endpoint["method"],
+              description: "",
+              parameters: [],
+              responses: [{ statusCode: 200, description: "Success" }],
+              mcpType: method === "get" ? "resource" : "tool",
+            });
+          }
+        });
         break;
 
-      case 'APIBlueprint':
-        endpoints = extractApiBlueprintEndpoints(parsedDefinition, content);
+      case "APIBlueprint":
+        // Note: Full API Blueprint parsing requires a parser (e.g., apiary/apib-parser)
+        // Simplified version parsing basic structure
+        const apibLines = (parsedContent.content || String(content)).split(
+          "\n",
+        );
+        let currentGroup = "";
+        apibLines.forEach((line) => {
+          if (line.startsWith("# Group")) {
+            currentGroup = line.split("Group")[1].trim();
+          }
+          const endpointMatch = line.match(
+            /^(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s+(.+)$/,
+          );
+          if (endpointMatch) {
+            const [, method, path] = endpointMatch;
+            endpoints.push({
+              id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, "-"),
+              path: path.trim(),
+              method: method as Endpoint["method"],
+              description: currentGroup,
+              parameters: [],
+              responses: [{ statusCode: 200, description: "Success" }],
+              mcpType: method.toLowerCase() === "get" ? "resource" : "tool",
+            });
+          }
+        });
         break;
     }
 
-    return endpoints.map(endpoint => ({
+    return endpoints.map((endpoint) => ({
       ...endpoint,
       id: endpoint.id || `endpoint-${Math.random().toString(36).substring(2)}`,
-      description: endpoint.description || '',
+      description: endpoint.description || "",
       parameters: endpoint.parameters || [],
-      responses: endpoint.responses || []
+      responses: endpoint.responses || [],
     }));
   } catch (error) {
-    console.error('Error extracting endpoints:', error);
+    console.error("Error extracting endpoints:", error);
     throw new Error(`Failed to extract endpoints: ${(error as Error).message}`);
   }
 }
-
 // Utility Functions
-export function extractSwaggerUrl(htmlContent: string, baseUrl: string): string | null {
+export function extractSwaggerUrl(
+  htmlContent: string,
+  baseUrl: string,
+): string | null {
   const patterns = [
     /url:\s*['"](.*?)['"]/,
     /spec:\s*{"url":\s*['"](.*?)['"]}/,
     /"swagger-ui".*?["'].*?["'](.*\.json|.*\.yaml|.*\.yml)["']/i,
-    /href=["'](.*\.json|.*\.yaml|.*\.yml)["']/i
+    /href=["'](.*\.json|.*\.yaml|.*\.yml)["']/i,
   ];
 
   for (const pattern of patterns) {
@@ -288,118 +301,9 @@ export function extractSwaggerUrl(htmlContent: string, baseUrl: string): string 
       try {
         return new URL(match[1], baseUrl).href;
       } catch (e) {
-        console.error('Error resolving URL:', e);
+        console.error("Error resolving URL:", e);
       }
     }
   }
   return null;
 }
-
-// Fix missing 'schema' property in Response objects
-export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoint[] => {
-  const endpoints: Endpoint[] = [];
-  console.log('Extracting endpoints from format:', format);
-  console.log('API Definition:', JSON.stringify(apiDefinition, null, 2).substring(0, 500) + '...');
-
-  try {
-    if (format === 'OpenAPI2' || format === 'OpenAPI3') {
-      const paths = apiDefinition.paths || {};
-
-      Object.keys(paths).forEach(path => {
-        const pathObj = paths[path];
-
-        // Common HTTP methods
-        const methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'];
-
-        methods.forEach(method => {
-          if (pathObj[method]) {
-            const operation = pathObj[method];
-
-            // Extract parameters
-            const parameters = [...(pathObj.parameters || []), ...(operation.parameters || [])].map(param => ({
-              name: param.name,
-              type: param.schema?.type || param.type || 'string',
-              required: !!param.required,
-              description: param.description || ''
-            }));
-
-            // Extract responses
-            const responses = Object.keys(operation.responses || {}).map(statusCode => ({
-              statusCode: parseInt(statusCode, 10) || statusCode,
-              description: operation.responses[statusCode].description || '',
-              schema: operation.responses[statusCode].schema || operation.responses[statusCode].content || null
-            }));
-
-            endpoints.push({
-              id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, '-'),
-              path,
-              method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
-              description: operation.summary || operation.description || '',
-              parameters,
-              responses
-            });
-          }
-        });
-      });
-    } else if (format === 'RAML') {
-      if (apiDefinition.resources) {
-        apiDefinition.resources.forEach(resource => {
-          const basePath = resource.relativeUri || '';
-
-          (resource.methods || []).forEach(method => {
-            endpoints.push({
-              id: `${method.method}-${basePath}`.replace(/[^a-zA-Z0-9]/g, '-'),
-              path: basePath,
-              method: method.method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
-              description: method.description || '',
-              parameters: (method.queryParameters || []).map(param => ({
-                name: param.name,
-                type: param.type || 'string',
-                required: !!param.required,
-                description: param.description || ''
-              })),
-              responses: Object.keys(method.responses || {}).map(statusCode => ({
-                statusCode: parseInt(statusCode, 10) || statusCode,
-                description: method.responses[statusCode].description || '',
-                schema: null // Add schema property
-              }))
-            });
-          });
-        });
-      }
-    } else if (format === 'APIBlueprint') {
-      if (apiDefinition.ast && apiDefinition.ast.resourceGroups) {
-        apiDefinition.ast.resourceGroups.forEach(group => {
-          (group.resources || []).forEach(resource => {
-            (resource.actions || []).forEach(action => {
-              endpoints.push({
-                id: `${action.method}-${resource.uriTemplate}`.replace(/[^a-zA-Z0-9]/g, '-'),
-                path: resource.uriTemplate || '',
-                method: action.method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
-                description: action.description || resource.description || '',
-                parameters: (action.parameters || []).map(param => ({
-                  name: param.name,
-                  type: 'string',
-                  required: !!param.required,
-                  description: param.description || ''
-                })),
-                responses: (action.examples || []).flatMap(example => 
-                  (example.responses || []).map(response => ({
-                    statusCode: response.status || 200,
-                    description: response.description || '',
-                    schema: response.body || null // Add schema property
-                  }))
-                )
-              });
-            });
-          });
-        });
-      }
-    }
-  } catch (error) {
-    console.error('Error extracting endpoints:', error);
-  }
-
-  console.log(`Extracted ${endpoints.length} endpoints`);
-  return endpoints;
-};

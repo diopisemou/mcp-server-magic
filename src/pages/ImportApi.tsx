@@ -129,7 +129,7 @@ const ImportApi = () => {
     try {
       setIsSaving(true);
       // Convert endpoints to JSON-safe format
-      const safeEndpoints = mappedEndpoints || [];
+      const safeEndpoints = mappedEndpoints || apiDefinition.endpoint_definition || [];
       
       // Create a single object, not an array
       const apiToSave = {
