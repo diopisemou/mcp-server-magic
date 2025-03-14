@@ -9,9 +9,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
 import { useToast } from '../components/ui/use-toast';
 import { getApiDefinition, saveApiDefinition } from '../utils/apiService';
 import { generateServer } from '../utils/serverGenerator';
-import { EndpointMapper } from '../components/EndpointMapper';
-import type { ApiDefinition, EndpointDefinition } from '../types/api';
-import type { ServerConfig, GenerationResult } from '../types/server';
+import EndpointMapper from '../components/EndpointMapper';
+import type { ApiDefinition, EndpointDefinition, ServerConfig, GenerationResult, AuthConfig } from '../types';
+import { convertJsonToEndpointDefinitions } from '../utils/typeConverters';
 
 export default function ServerConfiguration() {
   const { id } = useParams<{ id: string }>();
@@ -21,10 +21,21 @@ export default function ServerConfiguration() {
   const [apiDefinition, setApiDefinition] = useState<ApiDefinition | null>(null);
   const [selectedEndpoints, setSelectedEndpoints] = useState<EndpointDefinition[]>([]);
   const [serverConfig, setServerConfig] = useState<ServerConfig>({
-    language: 'typescript',
+    language: 'TypeScript',
     framework: 'express',
     database: 'none',
-    authentication: false
+    authentication: {
+      type: "None",
+      location: "header"
+    } as AuthConfig,
+    name: '',
+    description: '',
+    hosting: {
+      provider: "AWS",
+      type: "Serverless",
+      region: "us-east-1"
+    },
+    endpoints: []
   });
   const [isLoading, setIsLoading] = useState(false);
   const [serverFiles, setServerFiles] = useState<any[]>([]);
@@ -43,12 +54,6 @@ export default function ServerConfiguration() {
       // Set selected endpoints from the saved endpoint_definition
       if (definition.endpoint_definition && definition.endpoint_definition.length > 0) {
         setSelectedEndpoints(definition.endpoint_definition);
-      } else if (definition.endpoints) {
-        // Fallback to the original endpoints
-        setSelectedEndpoints(definition.endpoints.map((endpoint: any) => ({
-          ...endpoint,
-          selected: true
-        })));
       }
     } catch (error) {
       console.error("Failed to load API definition:", error);
@@ -84,13 +89,13 @@ export default function ServerConfiguration() {
       // Only use selected endpoints for server generation
       const filteredEndpoints = selectedEndpoints.filter(endpoint => endpoint.selected !== false);
       
-      const result: GenerationResult = await generateServer({
+      // Create server config with the endpoints
+      const configWithEndpoints = {
         ...serverConfig,
-        apiDefinition: {
-          ...apiDefinition,
-          endpoints: filteredEndpoints
-        }
-      });
+        endpoints: filteredEndpoints
+      };
+      
+      const result: GenerationResult = await generateServer(configWithEndpoints);
       
       setServerFiles(result.files);
       
@@ -159,15 +164,15 @@ export default function ServerConfiguration() {
                   <TabsContent value="language" className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <Button
-                        variant={serverConfig.language === 'typescript' ? 'default' : 'outline'}
-                        onClick={() => handleConfigChange('language', 'typescript')}
+                        variant={serverConfig.language === 'TypeScript' ? 'default' : 'outline'}
+                        onClick={() => handleConfigChange('language', 'TypeScript')}
                         className="h-24"
                       >
                         TypeScript
                       </Button>
                       <Button
-                        variant={serverConfig.language === 'python' ? 'default' : 'outline'}
-                        onClick={() => handleConfigChange('language', 'python')}
+                        variant={serverConfig.language === 'Python' ? 'default' : 'outline'}
+                        onClick={() => handleConfigChange('language', 'Python')}
                         className="h-24"
                       >
                         Python
@@ -181,7 +186,7 @@ export default function ServerConfiguration() {
                         variant={serverConfig.framework === 'express' ? 'default' : 'outline'}
                         onClick={() => handleConfigChange('framework', 'express')}
                         className="h-24"
-                        disabled={serverConfig.language !== 'typescript'}
+                        disabled={serverConfig.language !== 'TypeScript'}
                       >
                         Express.js
                       </Button>
@@ -189,7 +194,7 @@ export default function ServerConfiguration() {
                         variant={serverConfig.framework === 'fastapi' ? 'default' : 'outline'}
                         onClick={() => handleConfigChange('framework', 'fastapi')}
                         className="h-24"
-                        disabled={serverConfig.language !== 'python'}
+                        disabled={serverConfig.language !== 'Python'}
                       >
                         FastAPI
                       </Button>
@@ -224,8 +229,12 @@ export default function ServerConfiguration() {
                       <input
                         type="checkbox"
                         id="authentication"
-                        checked={serverConfig.authentication}
-                        onChange={(e) => handleConfigChange('authentication', e.target.checked)}
+                        checked={serverConfig.authentication.type !== "None"}
+                        onChange={(e) => handleConfigChange('authentication', 
+                          e.target.checked 
+                            ? { type: "API Key", location: "header", name: "x-api-key" } 
+                            : { type: "None", location: "header" }
+                        )}
                         className="h-4 w-4 rounded border-gray-300"
                       />
                       <Label htmlFor="authentication">Include Authentication</Label>

@@ -1,4 +1,3 @@
-
 import type { ServerConfig, GenerationResult, ServerFile } from '../../types';
 
 /**
@@ -43,12 +42,13 @@ export function generateGoServer(config: ServerConfig): GenerationResult {
   generateModelFiles(config).forEach(file => files.push(file));
   
   // Generate README.md
+  const readmeContent = generateReadmeFile(config);
   files.push({
     name: 'README.md',
-    path: '',
-    type: 'docs',
-    content: generateReadmeFile(config),
-    language: 'markdown'
+    path: "README.md",
+    content: readmeContent,
+    type: "documentation",
+    language: "markdown"
   });
   
   return {
@@ -195,7 +195,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"time"
+	"time
 	
 	"github.com/dgrijalva/jwt-go"
 )
@@ -268,7 +268,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
+	"strings
 	
 	"github.com/dgrijalva/jwt-go"
 )

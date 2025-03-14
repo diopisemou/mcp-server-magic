@@ -1,4 +1,3 @@
-
 import type { ServerConfig, GenerationResult, ServerFile, ZipPackage } from '@/types';
 
 // Combined server generator that calls the appropriate language-specific generator
@@ -19,7 +18,10 @@ export const generateServer = async (
     console.error('Error generating server:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: (error as Error).message,
+      parameters: [],
+      responses: [],
+      mcpType: "none"
     };
   }
 };
@@ -113,13 +115,19 @@ API_KEY=${config.authentication.type !== 'None' ? 'your-api-key-here' : ''}`,
     return {
       success: true,
       serverUrl: `https://mcp-${config.name.toLowerCase().replace(/\s+/g, '-')}.example.com`,
-      files
+      files,
+      parameters: [],
+      responses: [],
+      mcpType: "none"
     };
   } catch (error) {
     console.error('Error generating TypeScript server:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: (error as Error).message,
+      parameters: [],
+      responses: [],
+      mcpType: "none"
     };
   }
 };
@@ -170,13 +178,19 @@ ${config.authentication.type !== 'None' ? 'API_KEY=your-api-key-here' : ''}`,
     return {
       success: true,
       serverUrl: `https://mcp-${config.name.toLowerCase().replace(/\s+/g, '-')}.example.com`,
-      files
+      files,
+      parameters: [],
+      responses: [],
+      mcpType: "none"
     };
   } catch (error) {
     console.error('Error generating Python server:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: (error as Error).message,
+      parameters: [],
+      responses: [],
+      mcpType: "none"
     };
   }
 };

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -128,6 +127,8 @@ const ImportApi = () => {
 
     try {
       setIsSaving(true);
+      // Convert endpoints to JSON-safe format
+      const safeEndpoints = mappedEndpoints || [];
       const { error } = await supabase
         .from('api_definitions')
         .insert([
@@ -136,8 +137,8 @@ const ImportApi = () => {
             name: apiDefinition.name,
             format: apiDefinition.format,
             content: apiDefinition.content,
-            endpoint_definition: apiDefinition.endpoint_definition,
-            //endpoint_definition: mappedEndpoints
+            // Convert to JSON-safe format before saving
+            endpoint_definition: safeEndpoints
           }
         ]);
 

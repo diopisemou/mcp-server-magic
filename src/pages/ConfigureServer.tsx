@@ -23,14 +23,14 @@ const ConfigureServer = () => {
     description: '',
     language: 'Python',
     authentication: {
-      type: 'ApiKey',
+      type: 'API Key', // This matches the updated AuthType in types/index.ts
       location: 'header',
       name: 'X-API-Key',
       value: ''
     },
     hosting: {
       provider: 'AWS',
-      type: 'Shared',
+      type: 'Shared', // This matches the updated HostingType in types/index.ts
       region: 'us-east-1'
     },
     endpoints: []
@@ -93,11 +93,20 @@ const ConfigureServer = () => {
       // Parse the API definition content and extract endpoints
       const extractedEndpoints = parseApiDefinition(apiData);
       
-      setEndpoints(extractedEndpoints);
-      setServerConfig(prev => ({
-        ...prev,
-        endpoints: extractedEndpoints
-      }));
+      // Fix the type mismatch by checking if the result has endpoints property
+      if (Array.isArray(extractedEndpoints)) {
+        setEndpoints(extractedEndpoints);
+        setServerConfig(prev => ({
+          ...prev,
+          endpoints: extractedEndpoints
+        }));
+      } else if (extractedEndpoints && Array.isArray(extractedEndpoints.endpoints)) {
+        setEndpoints(extractedEndpoints.endpoints);
+        setServerConfig(prev => ({
+          ...prev,
+          endpoints: extractedEndpoints.endpoints
+        }));
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to fetch project data');

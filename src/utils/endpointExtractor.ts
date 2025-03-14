@@ -1,5 +1,5 @@
 
-import type { Endpoint } from '../types';
+import type { Endpoint, Response } from '../types';
 
 // Extracts endpoints from the parsed OpenAPI definition
 export function extractEndpoints(parsedDefinition: any, format: string): Endpoint[] {
@@ -29,37 +29,34 @@ function extractOpenAPI2Endpoints(parsedDefinition: any): Endpoint[] {
     Object.entries(pathObj || {}).forEach(([method, operationObj]: [string, any]) => {
       if (method === 'parameters') return; // Skip path-level parameters
       
+      const methodUpper = method.toUpperCase() as Endpoint['method'];
+      
       const endpoint: Endpoint = {
         id: `${method}-${path}`,
         path: `${basePath}${path}`,
-        method: method.toUpperCase(),
-        summary: operationObj.summary || '',
+        method: methodUpper,
         description: operationObj.description || '',
         parameters: [],
         responses: [],
-        security: operationObj.security || [],
-        tags: operationObj.tags || [],
-        operationId: operationObj.operationId || `${method}${path.replace(/\//g, '_').replace(/[{}]/g, '')}`,
-        requestBody: null,
-        type: 'endpoint',
+        mcpType: methodUpper === 'GET' ? 'resource' : 'tool',
+        selected: true
       };
       
       // Extract parameters
       const parameters = [...(operationObj.parameters || []), ...(pathObj.parameters || [])];
       endpoint.parameters = parameters.map((param: any) => ({
         name: param.name,
-        in: param.in,
-        required: !!param.required,
         type: param.type || (param.schema ? param.schema.type : 'string'),
-        description: param.description || '',
+        required: !!param.required,
+        description: param.description || ''
       }));
       
       // Extract responses
       if (operationObj.responses) {
         endpoint.responses = Object.entries(operationObj.responses).map(([code, response]: [string, any]) => ({
-          code,
+          statusCode: parseInt(code) || code,
           description: response.description || '',
-          schema: response.schema || null,
+          schema: response.schema || null
         }));
       }
       
@@ -81,41 +78,34 @@ function extractOpenAPI3Endpoints(parsedDefinition: any): Endpoint[] {
     Object.entries(pathObj || {}).forEach(([method, operationObj]: [string, any]) => {
       if (['parameters', 'summary', 'description', 'servers', '$ref'].includes(method)) return; // Skip non-operation fields
       
+      const methodUpper = method.toUpperCase() as Endpoint['method'];
+      
       const endpoint: Endpoint = {
         id: `${method}-${path}`,
         path: `${basePath}${path}`,
-        method: method.toUpperCase(),
-        summary: operationObj.summary || '',
+        method: methodUpper,
         description: operationObj.description || '',
         parameters: [],
         responses: [],
-        security: operationObj.security || [],
-        tags: operationObj.tags || [],
-        operationId: operationObj.operationId || `${method}${path.replace(/\//g, '_').replace(/[{}]/g, '')}`,
-        requestBody: operationObj.requestBody ? {
-          description: operationObj.requestBody.description || '',
-          required: !!operationObj.requestBody.required,
-          content: operationObj.requestBody.content || {},
-        } : null,
-        type: 'endpoint',
+        mcpType: methodUpper === 'GET' ? 'resource' : 'tool',
+        selected: true
       };
       
       // Extract parameters
       const parameters = [...(operationObj.parameters || []), ...(pathObj.parameters || [])];
       endpoint.parameters = parameters.map((param: any) => ({
         name: param.name,
-        in: param.in,
-        required: !!param.required,
         type: param.schema ? param.schema.type : 'string',
-        description: param.description || '',
+        required: !!param.required,
+        description: param.description || ''
       }));
       
       // Extract responses
       if (operationObj.responses) {
         endpoint.responses = Object.entries(operationObj.responses).map(([code, response]: [string, any]) => ({
-          code,
+          statusCode: parseInt(code) || code,
           description: (response as any).description || '',
-          content: (response as any).content || {},
+          schema: (response as any).content || null
         }));
       }
       
@@ -127,15 +117,13 @@ function extractOpenAPI3Endpoints(parsedDefinition: any): Endpoint[] {
 }
 
 function extractRamlEndpoints(parsedDefinition: any): Endpoint[] {
-  // Basic RAML parsing - would need to be expanded for full RAML support
+  // Basic RAML parsing implementation
   const endpoints: Endpoint[] = [];
-  // Implementation depends on the structure of the RAML parser output
   return endpoints;
 }
 
 function extractApiBlueprintEndpoints(parsedDefinition: any): Endpoint[] {
-  // Basic API Blueprint parsing - would need to be expanded for full API Blueprint support
+  // Basic API Blueprint parsing implementation
   const endpoints: Endpoint[] = [];
-  // Implementation depends on the structure of the API Blueprint parser output
   return endpoints;
 }

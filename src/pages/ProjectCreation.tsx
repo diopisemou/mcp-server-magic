@@ -1,263 +1,184 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Textarea } from '../components/ui/textarea';
-import { Card, CardContent } from '../components/ui/card';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
-import { useToast } from '../components/ui/use-toast';
-import { saveApiDefinition } from '../utils/apiService';
-import { extractEndpoints } from '../utils/apiValidator';
-import { EndpointMapper } from '../components/EndpointMapper';
-import type { EndpointDefinition } from '../types/api';
+import { useToast } from '@/components/ui/use-toast';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { ApiDefinition } from '@/types';
+import ApiUploader from '@/components/ApiUploader';
+// Fix the imports
+import { validateApiDefinition } from '@/utils/apiValidator';
+import EndpointMapper from '@/components/EndpointMapper';
 
-export default function ProjectCreation() {
+const ProjectCreation = () => {
+  const [projectName, setProjectName] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+  const [apiDefinition, setApiDefinition] = useState<ApiDefinition | null>(null);
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [url, setUrl] = useState('');
-  const [apiDefinition, setApiDefinition] = useState<any>(null);
-  const [selectedEndpoints, setSelectedEndpoints] = useState<EndpointDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState(1); // 1: Project details, 2: API upload, 3: Endpoint selection
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+  useEffect(() => {
+    if (!user) {
+      navigate('/auth');
     }
+  }, [user, navigate]);
+
+  const handleApiUpload = (definition: ApiDefinition) => {
+    setApiDefinition(definition);
   };
 
-  const handleContinueToApiUpload = () => {
-    if (!name.trim()) {
+  const createProject = async () => {
+    if (!projectName.trim()) {
       toast({
-        title: "Error",
-        description: "Project name is required",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Project name is required',
+        variant: 'destructive'
       });
       return;
     }
-    
-    setStep(2);
-  };
 
-  const handleUpload = async () => {
     setIsLoading(true);
     try {
-      if (!file) {
-        toast({
-          title: "Error",
-          description: "Please select a file first",
-          variant: "destructive"
-        });
-        return;
+      const { data, error } = await supabase
+        .from('mcp_projects')
+        .insert([
+          {
+            name: projectName,
+            description: projectDescription || null,
+            user_id: user?.id
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
       }
 
-      const text = await file.text();
-      let data;
-      const fileFormat = file.name.endsWith('.json') ? 'json' : 'yaml';
-      
-      if (fileFormat === 'json') {
-        data = JSON.parse(text);
-      } else {
-        // In a production app, use proper YAML parser
-        toast({
-          title: "Error",
-          description: "YAML parsing not implemented in this demo",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const endpoints = extractEndpoints(data, fileFormat);
-      const definition = {
-        name: name || file.name,
-        description,
-        format: fileFormat.toUpperCase(),
-        endpoints,
-        content: data
-      };
-      
-      setApiDefinition(definition);
-      setStep(3);
-    } catch (error) {
-      console.error(error);
       toast({
-        title: "Error",
-        description: "Failed to parse API definition",
-        variant: "destructive"
+        title: 'Success',
+        description: 'Project created successfully',
+      });
+
+      // Save the API definition to the new project
+      if (apiDefinition) {
+        await saveApiDefinition(data.id);
+      }
+
+      navigate(`/project/${data.id}`);
+    } catch (error) {
+      console.error('Error creating project:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create project',
+        variant: 'destructive'
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleUrlUpload = async () => {
-    setIsLoading(true);
-    try {
-      // Implement URL fetching logic
+  const saveApiDefinition = async (projectId: string) => {
+    if (!apiDefinition) {
       toast({
-        title: "URL upload",
-        description: "URL upload not implemented in this demo",
+        title: 'Error',
+        description: 'No API definition to save',
+        variant: 'destructive'
       });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch API definition",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
+      return;
     }
-  };
 
-  const handleEndpointSelection = async (endpoints: EndpointDefinition[]) => {
-    setSelectedEndpoints(endpoints);
-    
     try {
-      // Save the project with API definition and selected endpoints
-      const savedDefinition = await saveApiDefinition({
-        name,
-        description,
-        format: apiDefinition.format,
-        endpoint_definition: endpoints
-      });
-      
+      const { error } = await supabase
+        .from('api_definitions')
+        .insert([
+          {
+            project_id: projectId,
+            name: apiDefinition.name,
+            format: apiDefinition.format,
+            content: apiDefinition.content,
+            endpoint_definition: apiDefinition.endpoint_definition
+          }
+        ]);
+
+      if (error) {
+        throw error;
+      }
+
       toast({
-        title: "Success",
-        description: "Project created successfully",
+        title: 'Success',
+        description: 'API definition saved successfully',
       });
-      
-      // Navigate to server configuration
-      navigate(`/server-configuration/${savedDefinition.id}`);
     } catch (error) {
-      console.error("Failed to save project:", error);
+      console.error('Error saving API definition:', error);
       toast({
-        title: "Error",
-        description: "Failed to save project",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to save API definition',
+        variant: 'destructive'
       });
     }
   };
 
   return (
-    <div className="py-24">
+    <div className="py-24 relative overflow-hidden">
       <div className="content-container">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
-            <h1 className="text-3xl font-bold mb-4">Create New Project</h1>
+            <h2 className="text-3xl font-bold mb-4">Create a New Project</h2>
             <p className="text-muted-foreground text-lg">
-              Set up your project and import your API definition
+              Define your project and upload an API definition to get started
             </p>
           </div>
-          
-          {step === 1 && (
-            <Card className="p-6">
-              <CardContent className="pt-6 space-y-6">
-                <div className="grid gap-2">
-                  <Label htmlFor="project-name">Project Name</Label>
+
+          <div className="bg-white rounded-xl shadow-lg border border-border overflow-hidden">
+            <div className="p-6 border-b border-border">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="project-name" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Project Name
+                  </label>
                   <Input
+                    type="text"
                     id="project-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="My API Server"
-                    required
+                    placeholder="My API Project"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
                   />
                 </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="project-description">Description</Label>
+                <div className="space-y-2">
+                  <label htmlFor="project-description" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Description (Optional)
+                  </label>
                   <Textarea
                     id="project-description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="A brief description of your project"
-                    rows={3}
+                    placeholder="A brief description of your MCP server project"
+                    value={projectDescription}
+                    onChange={(e) => setProjectDescription(e.target.value)}
+                    className="h-24"
                   />
                 </div>
-                
-                <Button 
-                  onClick={handleContinueToApiUpload}
-                  className="w-full"
-                  disabled={!name.trim()}
-                >
-                  Continue
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-          
-          {step === 2 && (
-            <Card className="p-6">
-              <Tabs defaultValue="file">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger value="file">Upload File</TabsTrigger>
-                  <TabsTrigger value="url">Provide URL</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="file" className="space-y-4">
-                  <div className="grid w-full items-center gap-1.5">
-                    <Label htmlFor="api-file">API Definition File (JSON, YAML)</Label>
-                    <Input 
-                      id="api-file" 
-                      type="file" 
-                      onChange={handleFileChange}
-                      accept=".json,.yaml,.yml"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      Upload OpenAPI, Swagger, RAML, or API Blueprint
-                    </p>
-                  </div>
-                  
-                  <Button 
-                    onClick={handleUpload} 
-                    className="w-full"
-                    disabled={!file || isLoading}
-                  >
-                    {isLoading ? "Processing..." : "Upload and Process"}
-                  </Button>
-                </TabsContent>
-                
-                <TabsContent value="url" className="space-y-4">
-                  <div className="grid w-full items-center gap-1.5">
-                    <Label htmlFor="api-url">API Definition URL</Label>
-                    <Input 
-                      id="api-url" 
-                      type="url" 
-                      placeholder="https://example.com/api-spec.json"
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      URL to a publicly accessible API definition
-                    </p>
-                  </div>
-                  
-                  <Button 
-                    onClick={handleUrlUpload} 
-                    className="w-full"
-                    disabled={!url || isLoading}
-                  >
-                    {isLoading ? "Processing..." : "Fetch and Process"}
-                  </Button>
-                </TabsContent>
-              </Tabs>
-            </Card>
-          )}
-          
-          {step === 3 && apiDefinition && (
-            <EndpointMapper 
-              apiDefinition={apiDefinition}
-              onContinue={handleEndpointSelection}
-            />
-          )}
+              </div>
+            </div>
+
+            <div className="p-6 border-b border-border">
+              <ApiUploader onUploadComplete={handleApiUpload} />
+            </div>
+
+            <div className="p-6">
+              <Button onClick={createProject} disabled={isLoading} className="w-full">
+                {isLoading ? 'Creating...' : 'Create Project'}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default ProjectCreation;

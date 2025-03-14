@@ -1,3 +1,5 @@
+import { Json } from './json';
+
 declare global {
   interface Window {
     webkitSpeechRecognition: any;
@@ -30,6 +32,7 @@ export interface ApiDefinition {
   user_id?: string;
   description?: string;
   endpoint_definition?: EndpointDefinition[];
+  project_id?: string; // Added project_id
 }
 
 export interface EndpointDefinition {
@@ -41,7 +44,7 @@ export interface EndpointDefinition {
   responses: Response[];
   selected?: boolean;
   mcpType?: "resource" | "tool" | "none";
-  summary?: string; // Added optional properties that were causing errors
+  summary?: string; // Added optional properties
   operationId?: string;
   requestBody?: any;
   security?: any;
@@ -95,54 +98,14 @@ export interface Endpoint {
   responses: Response[];
   selected?: boolean;
   mcpType?: "resource" | "tool" | "none";
-}
-
-export interface EndpointDefinition {
-  id: string;
-  path: string;
-  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS" | "HEAD";
-  description: string;
-  parameters: Parameter[];
-  responses: Response[];
-  selected?: boolean;
-  mcpType?: "resource" | "tool" | "none";
-  summary?: string; // Added optional properties that were causing errors
+  summary?: string;
   operationId?: string;
   requestBody?: any;
   security?: any;
   tags?: string[];
 }
 
-export interface ServerConfig {
-  name: string;
-  description: string;
-  language: "Python" | "TypeScript";
-  authentication: AuthConfig;
-  hosting: HostingConfig;
-  endpoints: Endpoint[];
-  authSecret?: string; // Added for compatibility with server templates
-  database?: string; // Added for compatibility with server templates
-  framework?: string; // Added for compatibility
-}
-
-
-export interface GenerationResult {
-  summary?: string; // Added optional properties that were causing errors
-  operationId?: string;
-  requestBody?: any;
-  security?: any;
-  tags?: string[];
-  success: boolean;
-  serverUrl?: string;
-  error?: string;
-  files?: ServerFile[];
-  parameters: EndpointParameter[];
-  responses: EndpointResponse[];
-  mcpType: "none" | "resource" | "tool";
-  selected?: boolean;
-}
-
-// Authentication types
+// Updated types for auth and hosting
 export type AuthType = "None" | "API Key" | "Bearer Token" | "Basic Auth";
 export type AuthLocation = "header" | "query" | "cookie";
 
@@ -163,20 +126,42 @@ export interface HostingConfig {
   region?: string;
 }
 
+export interface ServerConfig {
+  name: string;
+  description: string;
+  language: "Python" | "TypeScript";
+  authentication: AuthConfig;
+  hosting: HostingConfig;
+  endpoints: Endpoint[];
+  authSecret?: string; 
+  database?: string;
+  framework?: string;
+}
+
+export interface GenerationResult {
+  success: boolean;
+  serverUrl?: string;
+  error?: string;
+  files?: ServerFile[];
+  parameters?: EndpointParameter[];
+  responses?: EndpointResponse[];
+  mcpType?: "none" | "resource" | "tool";
+  selected?: boolean;
+}
+
 export interface ServerFile {
   name: string;
   path: string;
   content: string;
   type: "code" | "config" | "documentation";
-   language?: string; // Added for compatibility with server templates
-  }
+  language?: string;
 }
 
 export interface User {
   id: string;
   email: string;
   username?: string;
-  user_metadata?: { // Added for compatibility with Supabase
+  user_metadata?: {
     username?: string;
   };
 }
@@ -198,10 +183,11 @@ export interface ApiDefinitionRecord {
   content: string;
   created_at: string;
   updated_at: string;
-  endpoint_definition?: any; // Updated to allow any type for compatibility with Json
+  endpoint_definition?: Json;
+  endpoints?: EndpointDefinition[];
 }
 
-export interface ServerConfigRecord {
+export interface ServerConfiguration {
   id: string;
   project_id: string;
   name: string;
@@ -225,7 +211,7 @@ export interface Deployment {
   logs?: string;
   created_at: string;
   updated_at: string;
-  files?: ServerFile[]; // Added for compatibility
+  files?: ServerFile[];
 }
 
 // Archive format for downloading files
@@ -240,7 +226,8 @@ export interface ZipPackage {
   files: ArchiveFile[];
   fileName: string;
   blob: Blob;
-  name?: string; // Added for compatibility
+  name?: string;
+  files?: ServerFile[];
 }
 
 export interface MCPCapability {
@@ -261,3 +248,6 @@ export interface MCPServer {
   tags: string[];
   updatedAt: string;
 }
+
+// Re-export from server.ts for backward compatibility
+export { ServerConfigRecord } from './serverTypes';

@@ -1,6 +1,7 @@
 import yaml from 'js-yaml';
 import { supabase } from '../integrations/supabase/client';
-import type { ApiDefinition, EndpointDefinition, Endpoint } from '../types';
+import type { ApiDefinition, EndpointDefinition, Endpoint, ValidationResult } from '../types';
+import { prepareApiForDatabase, convertRecordToApiDefinition } from './typeConverters';
 
 // Polyfill for Buffer in browser environments
 const BufferPolyfill = {
@@ -12,13 +13,6 @@ const BufferPolyfill = {
 const BufferImpl = typeof Buffer !== 'undefined' ? Buffer : BufferPolyfill;
 
 export type ApiFormat = 'OpenAPI2' | 'OpenAPI3' | 'RAML' | 'APIBlueprint';
-
-interface ValidationResult {
-  isValid: boolean;
-  format: ApiFormat;
-  errors?: string[];
-  parsedDefinition: any;
-}
 
 // Content Type Detection and Parsing
 export function detectContentType(content: string | Uint8Array | object, filename?: string): 'json' | 'yaml' | 'raml' | 'apiblueprint' | 'unknown' {
@@ -65,33 +59,67 @@ export function parseContent(content: string | Uint8Array | object, contentType:
   }
 }
 
+// Function to convert an object to string if needed
+const contentToString = (content: string | object | Uint8Array): string => {
+  if (typeof content === 'string') {
+    return content;
+  } else if (content instanceof Uint8Array) {
+    return new TextDecoder().decode(content);
+  } else if (typeof content === 'object') {
+    return JSON.stringify(content);
+  }
+  return String(content);
+};
+
 // API Definition Validation
-export function validateApiDefinition(content: string | Uint8Array | object, filename?: string): ValidationResult {
-  const contentType = detectContentType(content, filename);
+export const validateApiDefinition = async (content: string | object | Uint8Array, fileName?: string): Promise<ValidationResult> => {
+  const contentType = detectContentType(content, fileName);
   const parsedContent = parseContent(content, contentType);
+  const endpoints: EndpointDefinition[] = [];
 
   // Simple validation based on content structure
   if (typeof parsedContent === 'object' && parsedContent !== null) {
     if (parsedContent.swagger === '2.0') {
-      return { isValid: true, format: 'OpenAPI2', parsedDefinition: parsedContent };
+      return { 
+        isValid: true, 
+        format: 'OpenAPI2', 
+        parsedDefinition: parsedContent,
+        endpoints: extractEndpointsFromDefinition(content, fileName)
+      };
     }
     if (parsedContent.openapi && parsedContent.openapi.startsWith('3.')) {
-      return { isValid: true, format: 'OpenAPI3', parsedDefinition: parsedContent };
+      return { 
+        isValid: true, 
+        format: 'OpenAPI3', 
+        parsedDefinition: parsedContent,
+        endpoints: extractEndpointsFromDefinition(content, fileName)
+      };
     }
     if (parsedContent.raml_version || String(content).startsWith('#%RAML')) {
-      return { isValid: true, format: 'RAML', parsedDefinition: parsedContent };
+      return { 
+        isValid: true, 
+        format: 'RAML', 
+        parsedDefinition: parsedContent,
+        endpoints: extractEndpointsFromDefinition(content, fileName)
+      };
     }
   }
 
   if (contentType === 'apiblueprint') {
-    return { isValid: true, format: 'APIBlueprint', parsedDefinition: parsedContent };
+    return { 
+      isValid: true, 
+      format: 'APIBlueprint', 
+      parsedDefinition: parsedContent,
+      endpoints: extractEndpointsFromDefinition(content, fileName)
+    };
   }
 
   return { 
     isValid: false, 
     format: 'OpenAPI3', 
     errors: ['Could not determine API format or invalid structure'],
-    parsedDefinition: parsedContent
+    parsedDefinition: parsedContent,
+    endpoints: []
   };
 }
 
@@ -100,25 +128,26 @@ export async function saveApiDefinition(
   apiDefinition: Partial<ApiDefinition>,
   endpointDefinitions?: EndpointDefinition[]
 ): Promise<ApiDefinition> {
-  const definition = { ...apiDefinition, endpoint_definition: endpointDefinitions };
+  const dbData = prepareApiForDatabase(apiDefinition, endpointDefinitions);
+  
   const { data, error } = apiDefinition.id
-    ? await supabase.from('api_definitions').update(definition).eq('id', apiDefinition.id).select().single()
-    : await supabase.from('api_definitions').insert(definition).select().single();
+    ? await supabase.from('api_definitions').update(dbData).eq('id', apiDefinition.id).select().single()
+    : await supabase.from('api_definitions').insert(dbData).select().single();
 
   if (error) throw new Error(`Failed to save API definition: ${error.message}`);
-  return data as ApiDefinition;
+  return convertRecordToApiDefinition(data);
 }
 
 export async function getApiDefinition(id: string): Promise<ApiDefinition> {
   const { data, error } = await supabase.from('api_definitions').select('*').eq('id', id).single();
   if (error) throw new Error(`Failed to get API definition: ${error.message}`);
-  return data as ApiDefinition;
+  return convertRecordToApiDefinition(data);
 }
 
 export async function getApiDefinitions(): Promise<ApiDefinition[]> {
   const { data, error } = await supabase.from('api_definitions').select('*').order('created_at', { ascending: false });
   if (error) throw new Error(`Failed to get API definitions: ${error.message}`);
-  return data as ApiDefinition[];
+  return data.map(convertRecordToApiDefinition);
 }
 
 export async function deleteApiDefinition(id: string): Promise<boolean> {
@@ -180,7 +209,7 @@ function extractOpenApiEndpoints(parsedContent: any): Endpoint[] {
 // Extract endpoints from RAML definitions
 function extractRamlEndpoints(parsedContent: any, content: string | Uint8Array | object): Endpoint[] {
   const endpoints: Endpoint[] = [];
-  const ramlLines = (parsedContent.content || String(content)).split('\n');
+  const ramlLines = (typeof parsedContent === 'string' ? parsedContent : String(content)).split('\n');
   let currentPath = '';
 
   ramlLines.forEach(line => {
@@ -196,7 +225,7 @@ function extractRamlEndpoints(parsedContent: any, content: string | Uint8Array |
         method: method.toUpperCase() as Endpoint['method'],
         description: '',
         parameters: [],
-        responses: [{ statusCode: 200, description: 'Success' }],
+        responses: [{ statusCode: 200, description: 'Success', schema: null }],
         mcpType: method === 'get' ? 'resource' : 'tool'
       });
     }
@@ -208,7 +237,7 @@ function extractRamlEndpoints(parsedContent: any, content: string | Uint8Array |
 // Extract endpoints from API Blueprint definitions
 function extractApiBlueprintEndpoints(parsedContent: any, content: string | Uint8Array | object): Endpoint[] {
   const endpoints: Endpoint[] = [];
-  const apibLines = (parsedContent.content || String(content)).split('\n');
+  const apibLines = (typeof parsedContent === 'string' ? parsedContent : String(content)).split('\n');
   let currentGroup = '';
 
   apibLines.forEach(line => {
@@ -222,7 +251,7 @@ function extractApiBlueprintEndpoints(parsedContent: any, content: string | Uint
         method: method as Endpoint['method'],
         description: currentGroup,
         parameters: [],
-        responses: [{ statusCode: 200, description: 'Success' }],
+        responses: [{ statusCode: 200, description: 'Success', schema: null }],
         mcpType: method.toLowerCase() === 'get' ? 'resource' : 'tool'
       });
     }
@@ -240,7 +269,7 @@ export function extractEndpointsFromDefinition(
     const { isValid, format, parsedDefinition } = validateApiDefinition(content, filename);
 
     if (!isValid) {
-      throw new Error(`Invalid API definition: Could not determine API format or invalid structure`);
+      return [];
     }
 
     let endpoints: Endpoint[] = [];
@@ -265,11 +294,14 @@ export function extractEndpointsFromDefinition(
       id: endpoint.id || `endpoint-${Math.random().toString(36).substring(2)}`,
       description: endpoint.description || '',
       parameters: endpoint.parameters || [],
-      responses: endpoint.responses || []
+      responses: endpoint.responses.map(resp => ({
+        ...resp,
+        schema: resp.schema || null
+      })) || []
     }));
   } catch (error) {
     console.error('Error extracting endpoints:', error);
-    throw new Error(`Failed to extract endpoints: ${(error as Error).message}`);
+    return [];
   }
 }
 
@@ -296,6 +328,7 @@ export function extractSwaggerUrl(htmlContent: string, baseUrl: string): string 
 }
 
 // Fix missing 'schema' property in Response objects
+<<<<<<< HEAD
 export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoint[] => {
   const endpoints: Endpoint[] = [];
   console.log('Extracting endpoints from format:', format);
@@ -315,6 +348,25 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
           if (pathObj[method]) {
             const operation = pathObj[method];
 
+=======
+export const extractEndpoints = (apiSpec: any): EndpointDefinition[] => {
+  const endpoints: EndpointDefinition[] = [];
+  
+  try {
+    if (apiSpec.openapi && apiSpec.openapi.startsWith('3.')) {
+      const paths = apiSpec.paths || {};
+      
+      Object.keys(paths).forEach(path => {
+        const pathObj = paths[path];
+        
+        // Common HTTP methods
+        const methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'];
+        
+        methods.forEach(method => {
+          if (pathObj[method]) {
+            const operation = pathObj[method];
+            
+>>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
             // Extract parameters
             const parameters = [...(pathObj.parameters || []), ...(operation.parameters || [])].map(param => ({
               name: param.name,
@@ -322,6 +374,7 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
               required: !!param.required,
               description: param.description || ''
             }));
+<<<<<<< HEAD
 
             // Extract responses
             const responses = Object.keys(operation.responses || {}).map(statusCode => ({
@@ -330,17 +383,32 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
               schema: operation.responses[statusCode].schema || operation.responses[statusCode].content || null
             }));
 
+=======
+            
+            // Extract responses
+            const responsesList = Object.entries(operation.responses || {}).map(([statusCode, response]) => ({
+              statusCode,
+              description: response.description || '',
+              schema: response.schema || {} // Ensure schema is always present with at least an empty object
+            }));
+            
+>>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
             endpoints.push({
               id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, '-'),
               path,
               method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
               description: operation.summary || operation.description || '',
               parameters,
+<<<<<<< HEAD
               responses
+=======
+              responses: responsesList
+>>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
             });
           }
         });
       });
+<<<<<<< HEAD
     } else if (format === 'RAML') {
       if (apiDefinition.resources) {
         apiDefinition.resources.forEach(resource => {
@@ -395,11 +463,19 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
           });
         });
       }
+=======
+>>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
     }
   } catch (error) {
     console.error('Error extracting endpoints:', error);
   }
+<<<<<<< HEAD
 
   console.log(`Extracted ${endpoints.length} endpoints`);
   return endpoints;
 };
+=======
+  
+  return endpoints;
+};
+>>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
