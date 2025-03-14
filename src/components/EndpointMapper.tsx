@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,7 +35,7 @@ interface EndpointMapperProps {
 const EndpointMapper: React.FC<EndpointMapperProps> = ({ endpoint, onUpdate, onDelete }) => {
   const [id, setId] = useState(endpoint.id);
   const [path, setPath] = useState(endpoint.path);
-  const [method, setMethod] = useState(endpoint.method);
+  const [method, setMethod] = useState<Endpoint['method']>(endpoint.method);
   const [description, setDescription] = useState(endpoint.description);
   const [parameters, setParameters] = useState(endpoint.parameters);
   const [responses, setResponses] = useState(endpoint.responses);
@@ -54,8 +55,9 @@ const EndpointMapper: React.FC<EndpointMapperProps> = ({ endpoint, onUpdate, onD
     setPath(e.target.value);
   };
 
-  const handleMethodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setMethod(e.target.value);
+  const handleMethodChange = (value: string) => {
+    // Ensure the value is one of the allowed method types
+    setMethod(value as Endpoint['method']);
   };
 
   const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -66,8 +68,8 @@ const EndpointMapper: React.FC<EndpointMapperProps> = ({ endpoint, onUpdate, onD
     setNewParameterName(e.target.value);
   };
 
-  const handleParameterTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setNewParameterType(e.target.value);
+  const handleParameterTypeChange = (value: string) => {
+    setNewParameterType(value);
   };
 
   const handleParameterRequiredChange = (checked: boolean) => {
@@ -133,8 +135,8 @@ const EndpointMapper: React.FC<EndpointMapperProps> = ({ endpoint, onUpdate, onD
     setResponses(newResponses);
   };
 
-  const handleTypeChange = (value: "resource" | "tool" | "none") => {
-    setMcpType(value);
+  const handleTypeChange = (value: string) => {
+    setMcpType(value as "resource" | "tool" | "none");
   };
 
   const handleSave = () => {
@@ -146,7 +148,7 @@ const EndpointMapper: React.FC<EndpointMapperProps> = ({ endpoint, onUpdate, onD
       parameters: parameters,
       responses: responses,
       selected: selected,
-      mcpType: mcpType
+      mcpType: mcpType as "resource" | "tool" | "none"
     };
     onUpdate(updatedEndpoint);
     toast({

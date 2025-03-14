@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -129,18 +130,20 @@ const ImportApi = () => {
       setIsSaving(true);
       // Convert endpoints to JSON-safe format
       const safeEndpoints = mappedEndpoints || [];
+      
+      // Create a single object, not an array
+      const apiToSave = {
+        project_id: projectId,
+        name: apiDefinition.name,
+        format: apiDefinition.format,
+        content: apiDefinition.content,
+        // Store endpoints as a JSON object
+        endpoint_definition: safeEndpoints
+      };
+      
       const { error } = await supabase
         .from('api_definitions')
-        .insert([
-          {
-            project_id: projectId,
-            name: apiDefinition.name,
-            format: apiDefinition.format,
-            content: apiDefinition.content,
-            // Convert to JSON-safe format before saving
-            endpoint_definition: safeEndpoints
-          }
-        ]);
+        .insert(apiToSave);
 
       if (error) {
         throw error;

@@ -250,4 +250,4 @@ export interface MCPServer {
 }
 
 // Re-export from server.ts for backward compatibility
-export { ServerConfigRecord } from './serverTypes';
+export type { ServerConfigRecord } from './serverTypes';
