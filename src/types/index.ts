@@ -211,12 +211,14 @@ export interface ArchiveFile {
 
 // Zip package format
 export interface ZipPackage {
+  name: string;
+  files: ArchiveFile[];
   fileName: string;
   blob: Blob;
 }
 
 export interface MCPCapability {
-  type: 'resource' | 'tool';
+  type: "resource" | "tool";
   name: string;
   description: string;
 }
