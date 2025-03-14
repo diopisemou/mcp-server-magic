@@ -97,7 +97,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   };
 
   const handleFiles = async (fileList: FileList | DataTransfer['items']) => {
-    // Reset errors
     setFileError(null);
     setEndpoints([]);
     setShowEndpoints(false);
@@ -113,13 +112,11 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
 
     setSelectedFile(file);
 
-    // Validate file
     if (!['.json', '.yaml', '.yml', '.raml', '.md'].some(ext => file.name.toLowerCase().endsWith(ext))) {
       setFileError('Invalid file type. Supported types: JSON, YAML, RAML, and API Blueprint');
       return;
     }
 
-    // Read and validate file content
     try {
       setIsUploading(true);
       setUploadProgress(10);
@@ -139,7 +136,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         try {
           setUploadProgress(60);
 
-          // Validate the API definition
           const validationResult = await validateApiDefinition(content, file.name);
 
           setUploadProgress(90);
@@ -150,7 +146,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
             return;
           }
 
-          // Extract endpoints from the validated API definition
           if (validationResult.parsedDefinition) {
             const extractedEndpoints = extractEndpoints(
               validationResult.parsedDefinition, 
@@ -163,7 +158,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
 
           setUploadProgress(100);
 
-          // Call the onUploadComplete callback with the validated API definition
           onUploadComplete({
             id: '',
             name: file.name,
@@ -205,7 +199,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
     await handleUrlUpload();
   };
 
-
   const handleUrlUpload = async () => {
     setUploadError(null);
     setEndpoints([]);
@@ -221,13 +214,10 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
       setIsUploading(true);
       setUploadProgress(10);
 
-      // Prepare headers
       const headers = new Headers();
       headers.append('Content-Type', 'application/json');
 
-      // Add authentication if applicable
       if (showAdvancedOptions) {
-        // Add authentication headers if specified
         if (authType === 'bearer' && authToken) {
           headers.append('Authorization', `Bearer ${authToken}`);
         } else if (authType === 'api-key' && apiKey) {
@@ -235,7 +225,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         }
       }
 
-      // Prepare URL with query parameters
       let fetchUrl = apiUrl;
       if (showAdvancedOptions && queryParams) {
         try {
@@ -245,7 +234,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
             searchParams.append(key, value as string);
           });
 
-          // Append query parameters to URL
           fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + searchParams.toString();
         } catch (err) {
           console.error('Error parsing query params:', err);
@@ -255,16 +243,13 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         }
       }
 
-      // Prepare fetch options
       const fetchOptions: RequestInit = { 
         headers,
         method: showAdvancedOptions ? requestMethod : 'GET'
       };
 
-      // Add request body for POST requests
       if (showAdvancedOptions && requestMethod === 'POST' && requestBody) {
         try {
-          // Check if the body is valid JSON
           JSON.parse(requestBody);
           fetchOptions.body = requestBody;
         } catch (err) {
@@ -275,7 +260,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         }
       }
 
-      // If in advanced mode and testUrl is specified, test the endpoint
       if (showAdvancedOptions && testUrl) {
         try {
           const testResponse = await fetch(testUrl, fetchOptions);
@@ -300,7 +284,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         }
       }
 
-      // Fetch the API definition
       const response = await fetch(fetchUrl, fetchOptions);
 
       if (!response.ok) {
@@ -310,15 +293,11 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
       let responseText = await response.text();
       setUploadProgress(50);
 
-      // Extract filename from URL
       const url = new URL(apiUrl);
       let fileName = url.pathname.split('/').pop() || 'api-definition';
 
-      // Handle different URL types
       if (urlType === 'swagger') {
-        // If this is a Swagger UI page, try to extract the API definition
         if (responseText.includes('swagger-ui')) {
-          // Look for the URL to the actual Swagger JSON/YAML
           const matches = responseText.match(/url:\s*['"](.*?)['"]/);
           if (matches && matches[1]) {
             const swaggerDefUrl = new URL(matches[1], apiUrl).href;
@@ -337,7 +316,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         }
       }
 
-      // Validate the API definition
       const validationResult = await validateApiDefinition(responseText, fileName);
 
       if (!validationResult.isValid) {
@@ -346,7 +324,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
         return;
       }
 
-      // Extract endpoints from the validated API definition
       if (validationResult.parsedDefinition) {
         const extractedEndpoints = extractEndpoints(
           validationResult.parsedDefinition, 
@@ -359,7 +336,6 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
 
       setUploadProgress(100);
 
-      // Call the onUploadComplete callback with the validated API definition
       onUploadComplete({
         id: '',
         name: fileName,
@@ -384,16 +360,14 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
 
   const handleUpload = () => {
     if (uploadMethod === 'file' && selectedFile) {
-      handleFiles(new DataTransfer().items.add(selectedFile)); //Simulate FileList
+      handleFiles(new DataTransfer().items.add(selectedFile));
     } else if (uploadMethod === 'url') {
       handleUrlUpload();
     }
-  }
+  };
 
   const extractEndpoints = (definition: any, format: string): any[] => {
-    // Implement endpoint extraction logic based on format (JSON, YAML, etc.)
     if (format === 'json' || format === 'yaml') {
-      // Extract endpoints from JSON or YAML
       return Object.keys(definition).map(key => ({path: key, methods: definition[key]}));
     }
     return [];
@@ -629,6 +603,7 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
                           </div>
                         </div>
                       )}
+                    </div>
                     <Button type="submit" disabled={isUploading || !apiUrl}>
                       {isUploading ? 'Fetching...' : 'Fetch'}
                     </Button>
