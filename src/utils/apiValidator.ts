@@ -1,9 +1,10 @@
-import yaml from 'js-yaml';
-import { supabase } from '../integrations/supabase/client';
-import type { ApiDefinition, EndpointDefinition, Endpoint, ValidationResult } from '../types';
-import { prepareApiForDatabase, convertRecordToApiDefinition } from './typeConverters';
 
-// Polyfill for Buffer in browser environments
+import yaml from 'js-yaml';
+import { Buffer } from 'buffer';
+import type { ApiFormat, ValidationResult, ApiDefinition, EndpointDefinition } from '@/types';
+import { extractEndpoints } from './endpointExtractor';
+
+// Buffer polyfill for browser environments
 const BufferPolyfill = {
   isBuffer: (obj: any): boolean => obj instanceof Uint8Array || obj instanceof ArrayBuffer || (obj && typeof obj.byteLength === 'number'),
   from: (data: string | Uint8Array): { toString: () => string } => ({
@@ -12,19 +13,62 @@ const BufferPolyfill = {
 };
 const BufferImpl = typeof Buffer !== 'undefined' ? Buffer : BufferPolyfill;
 
-export type ApiFormat = 'OpenAPI2' | 'OpenAPI3' | 'RAML' | 'APIBlueprint';
+/**
+ * Validate and parse an API definition
+ */
+export const validateApiDefinition = async (content: string | Uint8Array, name?: string): Promise<ValidationResult> => {
+  try {
+    // Detect content type and format
+    const contentType = detectContentType(content);
+    const parsedContent = parseContent(content, contentType);
+    const format = determineApiFormat(parsedContent);
+    
+    // Validate the API definition
+    const errors = validateApiDefinitionContent(parsedContent, format);
+    
+    if (errors.length > 0) {
+      return {
+        isValid: false,
+        format,
+        errors,
+        parsedDefinition: parsedContent,
+        endpoints: []
+      };
+    }
+    
+    // Extract endpoints
+    const endpoints = await extractEndpoints(parsedContent, format);
+    
+    return {
+      isValid: true,
+      format,
+      parsedDefinition: parsedContent,
+      endpoints
+    };
+  } catch (error: any) {
+    return {
+      isValid: false,
+      format: 'OpenAPI3',
+      errors: [error.message || 'Failed to validate API definition'],
+      parsedDefinition: null,
+      endpoints: []
+    };
+  }
+};
 
-// Content Type Detection and Parsing
-export function detectContentType(content: string | Uint8Array | object, filename?: string): 'json' | 'yaml' | 'raml' | 'apiblueprint' | 'unknown' {
-  if (BufferImpl.isBuffer(content)) content = BufferImpl.from(content).toString();
-  if (typeof content === 'object' && content !== null) return 'json';
-
+/**
+ * Detect the content type of an API definition
+ */
+function detectContentType(content: string | Uint8Array): 'json' | 'yaml' | 'raml' | 'apiblueprint' | 'unknown' {
+  if (BufferImpl.isBuffer(content)) {
+    content = BufferImpl.from(content).toString();
+  }
+  
   const strContent = String(content).trim();
+  
   if (strContent.startsWith('#%RAML')) return 'raml';
   if (strContent.startsWith('# ') || strContent.startsWith('FORMAT:')) return 'apiblueprint';
-  if (filename?.endsWith('.raml')) return 'raml';
-  if (filename?.endsWith('.md') || filename?.endsWith('.apib')) return 'apiblueprint';
-
+  
   try {
     JSON.parse(strContent);
     return 'json';
@@ -38,17 +82,31 @@ export function detectContentType(content: string | Uint8Array | object, filenam
   }
 }
 
-export function parseContent(content: string | Uint8Array | object, contentType: ReturnType<typeof detectContentType>): any {
-  if (BufferImpl.isBuffer(content)) content = BufferImpl.from(content).toString();
-  if (typeof content === 'object' && content !== null) return content;
-
+/**
+ * Parse API definition content based on content type
+ */
+function parseContent(content: string | Uint8Array, contentType: ReturnType<typeof detectContentType>): any {
+  if (BufferImpl.isBuffer(content)) {
+    content = BufferImpl.from(content).toString();
+  }
+  
   const strContent = String(content).trim();
+  
   try {
     switch (contentType) {
-      case 'json': return JSON.parse(strContent);
-      case 'yaml': return yaml.load(strContent);
-      case 'raml': 
+      case 'json':
+        return JSON.parse(strContent);
+      case 'yaml':
+        return yaml.load(strContent);
+      case 'raml':
+        const ramlLines = strContent.split('\n');
+        return {
+          version: ramlLines.find(l => l.startsWith('#%RAML'))?.split(' ')[1] || '',
+          title: ramlLines.find(l => l.startsWith('title:'))?.split(':')[1]?.trim() || '',
+          isRaml: true
+        };
       case 'apiblueprint':
+        return { isApiBlueprint: true, content: strContent };
       case 'unknown':
       default:
         return strContent;
@@ -328,7 +386,7 @@ export function extractSwaggerUrl(htmlContent: string, baseUrl: string): string 
 }
 
 // Fix missing 'schema' property in Response objects
-<<<<<<< HEAD
+
 export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoint[] => {
   const endpoints: Endpoint[] = [];
   console.log('Extracting endpoints from format:', format);
@@ -348,25 +406,7 @@ export const extractEndpoints = (apiDefinition: any, format: ApiFormat): Endpoin
           if (pathObj[method]) {
             const operation = pathObj[method];
 
-=======
-export const extractEndpoints = (apiSpec: any): EndpointDefinition[] => {
-  const endpoints: EndpointDefinition[] = [];
-  
-  try {
-    if (apiSpec.openapi && apiSpec.openapi.startsWith('3.')) {
-      const paths = apiSpec.paths || {};
-      
-      Object.keys(paths).forEach(path => {
-        const pathObj = paths[path];
-        
-        // Common HTTP methods
-        const methods = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'];
-        
-        methods.forEach(method => {
-          if (pathObj[method]) {
-            const operation = pathObj[method];
-            
->>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
+
             // Extract parameters
             const parameters = [...(pathObj.parameters || []), ...(operation.parameters || [])].map(param => ({
               name: param.name,
@@ -374,7 +414,7 @@ export const extractEndpoints = (apiSpec: any): EndpointDefinition[] => {
               required: !!param.required,
               description: param.description || ''
             }));
-<<<<<<< HEAD
+
 
             // Extract responses
             const responses = Object.keys(operation.responses || {}).map(statusCode => ({
@@ -383,32 +423,21 @@ export const extractEndpoints = (apiSpec: any): EndpointDefinition[] => {
               schema: operation.responses[statusCode].schema || operation.responses[statusCode].content || null
             }));
 
-=======
-            
-            // Extract responses
-            const responsesList = Object.entries(operation.responses || {}).map(([statusCode, response]) => ({
-              statusCode,
-              description: response.description || '',
-              schema: response.schema || {} // Ensure schema is always present with at least an empty object
-            }));
-            
->>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
+
             endpoints.push({
               id: `${method}-${path}`.replace(/[^a-zA-Z0-9]/g, '-'),
               path,
               method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD',
               description: operation.summary || operation.description || '',
               parameters,
-<<<<<<< HEAD
+
               responses
-=======
-              responses: responsesList
->>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
+
             });
           }
         });
       });
-<<<<<<< HEAD
+
     } else if (format === 'RAML') {
       if (apiDefinition.resources) {
         apiDefinition.resources.forEach(resource => {
@@ -463,19 +492,67 @@ export const extractEndpoints = (apiSpec: any): EndpointDefinition[] => {
           });
         });
       }
-=======
->>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
+
+        try {
+          return JSON.parse(strContent);
+        } catch {
+          return yaml.load(strContent);
+        }
+
     }
   } catch (error) {
-    console.error('Error extracting endpoints:', error);
+    throw new Error(`Failed to parse content: ${(error as Error).message}`);
   }
-<<<<<<< HEAD
+}
+
+/**
+ * Determine the API format
+ */
+function determineApiFormat(parsedContent: any): ApiFormat {
+  if (parsedContent.swagger === '2.0') return 'OpenAPI2';
+  if (parsedContent.openapi?.startsWith('3.')) return 'OpenAPI3';
+  if (parsedContent.isRaml) return 'RAML';
+  if (parsedContent.isApiBlueprint) return 'APIBlueprint';
+  return 'OpenAPI3'; // Default
+}
+
+/**
+ * Validate API definition content
+ */
+function validateApiDefinitionContent(parsedContent: any, format: ApiFormat): string[] {
+  const errors: string[] = [];
+  
+  switch (format) {
+    case 'OpenAPI2':
+      if (parsedContent.swagger !== '2.0') errors.push('Invalid Swagger version');
+      if (!parsedContent.info?.title) errors.push('Missing API title');
+      if (!parsedContent.info?.version) errors.push('Missing API version');
+      if (!Object.keys(parsedContent.paths || {}).length) errors.push('No paths defined');
+      break;
+    case 'OpenAPI3':
+      if (!parsedContent.openapi?.startsWith('3.')) errors.push('Invalid OpenAPI version');
+      if (!parsedContent.info?.title) errors.push('Missing API title');
+      if (!parsedContent.info?.version) errors.push('Missing API version');
+      if (!Object.keys(parsedContent.paths || {}).length) errors.push('No paths defined');
+      break;
+    case 'RAML':
+      if (!parsedContent.version) errors.push('Missing RAML version');
+      if (!parsedContent.title) errors.push('Missing API title');
+      break;
+    case 'APIBlueprint':
+      if (!parsedContent.content?.trim()) errors.push('Empty API Blueprint document');
+      if (!parsedContent.content.includes('# ') && !parsedContent.content.includes('FORMAT:')) 
+        errors.push('Missing API Blueprint header');
+      break;
+  }
+
 
   console.log(`Extracted ${endpoints.length} endpoints`);
   return endpoints;
 };
-=======
-  
+
   return endpoints;
 };
->>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
+errors;
+}
+

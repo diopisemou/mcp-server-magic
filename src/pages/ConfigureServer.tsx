@@ -1,214 +1,271 @@
 
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { ServerConfig, ApiDefinitionRecord, McpProject, Endpoint } from '@/types';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from 'sonner';
-import { parseApiDefinition } from '@/utils/apiParsingUtils';
-import ServerConfigurationForm from '@/components/ServerConfigurationForm';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
+import { useToast } from '../components/ui/use-toast';
+import { getApiDefinition, saveApiDefinition } from '../utils/apiService';
+import { generateServer } from '../utils/serverGenerator';
+import EndpointMapper from '../components/EndpointMapper';
+import type { ApiDefinition, EndpointDefinition, ServerConfig, GenerationResult, AuthConfig } from '../types';
+import { convertJsonToEndpointDefinitions } from '../utils/typeConverters';
 
-const ConfigureServer = () => {
-  const { projectId } = useParams<{ projectId: string }>();
-  const { user, loading } = useAuth();
+export default function ServerConfiguration() {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   
-  const [project, setProject] = useState<McpProject | null>(null);
-  const [apiDefinition, setApiDefinition] = useState<ApiDefinitionRecord | null>(null);
-  const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
+  const [apiDefinition, setApiDefinition] = useState<ApiDefinition | null>(null);
+  const [selectedEndpoints, setSelectedEndpoints] = useState<EndpointDefinition[]>([]);
   const [serverConfig, setServerConfig] = useState<ServerConfig>({
+    language: 'TypeScript',
+    framework: 'express',
+    database: 'none',
+    authentication: {
+      type: "None",
+      location: "header"
+    } as AuthConfig,
     name: '',
     description: '',
-    language: 'Python',
-    authentication: {
-      type: 'API Key', // This matches the updated AuthType in types/index.ts
-      location: 'header',
-      name: 'X-API-Key',
-      value: ''
-    },
     hosting: {
-      provider: 'AWS',
-      type: 'Shared', // This matches the updated HostingType in types/index.ts
-      region: 'us-east-1'
+      provider: "AWS",
+      type: "Serverless",
+      region: "us-east-1"
     },
     endpoints: []
   });
-  
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  
+  const [isLoading, setIsLoading] = useState(false);
+  const [serverFiles, setServerFiles] = useState<any[]>([]);
+
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-      return;
+    if (id) {
+      loadApiDefinition(id);
     }
+  }, [id]);
 
-    if (projectId && user) {
-      fetchData();
-    }
-  }, [projectId, user, loading, navigate]);
-  
-  const fetchData = async () => {
+  const loadApiDefinition = async (definitionId: string) => {
     try {
-      setIsLoading(true);
+      const definition = await getApiDefinition(definitionId);
+      setApiDefinition(definition);
       
-      // Fetch project
-      const { data: projectData, error: projectError } = await supabase
-        .from('mcp_projects')
-        .select('*')
-        .eq('id', projectId)
-        .single();
-
-      if (projectError) {
-        throw projectError;
-      }
-
-      setProject(projectData);
-      
-      // Set initial server config name based on project
-      setServerConfig(prev => ({
-        ...prev,
-        name: `${projectData.name} MCP Server`
-      }));
-
-      // Fetch API definition
-      const { data: apiData, error: apiError } = await supabase
-        .from('api_definitions')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (apiError) {
-        toast.error('No API definition found for this project');
-        navigate(`/project/${projectId}`);
-        return;
-      }
-
-      setApiDefinition(apiData);
-      
-      // Parse the API definition content and extract endpoints
-      const extractedEndpoints = parseApiDefinition(apiData);
-      
-      // Fix the type mismatch by checking if the result has endpoints property
-      if (Array.isArray(extractedEndpoints)) {
-        setEndpoints(extractedEndpoints);
-        setServerConfig(prev => ({
-          ...prev,
-          endpoints: extractedEndpoints
-        }));
-      } else if (extractedEndpoints && Array.isArray(extractedEndpoints.endpoints)) {
-        setEndpoints(extractedEndpoints.endpoints);
-        setServerConfig(prev => ({
-          ...prev,
-          endpoints: extractedEndpoints.endpoints
-        }));
+      // Set selected endpoints from the saved endpoint_definition
+      if (definition.endpoint_definition && definition.endpoint_definition.length > 0) {
+        setSelectedEndpoints(definition.endpoint_definition);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to fetch project data');
+      console.error("Failed to load API definition:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load API definition",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleEndpointSelection = (endpoints: EndpointDefinition[]) => {
+    setSelectedEndpoints(endpoints);
+    
+    // Save the updated endpoint selection
+    if (apiDefinition) {
+      saveApiDefinition({
+        ...apiDefinition,
+        endpoint_definition: endpoints
+      });
+    }
+  };
+
+  const handleConfigChange = (key: keyof ServerConfig, value: any) => {
+    setServerConfig(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleGenerateServer = async () => {
+    if (!apiDefinition) return;
+    
+    setIsLoading(true);
+    try {
+      // Only use selected endpoints for server generation
+      const filteredEndpoints = selectedEndpoints.filter(endpoint => endpoint.selected !== false);
+      
+      // Create server config with the endpoints
+      const configWithEndpoints = {
+        ...serverConfig,
+        endpoints: filteredEndpoints
+      };
+      
+      const result: GenerationResult = await generateServer(configWithEndpoints);
+      
+      setServerFiles(result.files || []);
+      
+      toast({
+        title: "Success",
+        description: "Server generated successfully",
+      });
+      
+      // Navigate to server preview or download page
+      navigate(`/server-preview/${apiDefinition.id}`);
+    } catch (error) {
+      console.error("Failed to generate server:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate server",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
   };
-  
-  const handleSaveConfig = async () => {
-    if (!serverConfig.name) {
-      toast.error('Server name is required');
-      return;
-    }
-    
-    try {
-      setIsSaving(true);
-      
-      const { data, error } = await supabase
-        .from('server_configurations')
-        .insert([
-          {
-            project_id: projectId,
-            name: serverConfig.name,
-            description: serverConfig.description,
-            language: serverConfig.language,
-            authentication_type: serverConfig.authentication.type,
-            authentication_details: {
-              location: serverConfig.authentication.location,
-              name: serverConfig.authentication.name,
-              value: serverConfig.authentication.value
-            },
-            hosting_provider: serverConfig.hosting.provider,
-            hosting_type: serverConfig.hosting.type,
-            hosting_region: serverConfig.hosting.region
-          }
-        ])
-        .select()
-        .single();
 
-      if (error) {
-        throw error;
-      }
-
-      toast.success('Server configuration saved successfully');
-      navigate(`/generate-server/${projectId}/${data.id}`);
-    } catch (error) {
-      console.error('Error saving server configuration:', error);
-      toast.error('Failed to save server configuration');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  const handleUpdateServerConfig = (updatedConfig: ServerConfig) => {
-    setServerConfig(updatedConfig);
-  };
-  
-  if (isLoading) {
-    return (
-      <div className="container py-8">
-        <h1 className="text-3xl font-bold mb-8">Configure MCP Server</h1>
-        <div className="flex justify-center items-center h-64">
-          <p>Loading project data...</p>
-        </div>
-      </div>
-    );
+  if (!apiDefinition) {
+    return <div className="py-24 text-center">Loading...</div>;
   }
-  
-  return (
-    <div className="container py-8">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">Configure MCP Server</h1>
-          <p className="text-muted-foreground mt-1">
-            Project: {project?.name} | API: {apiDefinition?.name}
-          </p>
-        </div>
-        <div className="space-x-2">
-          <Button variant="outline" onClick={() => navigate(`/project/${projectId}`)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSaveConfig} disabled={isSaving}>
-            {isSaving ? 'Saving...' : 'Save & Continue'}
-          </Button>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 gap-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Server Configuration</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ServerConfigurationForm 
-              serverConfig={serverConfig}
-              onConfigChange={handleUpdateServerConfig}
-            />
-          </CardContent>
-        </Card>
+  return (
+    <div className="py-24">
+      <div className="content-container">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-12">
+            <h1 className="text-3xl font-bold mb-4">{apiDefinition.name}</h1>
+            <p className="text-muted-foreground">
+              Configure your server and select which endpoints to include.
+            </p>
+          </div>
+          
+          <div className="grid gap-8">
+            {/* Endpoint selection */}
+            <Card>
+              <CardHeader>
+                <CardTitle>API Endpoints</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {apiDefinition.endpoint_definition && apiDefinition.endpoint_definition.map((endpoint) => (
+                  <EndpointMapper 
+                    key={endpoint.id}
+                    endpoint={endpoint}
+                    onUpdate={(updated) => {
+                      const updatedEndpoints = selectedEndpoints.map(ep => 
+                        ep.id === updated.id ? updated : ep
+                      );
+                      handleEndpointSelection(updatedEndpoints);
+                    }}
+                    onDelete={(id) => {
+                      const filteredEndpoints = selectedEndpoints.filter(ep => ep.id !== id);
+                      handleEndpointSelection(filteredEndpoints);
+                    }}
+                  />
+                ))}
+              </CardContent>
+            </Card>
+            
+            {/* Server configuration */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Server Configuration</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="language" className="space-y-6">
+                  <TabsList>
+                    <TabsTrigger value="language">Language</TabsTrigger>
+                    <TabsTrigger value="framework">Framework</TabsTrigger>
+                    <TabsTrigger value="database">Database</TabsTrigger>
+                    <TabsTrigger value="features">Features</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="language" className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button
+                        variant={serverConfig.language === 'TypeScript' ? 'default' : 'outline'}
+                        onClick={() => handleConfigChange('language', 'TypeScript')}
+                        className="h-24"
+                      >
+                        TypeScript
+                      </Button>
+                      <Button
+                        variant={serverConfig.language === 'Python' ? 'default' : 'outline'}
+                        onClick={() => handleConfigChange('language', 'Python')}
+                        className="h-24"
+                      >
+                        Python
+                      </Button>
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="framework" className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button
+                        variant={serverConfig.framework === 'express' ? 'default' : 'outline'}
+                        onClick={() => handleConfigChange('framework', 'express')}
+                        className="h-24"
+                        disabled={serverConfig.language !== 'TypeScript'}
+                      >
+                        Express.js
+                      </Button>
+                      <Button
+                        variant={serverConfig.framework === 'fastapi' ? 'default' : 'outline'}
+                        onClick={() => handleConfigChange('framework', 'fastapi')}
+                        className="h-24"
+                        disabled={serverConfig.language !== 'Python'}
+                      >
+                        FastAPI
+                      </Button>
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="database" className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <Button
+                        variant={serverConfig.database === 'none' ? 'default' : 'outline'}
+                        onClick={() => handleConfigChange('database', 'none')}
+                      >
+                        None
+                      </Button>
+                      <Button
+                        variant={serverConfig.database === 'mongodb' ? 'default' : 'outline'}
+                        onClick={() => handleConfigChange('database', 'mongodb')}
+                      >
+                        MongoDB
+                      </Button>
+                      <Button
+                        variant={serverConfig.database === 'postgres' ? 'default' : 'outline'}
+                        onClick={() => handleConfigChange('database', 'postgres')}
+                      >
+                        PostgreSQL
+                      </Button>
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="features" className="space-y-4">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="authentication"
+                        checked={serverConfig.authentication.type !== "None"}
+                        onChange={(e) => handleConfigChange('authentication', 
+                          e.target.checked 
+                            ? { type: "API Key", location: "header", name: "x-api-key" } 
+                            : { type: "None", location: "header" }
+                        )}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      <Label htmlFor="authentication">Include Authentication</Label>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+            
+            <Button 
+              onClick={handleGenerateServer}
+              disabled={isLoading}
+              className="w-full h-12 text-lg"
+            >
+              {isLoading ? "Generating..." : "Generate Server"}
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
-};
-
-export default ConfigureServer;
+}

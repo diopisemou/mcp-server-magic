@@ -1,4 +1,4 @@
-import { Json } from './json';
+import { Json } from "./json";
 
 declare global {
   interface Window {
@@ -117,8 +117,18 @@ export interface AuthConfig {
 }
 
 // Hosting types
-export type HostingProvider = "AWS" | "GCP" | "Azure" | "Self-hosted" | "Supabase";
-export type HostingType = "Serverless" | "Container" | "VM" | "Shared" | "Dedicated";
+export type HostingProvider =
+  | "AWS"
+  | "GCP"
+  | "Azure"
+  | "Self-hosted"
+  | "Supabase";
+export type HostingType =
+  | "Serverless"
+  | "Container"
+  | "VM"
+  | "Shared"
+  | "Dedicated";
 
 export interface HostingConfig {
   provider: HostingProvider;
@@ -133,7 +143,7 @@ export interface ServerConfig {
   authentication: AuthConfig;
   hosting: HostingConfig;
   endpoints: Endpoint[];
-  authSecret?: string; 
+  authSecret?: string;
   database?: string;
   framework?: string;
 }
@@ -223,7 +233,7 @@ export interface ArchiveFile {
 
 // Zip package format
 export interface ZipPackage {
-  files: ArchiveFile[];
+  archivefiles: ArchiveFile[];
   fileName: string;
   blob: Blob;
   name?: string;
@@ -250,4 +260,5 @@ export interface MCPServer {
 }
 
 // Re-export from server.ts for backward compatibility
-export { ServerConfigRecord } from './serverTypes';
+
+export { ServerConfigRecord } from "./serverTypes";

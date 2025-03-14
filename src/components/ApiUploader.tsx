@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 import React, { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,13 +34,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { parseApiDefinition } from "@/utils/apiParsingUtils";
-=======
+
 
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
@@ -49,14 +49,19 @@ import { validateApiDefinition, extractSwaggerUrl } from '@/utils/apiValidator';
 import { ApiDefinition, EndpointDefinition } from '@/types';
 import { saveApiDefinition } from '@/utils/apiService';
 import { v4 as uuidv4 } from 'uuid';
->>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
 
-interface ApiUploaderProps {
-  projectId: string;
-  onApiDefinitionUploaded: (apiDefinition: ApiDefinition) => void;
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { ApiDefinition, ValidationResult } from '@/types';
+import { toast } from 'sonner';
+import { validateApiDefinition } from '@/utils/apiValidator';
+
+
+export interface ApiUploaderProps {
+  onUploadComplete: (definition: ApiDefinition) => void;
 }
 
-<<<<<<< HEAD
+
 export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   // State definitions - consolidated to avoid duplicates
   const [uploadMethod, setUploadMethod] = useState<"file" | "url">("file");
@@ -66,15 +71,15 @@ export default function ApiUploader({ onUploadComplete }: ApiUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [apiUrl, setApiUrl] = useState("");
   const [urlType, setUrlType] = useState<"direct" | "swagger">("direct");
-=======
+
 const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUploaded }) => {
   const [apiName, setApiName] = useState('');
   const [apiFormat, setApiFormat] = useState<string | null>(null);
   const [apiContent, setApiContent] = useState('');
->>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
+
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-<<<<<<< HEAD
+
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [authType, setAuthType] = useState<"none" | "bearer" | "api-key">(
     "none",
@@ -105,66 +110,93 @@ const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUpl
       setDragActive(true);
     } else if (e.type === "dragleave") {
       setDragActive(false);
-=======
+
   const [isDragging, setIsDragging] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+
+const ApiUploader: React.FC<ApiUploaderProps> = ({ onUploadComplete }) => {
+  const [isUploading, setIsUploading] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [apiName, setApiName] = useState('');
+
   const [apiUrl, setApiUrl] = useState('');
-  const [isFetching, setIsFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const { toast } = useToast();
-  
+  const [apiFile, setApiFile] = useState<File | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Common file processing logic
   const handleFileProcessing = async (file: File) => {
-    setIsUploading(true);
-    setUploadError(null);
-    setUploadSuccess(false);
-    
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const content = event.target?.result;
-        if (typeof content === 'string') {
-          const validationResult = await validateApiDefinition(content, file.name);
-          if (validationResult.isValid) {
-            setApiFormat(validationResult.format);
-            setApiContent(content);
-          } else {
-            setUploadError(`Invalid API definition: ${validationResult.errors?.join(', ') || 'Unknown error'}`);
-          }
-        } else {
-          setUploadError('Failed to read file content.');
-        }
-        setIsUploading(false);
-      };
-      reader.onerror = () => {
-        setUploadError('Failed to read the file.');
-        setIsUploading(false);
-      };
-      reader.readAsText(file);
-    } catch (error) {
-      console.error('File processing error:', error);
-      setUploadError('An unexpected error occurred while processing the file.');
       setIsUploading(false);
->>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
+
+      setIsValidating(true);
+      setValidationError(null);
+      
+      // Generate a name if not provided
+      const name = apiName || file.name.split('.')[0];
+      
+      // Read file content
+      const fileContent = await readFileContent(file);
+      
+      // Validate API definition
+      const result = await validateApiDefinition(fileContent, name);
+      
+      if (result && result.isValid) {
+        const apiDefinition: ApiDefinition = {
+          id: `api-${Date.now()}`,
+          name: name,
+          format: result.format,
+          content: typeof fileContent === 'string' ? fileContent : JSON.stringify(fileContent),
+          parsedDefinition: result.parsedDefinition,
+          file: file,
+          created_at: new Date().toISOString(),
+          endpoint_definition: result.endpoints
+        };
+        
+        onUploadComplete(apiDefinition);
+        toast.success('API definition validated successfully!');
+      } else {
+        setValidationError(result?.errors?.join('\n') || 'Invalid API definition format');
+        toast.error('API validation failed');
+      }
+    } catch (error: any) {
+      console.error('File processing error:', error);
+      setValidationError(error.message || 'Error processing file');
+      toast.error('Error processing file');
+    } finally {
+      setIsValidating(false);
     }
   };
-  
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) {
-      const file = acceptedFiles[0];
-      handleFileProcessing(file);
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) {
+      toast.error('Please upload a valid API definition file');
+      return;
     }
+    
+    const file = acceptedFiles[0];
+    setApiFile(file);
+    setApiName(file.name.split('.')[0]);
+    await handleFileProcessing(file);
   }, []);
-  
-  const {getRootProps, getInputProps, isDragActive} = useDropzone({onDrop});
-  
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/json': ['.json'],
+      'application/x-yaml': ['.yaml', '.yml'],
+      'text/plain': ['.raml', '.md', '.apib']
+    },
+    maxFiles: 1
+  });
+
+  const handleApiNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setApiName(e.target.value);
   };
+
   
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setApiContent(e.target.value);
   };
-<<<<<<< HEAD
 
   // Common file handling logic
   const handleFileSelection = (file: File) => {
@@ -197,12 +229,12 @@ const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUpl
 
     setSelectedFile(file);
     setFileError(null);
-=======
-  
+
   const handleApiUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setApiUrl(e.target.value);
->>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
+
   };
+
   
   const handleUpload = async () => {
     setIsUploading(true);
@@ -210,7 +242,7 @@ const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUpl
     setUploadSuccess(false);
     
     try {
-<<<<<<< HEAD
+
       let apiDefinition: ApiDefinition;
 
       if (uploadMethod === "file") {
@@ -371,49 +403,12 @@ const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUpl
       toast.error(
         error instanceof Error ? error.message : "An unknown error occurred",
       );
-=======
-      if (!apiName) {
-        setUploadError('API Name is required.');
-        setIsUploading(false);
-        return;
-      }
-      
-      const validationResult = await validateApiDefinition(apiContent);
-      if (!validationResult.isValid) {
-        setUploadError(`Invalid API definition: ${validationResult.errors?.join(', ') || 'Unknown error'}`);
-        setIsUploading(false);
-        return;
-      }
-      
-      const apiDefinition: ApiDefinition = {
-        id: uuidv4(),
-        project_id: projectId,
-        name: apiName,
-        format: validationResult.format,
-        content: apiContent,
-        parsedDefinition: validationResult.parsedDefinition,
-        endpoint_definition: validationResult.endpoints || [],
-        created_at: new Date().toISOString(),
-      };
-      
-      await saveApiDefinition(apiDefinition);
-      
-      setUploadSuccess(true);
-      toast({
-        title: "Success",
-        description: "API definition uploaded successfully.",
-      });
-      
-      onApiDefinitionUploaded(apiDefinition);
-    } catch (error) {
-      console.error('API upload error:', error);
-      setUploadError('Failed to upload API definition. Please try again.');
->>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
+
     } finally {
       setIsUploading(false);
     }
   };
-<<<<<<< HEAD
+
 
   // Helper function to read file content
   const readFileContent = (file: File): Promise<string> => {
@@ -463,94 +458,145 @@ const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUpl
       toast.error(
         error instanceof Error ? error.message : "An unknown error occurred",
       );
-=======
-  
-  const handleFetchApi = async () => {
-    setIsFetching(true);
-    setFetchError(null);
-    setApiFormat(null);
-    
+
     try {
-      if (!apiUrl) {
-        setFetchError('API URL is required.');
-        setIsFetching(false);
-        return;
-      }
+      setIsUploading(true);
+      setValidationError(null);
       
       const response = await fetch(apiUrl);
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`Failed to fetch API definition: ${response.status} ${response.statusText}`);
       }
       
-      const contentType = response.headers.get('content-type');
-      let content = '';
+      const contentType = response.headers.get('content-type') || '';
+      let content;
       
-      if (contentType?.includes('text/html')) {
-        const htmlContent = await response.text();
-        const swaggerUrl = extractSwaggerUrl(htmlContent, apiUrl);
-        if (swaggerUrl) {
-          setApiUrl(swaggerUrl);
-          const swaggerResponse = await fetch(swaggerUrl);
-          if (!swaggerResponse.ok) {
-            throw new Error(`HTTP error fetching Swagger file! status: ${swaggerResponse.status}`);
-          }
-          content = await swaggerResponse.text();
-        } else {
-          throw new Error('Could not extract Swagger URL from the HTML.');
-        }
+      if (contentType.includes('application/json')) {
+        content = await response.json();
       } else {
         content = await response.text();
       }
       
-      const validationResult = await validateApiDefinition(content);
-      if (validationResult.isValid) {
-        setApiFormat(validationResult.format);
-        setApiContent(content);
-        setApiName('Fetched API');
-        toast({
-          title: "Success",
-          description: "API definition fetched successfully.",
-        });
+      // Generate a name from URL if not provided
+      const urlParts = apiUrl.split('/');
+      const name = apiName || urlParts[urlParts.length - 1].split('?')[0] || 'API Definition';
+      
+      // Validate API definition
+      const result = await validateApiDefinition(content, name);
+      
+      if (result && result.isValid) {
+        const apiDefinition: ApiDefinition = {
+          id: `api-${Date.now()}`,
+          name: name,
+          format: result.format,
+          content: typeof content === 'string' ? content : JSON.stringify(content),
+          parsedDefinition: result.parsedDefinition,
+          url: apiUrl,
+          created_at: new Date().toISOString(),
+          endpoint_definition: result.endpoints
+        };
+        
+        onUploadComplete(apiDefinition);
+        toast.success('API definition validated successfully!');
       } else {
-        setFetchError(`Invalid API definition: ${validationResult.errors?.join(', ') || 'Unknown error'}`);
+        setValidationError(result?.errors?.join('\n') || 'Invalid API definition format');
+        toast.error('API validation failed');
       }
-    } catch (error) {
-      console.error('API fetch error:', error);
-      setFetchError(`Failed to fetch API definition: ${(error as Error).message}`);
+    } catch (error: any) {
+      console.error('URL fetch error:', error);
+      setValidationError(error.message || 'Error fetching URL');
+      toast.error('Error fetching URL');
     } finally {
       setIsFetching(false);
->>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
     }
   };
 
-  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setIsDragging(false);
-    
-    const items = event.dataTransfer.items;
-    if (items) {
-      // Convert DataTransferItemList to array and process first file
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.kind === 'file') {
-          const file = item.getAsFile();
-          if (file) {
-            await handleFileProcessing(file);
-            break;
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          try {
+            // Try to parse as JSON
+            if (file.type === 'application/json') {
+              const jsonContent = JSON.parse(event.target.result as string);
+              resolve(jsonContent);
+            } else {
+              // Return as plain text
+              resolve(event.target.result as string);
+            }
+          } catch (error) {
+            // If JSON parsing fails, return as string
+            resolve(event.target.result as string);
           }
+        } else {
+          reject(new Error('Failed to read file'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+  };
+
+  const handleApiPaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      // Handle pasted files
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          setApiFile(file);
+          setApiName(file.name.split('.')[0]);
+          await handleFileProcessing(file);
+          return;
         }
       }
-    } else {
-      const files = event.dataTransfer.files;
-      if (files.length) {
-        await handleFileProcessing(files[0]);
+      
+      // Handle pasted text that might be JSON/YAML
+      if (item.kind === 'string' && (item.type === 'text/plain' || item.type.includes('json'))) {
+        item.getAsString(async (text) => {
+          try {
+            setIsValidating(true);
+            setValidationError(null);
+            
+            // Try to validate the pasted content
+            const result = await validateApiDefinition(text, apiName || 'Pasted API');
+            
+            if (result && result.isValid) {
+              const apiDefinition: ApiDefinition = {
+                id: `api-${Date.now()}`,
+                name: apiName || 'Pasted API',
+                format: result.format,
+                content: text,
+                parsedDefinition: result.parsedDefinition,
+                created_at: new Date().toISOString(),
+                endpoint_definition: result.endpoints
+              };
+              
+              onUploadComplete(apiDefinition);
+              toast.success('API definition validated successfully!');
+            } else {
+              setValidationError(result?.errors?.join('\n') || 'Invalid API definition format');
+              toast.error('API validation failed');
+            }
+          } catch (error: any) {
+            console.error('Paste processing error:', error);
+            setValidationError(error.message || 'Error processing pasted content');
+            toast.error('Error processing pasted content');
+          } finally {
+            setIsValidating(false);
+          }
+        });
+        return;
       }
     }
   };
-  
+
   return (
-<<<<<<< HEAD
     <div className="relative py-24 bg-white">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12 text-center">
@@ -950,7 +996,7 @@ const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUpl
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
-=======
+
     <Card>
       <CardHeader>
         <CardTitle>Upload API Definition</CardTitle>
@@ -969,18 +1015,34 @@ const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUpl
           />
         </div>
         
+    <div className="space-y-6" onPaste={handleApiPaste}>
+      <div className="space-y-2">
+        <Label htmlFor="apiName">API Name</Label>
+        <Input 
+          id="apiName" 
+          value={apiName} 
+          onChange={handleApiNameChange} 
+          placeholder="Enter a name for your API"
+        />
+      </div>
+      
+      <div className="flex flex-col gap-4">
+
         <div 
-          {...getRootProps()}
-          className={`relative border-2 border-dashed rounded-md p-6 text-center cursor-pointer ${isDragging ? 'border-primary' : 'border-muted-foreground'}`}
-          onDragEnter={() => setIsDragging(true)}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
+          {...getRootProps()} 
+          className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+            isDragActive ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+          }`}
         >
           <input {...getInputProps()} />
-          <div className="flex flex-col items-center justify-center space-y-3">
-            <LucideFile className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              {isDragActive ? 'Drop the file here...' : 'Click to upload or drag and drop your API definition file'}
+          <div className="space-y-2">
+            <p className="text-sm font-medium">
+              {isDragActive 
+                ? 'Drop the file here...' 
+                : 'Drag and drop your API definition file, or click to select'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Supports OpenAPI (Swagger), RAML, and API Blueprint formats
             </p>
           </div>
         </div>
@@ -1012,56 +1074,59 @@ const ApiUploader: React.FC<ApiUploaderProps> = ({ projectId, onApiDefinitionUpl
                   <Link className="mr-2 h-4 w-4" />
                   Fetch
                 </>
->>>>>>> 5b9afc5e7f2731526ea4053e9b92fba8434d4a14
               )}
             </Button>
           </div>
           {fetchError && (
             <p className="text-sm text-red-500">{fetchError}</p>
+          {apiFile && (
+            <div className="mt-2 text-sm font-medium text-primary">
+              Selected: {apiFile.name}
+            </div>
+
           )}
         </div>
         
-        <div className="grid gap-4">
-          <Label htmlFor="apiContent">API Definition</Label>
-          <Textarea
-            id="apiContent"
-            placeholder="Paste your API definition here"
-            value={apiContent}
-            onChange={handleContentChange}
-            className="min-h-[150px]"
-          />
-        </div>
+        <div className="text-center text-sm text-muted-foreground">OR</div>
         
-        {uploadError && (
-          <div className="flex items-center text-sm text-red-500">
-            <XCircle className="h-4 w-4 mr-1" />
-            {uploadError}
-          </div>
-        )}
-        
-        {uploadSuccess && (
-          <div className="flex items-center text-sm text-green-500">
-            <CheckCircle className="h-4 w-4 mr-1" />
-            API definition uploaded successfully!
-          </div>
-        )}
-      </CardContent>
-      <div className="p-6 flex justify-end">
-        <Button onClick={handleUpload} disabled={isUploading}>
-          {isUploading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Uploading...
-            </>
-          ) : (
-            <>
-              <Upload className="mr-2 h-4 w-4" />
-              Upload API
-            </>
-          )}
-        </Button>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="apiUrl">API Definition URL</Label>
+              <div className="flex gap-2">
+                <Input 
+                  id="apiUrl" 
+                  value={apiUrl} 
+                  onChange={handleApiUrlChange} 
+                  placeholder="https://example.com/swagger.json"
+                  className="flex-1"
+                />
+                <Button 
+                  onClick={handleUrlUpload} 
+                  disabled={isUploading || !apiUrl}
+                  className="whitespace-nowrap"
+                >
+                  {isUploading ? 'Fetching...' : 'Fetch URL'}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </Card>
+      
+      {isValidating && (
+        <div className="rounded-lg bg-primary/10 p-4 text-center">
+          <p className="text-sm font-medium">Validating API definition...</p>
+        </div>
+      )}
+      
+      {validationError && (
+        <div className="rounded-lg bg-destructive/10 p-4">
+          <p className="text-sm font-medium text-destructive mb-2">Validation Error</p>
+          <pre className="text-xs whitespace-pre-wrap font-mono">{validationError}</pre>
+        </div>
+      )}
+    </div>
   );
 };
 
