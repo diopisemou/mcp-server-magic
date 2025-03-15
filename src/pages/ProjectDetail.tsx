@@ -1,30 +1,36 @@
-
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { McpProject, ApiDefinitionRecord, ServerConfigRecord, Deployment } from '@/types';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from 'sonner';
-import { Skeleton } from '@/components/ui/skeleton';
-import ApiDefinitionList from '@/components/ApiDefinitionList';
-import ServerConfigurationList from '@/components/ServerConfigurationList';
-import DeploymentList from '@/components/DeploymentList';
+import React, { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  ApiDefinitionRecord,
+  Deployment,
+  McpProject,
+  ServerConfigRecord,
+} from "@/types";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
+import ApiDefinitionList from "@/components/ApiDefinitionList";
+import ServerConfigurationList from "@/components/ServerConfigurationList";
+import DeploymentList from "@/components/DeploymentList";
 
 const ProjectDetail = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [project, setProject] = useState<McpProject | null>(null);
-  const [apiDefinitions, setApiDefinitions] = useState<ApiDefinitionRecord[]>([]);
+  const [apiDefinitions, setApiDefinitions] = useState<ApiDefinitionRecord[]>(
+    [],
+  );
   const [serverConfigs, setServerConfigs] = useState<ServerConfigRecord[]>([]);
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate('/auth');
+      navigate("/auth");
       return;
     }
 
@@ -36,12 +42,12 @@ const ProjectDetail = () => {
   const fetchProjectData = async () => {
     try {
       setIsLoading(true);
-      
+
       // Fetch project details
       const { data: projectData, error: projectError } = await supabase
-        .from('mcp_projects')
-        .select('*')
-        .eq('id', projectId)
+        .from("mcp_projects")
+        .select("*")
+        .eq("id", projectId)
         .single();
 
       if (projectError) {
@@ -49,8 +55,8 @@ const ProjectDetail = () => {
       }
 
       if (!projectData) {
-        toast.error('Project not found');
-        navigate('/dashboard');
+        toast.error("Project not found");
+        navigate("/dashboard");
         return;
       }
 
@@ -58,10 +64,10 @@ const ProjectDetail = () => {
 
       // Fetch API definitions
       const { data: apiData, error: apiError } = await supabase
-        .from('api_definitions')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false });
+        .from("api_definitions")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false });
 
       if (apiError) {
         throw apiError;
@@ -71,45 +77,52 @@ const ProjectDetail = () => {
 
       // Fetch server configurations
       const { data: configData, error: configError } = await supabase
-        .from('server_configurations')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false });
+        .from("server_configurations")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false });
 
       if (configError) {
         throw configError;
       }
 
       // Cast the data to the required types
-      const typedConfigData: ServerConfigRecord[] = (configData || []).map(config => ({
-        ...config,
-        language: config.language as "Python" | "TypeScript",
-        authentication_details: config.authentication_details as Record<string, any>
-      }));
-      
+      const typedConfigData: ServerConfigRecord[] = (configData || []).map(
+        (config) => ({
+          ...config,
+          language: config.language as "Python" | "TypeScript",
+          authentication_details: config.authentication_details as Record<
+            string,
+            any
+          >,
+        })
+      );
+
       setServerConfigs(typedConfigData);
 
       // Fetch deployments
       const { data: deploymentData, error: deploymentError } = await supabase
-        .from('deployments')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false });
+        .from("deployments")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false });
 
       if (deploymentError) {
         throw deploymentError;
       }
 
       // Cast the data to the required types
-      const typedDeploymentData: Deployment[] = (deploymentData || []).map(deployment => ({
-        ...deployment,
-        status: deployment.status as "pending" | "success" | "failed"
-      }));
-      
+      const typedDeploymentData: Deployment[] = (deploymentData || []).map(
+        (deployment) => ({
+          ...deployment,
+          status: deployment.status as "pending" | "success" | "failed",
+        })
+      );
+
       setDeployments(typedDeploymentData);
     } catch (error) {
-      console.error('Error fetching project data:', error);
-      toast.error('Failed to fetch project data');
+      console.error("Error fetching project data:", error);
+      toast.error("Failed to fetch project data");
     } finally {
       setIsLoading(false);
     }
@@ -121,14 +134,14 @@ const ProjectDetail = () => {
 
   const handleConfigureServer = () => {
     if (apiDefinitions.length === 0) {
-      toast.error('You need to import an API definition first');
+      toast.error("You need to import an API definition first");
       return;
     }
     navigate(`/configure-server/${projectId}`);
   };
 
   const handleGenerateServer = (configId: string) => {
-    navigate(`/generate-server/${projectId}/${configId}`);
+    navigate(`/generate-server-v1/${projectId}/${configId}`);
   };
 
   const handleViewDeployment = (deploymentId: string) => {
@@ -137,7 +150,7 @@ const ProjectDetail = () => {
 
   const handleTestServer = async (deploymentId: string) => {
     // In a real app, this would trigger a test of the deployed server
-    toast.success('Test functionality would be implemented here');
+    toast.success("Test functionality would be implemented here");
   };
 
   const downloadServerFiles = (configId: string) => {
@@ -167,7 +180,7 @@ const ProjectDetail = () => {
           )}
         </div>
         <div className="space-x-2">
-          <Button variant="outline" onClick={() => navigate('/dashboard')}>
+          <Button variant="outline" onClick={() => navigate("/dashboard")}>
             Back to Dashboard
           </Button>
           <Button onClick={handleImportAPI}>Import API</Button>
@@ -187,8 +200,8 @@ const ProjectDetail = () => {
               <h2 className="text-xl font-semibold">API Definitions</h2>
               <Button onClick={handleImportAPI}>Import New API</Button>
             </div>
-            
-            <ApiDefinitionList 
+
+            <ApiDefinitionList
               apiDefinitions={apiDefinitions}
               onConfigureServer={handleConfigureServer}
               onImportApi={handleImportAPI}
@@ -200,11 +213,14 @@ const ProjectDetail = () => {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Server Configurations</h2>
-              <Button onClick={handleConfigureServer} disabled={apiDefinitions.length === 0}>
+              <Button
+                onClick={handleConfigureServer}
+                disabled={apiDefinitions.length === 0}
+              >
                 New Configuration
               </Button>
             </div>
-            
+
             <ServerConfigurationList
               serverConfigs={serverConfigs}
               onGenerateServer={handleGenerateServer}
@@ -219,14 +235,14 @@ const ProjectDetail = () => {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Deployments</h2>
-              <Button 
-                onClick={handleConfigureServer} 
+              <Button
+                onClick={handleConfigureServer}
                 disabled={apiDefinitions.length === 0}
               >
                 Configure & Deploy
               </Button>
             </div>
-            
+
             <DeploymentList
               deployments={deployments}
               onViewDeployment={handleViewDeployment}

@@ -1,39 +1,56 @@
-
-import { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { McpProject, ApiDefinition, Endpoint } from '@/types';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
-import ApiUploader from '@/components/ApiUploader';
-import AdvancedEndpointMapper from '@/components/AdvancedEndpointMapper';
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { ApiDefinition, Endpoint, McpProject } from "@/types";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+import ApiUploader from "@/components/ApiUploader";
+import AdvancedEndpointMapper from "@/components/AdvancedEndpointMapper";
 
 const ImportApi = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
-  const projectIdParam = searchParams.get('projectId');
+  const projectIdParam = searchParams.get("projectId");
 
   const [projects, setProjects] = useState<McpProject[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projectIdParam);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    projectIdParam,
+  );
   const [showProjectDialog, setShowProjectDialog] = useState(false);
-  const [apiDefinition, setApiDefinition] = useState<ApiDefinition | null>(null);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectDescription, setNewProjectDescription] = useState('');
+  const [apiDefinition, setApiDefinition] = useState<ApiDefinition | null>(
+    null,
+  );
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [mappedEndpoints, setMappedEndpoints] = useState<Endpoint[] | null>(null);
+  const [mappedEndpoints, setMappedEndpoints] = useState<Endpoint[] | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate('/auth');
+      navigate("/auth");
       return;
     }
 
@@ -46,9 +63,9 @@ const ImportApi = () => {
     try {
       setIsLoadingProjects(true);
       const { data, error } = await supabase
-        .from('mcp_projects')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .from("mcp_projects")
+        .select("*")
+        .order("created_at", { ascending: false });
 
       if (error) {
         throw error;
@@ -61,8 +78,8 @@ const ImportApi = () => {
         setSelectedProjectId(data[0].id);
       }
     } catch (error) {
-      console.error('Error fetching projects:', error);
-      toast.error('Failed to fetch projects');
+      console.error("Error fetching projects:", error);
+      toast.error("Failed to fetch projects");
     } finally {
       setIsLoadingProjects(false);
     }
@@ -83,20 +100,20 @@ const ImportApi = () => {
 
   const createNewProject = async () => {
     if (!newProjectName.trim()) {
-      toast.error('Project name is required');
+      toast.error("Project name is required");
       return;
     }
 
     try {
       setIsSaving(true);
       const { data, error } = await supabase
-        .from('mcp_projects')
+        .from("mcp_projects")
         .insert([
           {
             name: newProjectName,
             description: newProjectDescription || null,
-            user_id: user?.id
-          }
+            user_id: user?.id,
+          },
         ])
         .select()
         .single();
@@ -108,13 +125,13 @@ const ImportApi = () => {
       setProjects([data, ...projects]);
       setSelectedProjectId(data.id);
       setShowProjectDialog(false);
-      toast.success('Project created successfully');
+      toast.success("Project created successfully");
 
       // Save the API definition to the new project
       await saveApiDefinition(data.id);
     } catch (error) {
-      console.error('Error creating project:', error);
-      toast.error('Failed to create project');
+      console.error("Error creating project:", error);
+      toast.error("Failed to create project");
     } finally {
       setIsSaving(false);
     }
@@ -122,15 +139,17 @@ const ImportApi = () => {
 
   const saveApiDefinition = async (projectId: string) => {
     if (!apiDefinition) {
-      toast.error('No API definition to save');
+      toast.error("No API definition to save");
       return;
     }
 
     try {
       setIsSaving(true);
       // Convert endpoints to JSON-safe format
-      const safeEndpoints = mappedEndpoints || apiDefinition.endpoint_definition || [];
-      
+
+      const safeEndpoints = mappedEndpoints ||
+        apiDefinition.endpoint_definition || [];
+
       // Create a single object, not an array
       const apiToSave = {
         project_id: projectId,
@@ -138,23 +157,23 @@ const ImportApi = () => {
         format: apiDefinition.format,
         content: apiDefinition.content,
         // Store endpoints as a JSON object
-        endpoint_definition: safeEndpoints
+        endpoint_definition: safeEndpoints,
       };
-      
+
       const { error } = await supabase
-        .from('api_definitions')
+        .from("api_definitions")
         .insert(apiToSave);
 
       if (error) {
         throw error;
       }
 
-      toast.success('API definition saved successfully');
+      toast.success("API definition saved successfully");
       // Navigate to the project page
       navigate(`/project/${projectId}`);
     } catch (error) {
-      console.error('Error saving API definition:', error);
-      toast.error('Failed to save API definition');
+      console.error("Error saving API definition:", error);
+      toast.error("Failed to save API definition");
     } finally {
       setIsSaving(false);
     }
@@ -162,12 +181,12 @@ const ImportApi = () => {
 
   const handleContinue = () => {
     if (!selectedProjectId) {
-      toast.error('Please select or create a project');
+      toast.error("Please select or create a project");
       return;
     }
 
     if (!apiDefinition) {
-      toast.error('Please upload an API definition');
+      toast.error("Please upload an API definition");
       return;
     }
 
@@ -178,7 +197,7 @@ const ImportApi = () => {
     <div className="container py-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Import API Definition</h1>
-        <Button variant="outline" onClick={() => navigate('/dashboard')}>
+        <Button variant="outline" onClick={() => navigate("/dashboard")}>
           Back to Dashboard
         </Button>
       </div>
@@ -200,7 +219,8 @@ const ImportApi = () => {
         <div className="bg-white rounded-xl shadow-lg border border-border p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">Choose Project</h2>
           <p className="text-muted-foreground mb-6">
-            Select an existing project or create a new one to store this API definition.
+            Select an existing project or create a new one to store this API
+            definition.
           </p>
 
           <div className="space-y-6">
@@ -208,7 +228,7 @@ const ImportApi = () => {
               <Label htmlFor="project">Project</Label>
               <div className="flex space-x-2">
                 <Select
-                  value={selectedProjectId || ''}
+                  value={selectedProjectId || ""}
                   onValueChange={(value) => setSelectedProjectId(value || null)}
                   disabled={isLoadingProjects}
                 >
@@ -235,7 +255,7 @@ const ImportApi = () => {
                 disabled={!selectedProjectId || isSaving}
                 className="w-full"
               >
-                {isSaving ? 'Saving...' : 'Save API Definition'}
+                {isSaving ? "Saving..." : "Save API Definition"}
               </Button>
             </div>
           </div>
@@ -258,7 +278,9 @@ const ImportApi = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="project-description">Description (Optional)</Label>
+              <Label htmlFor="project-description">
+                Description (Optional)
+              </Label>
               <Textarea
                 id="project-description"
                 placeholder="A brief description of your MCP server project"
@@ -279,7 +301,7 @@ const ImportApi = () => {
               onClick={createNewProject}
               disabled={!newProjectName.trim() || isSaving}
             >
-              {isSaving ? 'Creating...' : 'Create Project'}
+              {isSaving ? "Creating..." : "Create Project"}
             </Button>
           </DialogFooter>
         </DialogContent>

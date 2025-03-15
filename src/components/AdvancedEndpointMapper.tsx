@@ -274,6 +274,8 @@ const AdvancedEndpointMapper = (
   };
 
   const handleContinue = () => {
+    setEndpoints(endpoints);
+    apiDefinition.endpoint_definition = endpoints;
     onContinue(endpoints);
   };
 
