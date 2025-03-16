@@ -12,4 +12,5 @@ export interface ServerConfigRecord {
   hosting_region?: string;
   created_at: string;
   updated_at: string;
+  mode: string;
 }

@@ -435,6 +435,7 @@ export default function GenerateServerV1() {
           region: config.hosting_region,
         },
         endpoints: endpoints,
+        mode: config.mode,
       };
 
       // Use the common utility function to generate the server

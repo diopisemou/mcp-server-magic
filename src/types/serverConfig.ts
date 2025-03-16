@@ -1,4 +1,4 @@
-import { Endpoint } from '@/types';
+import { ApiDefinition, Endpoint } from '@/types';
 
 /**
  * Base server configuration properties
@@ -18,7 +18,11 @@ export interface BaseServerConfig {
   };
   endpoints: Endpoint[];
   authSecret?: string;
+  database?: string;
+  framework?: string;
+  apiDefinition?: ApiDefinition;
 }
+
 
 /**
  * Standard server configuration that extends the base
