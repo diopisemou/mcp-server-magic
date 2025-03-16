@@ -140,13 +140,14 @@ export interface HostingConfig {
 export interface ServerConfig {
   name: string;
   description: string;
-  language: "Python" | "TypeScript";
+  language: "Python" | "TypeScript" | "Go";
   authentication: AuthConfig;
   hosting: HostingConfig;
   endpoints: Endpoint[];
   authSecret?: string;
   database?: string;
   framework?: string;
+  apiDefinition?: ApiDefinition;
 }
 
 export interface GenerationResult {
@@ -262,4 +263,47 @@ export interface MCPServer {
 
 // Re-export from server.ts for backward compatibility
 
-export { ServerConfigRecord } from "./serverTypes";
+export type { ServerConfigRecord } from "./serverTypes";
+
+// Marketplace Types
+export interface MarketplaceListing {
+  id: string;
+  deployment_id: string;
+  title: string;
+  description?: string;
+  author: string;
+  user_id: string;
+  version: string;
+  stars: number;
+  downloads: number;
+  tags: string[];
+  installation_instructions?: InstallationInstructions;
+  created_at: string;
+  updated_at: string;
+  capabilities?: MarketplaceCapability[];
+}
+
+export interface MarketplaceCapability {
+  id: string;
+  listing_id: string;
+  type: 'resource' | 'tool';
+  name: string;
+  description?: string;
+  created_at: string;
+}
+
+export interface InstallationInstructions {
+  cline?: {
+    configPath: string;
+    configContent: string;
+    commands: string[];
+  };
+  claude?: {
+    configContent: string;
+    usageExamples: string[];
+  };
+  windsurf?: {
+    configContent: string;
+    usageExamples: string[];
+  };
+}

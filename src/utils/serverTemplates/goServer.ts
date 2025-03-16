@@ -1,387 +1,468 @@
-import type { ServerConfig, GenerationResult, ServerFile } from '../../types';
+import { ServerConfig, ServerFile, GenerationResult } from '@/types';
 
 /**
- * Generates Go server files
+ * Generate Go server files based on the given configuration
  */
-export function generateGoServer(config: ServerConfig): GenerationResult {
-  const files: ServerFile[] = [];
-  
-  // Generate main.go
-  files.push({
-    name: 'main.go',
-    path: '',
-    type: 'code',
-    content: generateMainFile(config),
-    language: 'go'
-  });
-  
-  // Generate go.mod
-  files.push({
+export const generateGoServer = (config: ServerConfig): GenerationResult => {
+  const serverFiles: ServerFile[] = [];
+  const { authentication } = config;
+
+  // Generate go.mod file
+  serverFiles.push({
     name: 'go.mod',
-    path: '',
-    type: 'config',
-    content: generateGoMod(config),
-    language: 'go'
-  });
-  
-  // Generate handlers directory
-  generateHandlerFiles(config).forEach(file => files.push(file));
-  
-  // Generate middleware directory
-  if (config.authentication) {
-    files.push({
-      name: 'auth.go',
-      path: 'middleware/',
-      type: 'code',
-      content: generateAuthMiddleware(config),
-      language: 'go'
-    });
-  }
-  
-  // Generate models directory
-  generateModelFiles(config).forEach(file => files.push(file));
-  
-  // Generate README.md
-  const readmeContent = generateReadmeFile(config);
-  files.push({
-    name: 'README.md',
-    path: "README.md",
-    content: readmeContent,
-    type: "documentation",
-    language: "markdown"
-  });
-  
-  return {
-    files,
-    language: 'go',
-    deployCommand: 'go run main.go'
-  };
-}
+    path: '/',
+    content: `module github.com/${config.name.toLowerCase().replace(/\s+/g, '-')}
 
-/**
- * Generates main.go file
- */
-function generateMainFile(config: ServerConfig): string {
-  return `
-package main
-
-import (
-	"log"
-	"net/http"
-	${config.authentication ? `"os"` : ''}
-	
-	"github.com/gorilla/mux"
-	${config.authentication ? `"github.com/dgrijalva/jwt-go"` : ''}
-	${config.endpoints.length > 0 ? `"${config.name || 'api-server'}/handlers"` : ''}
-	${config.authentication ? `"${config.name || 'api-server'}/middleware"` : ''}
-)
-
-func main() {
-	r := mux.NewRouter()
-	
-	// Set up routes
-	${config.endpoints.map(endpoint => {
-    const handlerName = pascalCase(`${endpoint.method}${endpoint.path.replace(/\//g, '')}`);
-    return config.authentication
-      ? `r.HandleFunc("${endpoint.path}", middleware.AuthMiddleware(handlers.${handlerName})).Methods("${endpoint.method}")`
-      : `r.HandleFunc("${endpoint.path}", handlers.${handlerName}).Methods("${endpoint.method}")`;
-  }).join('\n\t')}
-	
-	${config.authentication ? `
-	// Authentication route
-	r.HandleFunc("/login", handlers.Login).Methods("POST")
-	` : ''}
-	
-	// Start server
-	port := ":8000"
-	log.Printf("Server starting on port %s", port)
-	log.Fatal(http.ListenAndServe(port, r))
-}
-`;
-}
-
-/**
- * Generates go.mod file
- */
-function generateGoMod(config: ServerConfig): string {
-  return `
-module ${config.name || 'api-server'}
-
-go 1.18
+go 1.21
 
 require (
-	github.com/gorilla/mux v1.8.0
-	${config.authentication ? 'github.com/dgrijalva/jwt-go v3.2.0+incompatible' : ''}
-	${config.database === 'mongodb' ? 'go.mongodb.org/mongo-driver v1.11.0' : ''}
-	${config.database === 'postgres' ? 'github.com/lib/pq v1.10.7' : ''}
+	github.com/gorilla/mux v1.8.1
+	github.com/joho/godotenv v1.5.1
+	github.com/rs/cors v1.10.1
 )
-`;
-}
-
-/**
- * Generates handler files
- */
-function generateHandlerFiles(config: ServerConfig): ServerFile[] {
-  const files: ServerFile[] = [];
-  
-  // Base handler file
-  files.push({
-    name: 'handlers.go',
-    path: 'handlers/',
-    type: 'code',
-    content: generateBaseHandlerFile(config),
+`,
+    type: 'config',
     language: 'go'
   });
-  
-  // Generate authentication handlers if needed
-  if (config.authentication) {
-    files.push({
-      name: 'auth.go',
-      path: 'handlers/',
-      type: 'code',
-      content: generateAuthHandlerFile(config),
-      language: 'go'
-    });
-  }
-  
-  return files;
+
+  // Generate main.go
+  serverFiles.push({
+    name: 'main.go',
+    path: '/',
+    content: `package main
+
+import (
+	"encoding/json"
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
+	"github.com/rs/cors"
+)
+
+// ServerInfo represents information about the MCP server
+type ServerInfo struct {
+	Name         string   \`json:"name"\`
+	Description  string   \`json:"description"\`
+	Capabilities struct {
+		Resources []string \`json:"resources"\`
+		Tools     []string \`json:"tools"\`
+	} \`json:"capabilities"\`
 }
 
-/**
- * Generates base handler file
- */
-function generateBaseHandlerFile(config: ServerConfig): string {
-  const handlers = config.endpoints.map(endpoint => {
-    const handlerName = pascalCase(`${endpoint.method}${endpoint.path.replace(/\//g, '')}`);
-    return `
-// ${endpoint.summary || endpoint.description || handlerName} handler
-func ${handlerName}(w http.ResponseWriter, r *http.Request) {
-	${endpoint.method === 'GET' ? `
-	// Example response data
-	data := []map[string]interface{}{
-		{"id": "1", "message": "Example response"},
+func main() {
+	// Load .env file if it exists
+	loadEnv()
+
+	// Create router
+	r := mux.NewRouter()
+
+	// Get port from environment or use default
+	port := getEnvWithDefault("PORT", "8080")
+
+	// Server info
+	serverInfo := ServerInfo{
+		Name:        "${config.name}",
+		Description: "${config.description || 'MCP Server generated by MCP Server Generator'}",
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)` : `
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id": "1",
-		"message": "Success",
-	})`}
-}`;
-  }).join('\n\n');
-  
-  return `
-package handlers
+	// Register capabilities
+	serverInfo.Capabilities.Resources = []string{${config.endpoints
+    .filter(e => e.mcpType === 'resource')
+    .map(e => `"${e.path}"`)
+    .join(', ')}}
+	serverInfo.Capabilities.Tools = []string{${config.endpoints
+    .filter(e => e.mcpType === 'tool')
+    .map(e => `"${e.path}"`)
+    .join(', ')}}
 
-import (
-	"encoding/json"
-	"net/http"
-)
+	// Root endpoint returns server info
+	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		respondWithJSON(w, http.StatusOK, serverInfo)
+	})
 
-${handlers}
-`;
-}
+	// MCP Base routes
+	mcpRouter := r.PathPrefix("/mcp").Subrouter()
+${authentication.type !== 'None' ? `
+	// Add authentication middleware if needed
+	mcpRouter.Use(authMiddleware)` : ''}
 
-/**
- * Generates auth handler file
- */
-function generateAuthHandlerFile(config: ServerConfig): string {
-  return `
-package handlers
-
-import (
-	"encoding/json"
-	"net/http"
-	"time
+	// MCP Resources router
+	resourceRouter := mcpRouter.PathPrefix("/resources").Subrouter()
 	
-	"github.com/dgrijalva/jwt-go"
-)
+	// MCP Tools router
+	toolRouter := mcpRouter.PathPrefix("/tools").Subrouter()
 
-// JWT secret key
-var secretKey = []byte("${config.authSecret || 'your_secret_key'}")
+	// Register resource endpoints
+${config.endpoints
+  .filter(endpoint => endpoint.mcpType === 'resource' && endpoint.selected !== false)
+  .map(endpoint => {
+    const path = endpoint.path.replace(/\{([^}]+)\}/g, '{$1}');
+    const funcName = 'handle' + camelize(path.replace(/\//g, '_'));
+    return `	resourceRouter.HandleFunc("${path}", ${funcName}).Methods("GET")\n`;
+  }).join('')}
 
-// Login credentials
-type Credentials struct {
-	Username string \`json:"username"\`
-	Password string \`json:"password"\`
+	// Register tool endpoints
+${config.endpoints
+  .filter(endpoint => endpoint.mcpType === 'tool' && endpoint.selected !== false)
+  .map(endpoint => {
+    const path = endpoint.path.replace(/\{([^}]+)\}/g, '{$1}');
+    const funcName = 'handle' + camelize(path.replace(/\//g, '_'));
+    return `	toolRouter.HandleFunc("${path}", ${funcName}).Methods("${endpoint.method}")\n`;
+  }).join('')}
+
+	// Apply CORS middleware
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+	})
+
+	// Start server
+	handler := c.Handler(r)
+	log.Printf("MCP Server starting on port %s", port)
+	log.Fatal(http.ListenAndServe(":" + port, handler))
 }
 
-// JWT Claims
-type Claims struct {
-	Username string \`json:"username"\`
-	jwt.StandardClaims
-}
+// Helper function to load .env file
+func loadEnv() {
+	// Find .env file
+	env := ".env"
+	if _, err := os.Stat(env); os.IsNotExist(err) {
+		// Try to look in parent directory
+		parent := filepath.Join("..", ".env")
+		if _, err := os.Stat(parent); err == nil {
+			env = parent
+		} else {
+			log.Println("No .env file found, using environment variables")
+			return
+		}
+	}
 
-// Login handler
-func Login(w http.ResponseWriter, r *http.Request) {
-	var creds Credentials
-	err := json.NewDecoder(r.Body).Decode(&creds)
+	// Load .env file
+	err := godotenv.Load(env)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		log.Printf("Error loading .env file: %v", err)
+	} else {
+		log.Printf("Loaded environment from %s", env)
+	}
+}
+
+// Helper function to get environment variable with default
+func getEnvWithDefault(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+// Helper function to respond with JSON
+func respondWithJSON(w http.ResponseWriter, status int, payload interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	
+	// Convert payload to JSON
+	response, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Error marshaling JSON: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	
-	// In a real app, validate against database
-	if creds.Username != "admin" || creds.Password != "password" {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"message": "Invalid credentials"})
+	w.Write(response)
+}
+${authentication.type !== 'None' ? `
+// Authentication middleware
+func authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var authValue string
+		${authentication.location === 'header' 
+          ? `// Get API key from header
+		authHeader := r.Header.Get("${authentication.name || 'X-Api-Key'}")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			authValue = strings.TrimPrefix(authHeader, "Bearer ")
+		} else {
+			authValue = authHeader
+		}`
+          : `// Get API key from query parameter
+		authValue = r.URL.Query().Get("${authentication.name || 'api_key'}")`}
+		
+		expectedKey := os.Getenv("API_KEY")
+		if expectedKey == "" {
+			log.Println("Warning: API_KEY environment variable not set")
+			next.ServeHTTP(w, r)
+			return
+		}
+		
+		if authValue == "" || authValue != expectedKey {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		
+		next.ServeHTTP(w, r)
+	})
+}` : ''}
+`,
+    type: 'code',
+    language: 'go'
+  });
+
+  // Generate endpoint handlers
+  serverFiles.push({
+    name: 'handlers.go',
+    path: '/',
+    content: `package main
+
+import (
+	"encoding/json"
+	"net/http"
+	"github.com/gorilla/mux"
+)
+
+// Standard response format
+type Response struct {
+	Success bool        \`json:"success"\`
+	Data    interface{} \`json:"data,omitempty"\`
+	Error   string      \`json:"error,omitempty"\`
+}
+
+// Resource handlers
+${config.endpoints
+  .filter(endpoint => endpoint.mcpType === 'resource' && endpoint.selected !== false)
+  .map(endpoint => {
+    const path = endpoint.path;
+    const funcName = 'handle' + camelize(path.replace(/\//g, '_'));
+    const pathParams = extractPathParams(path);
+    
+    return `
+// ${endpoint.description || 'Handler for ' + path}
+func ${funcName}(w http.ResponseWriter, r *http.Request) {
+	// Get path parameters
+	vars := mux.Vars(r)
+${pathParams.map(param => `	${param} := vars["${param}"]`).join('\n')}
+	
+	// Get query parameters${endpoint.parameters
+    .filter(param => !pathParams.includes(param.name) && param.required)
+    .map(param => `
+	${param.name} := r.URL.Query().Get("${param.name}")
+	if ${param.name} == "" {
+		http.Error(w, "Missing required parameter: ${param.name}", http.StatusBadRequest)
 		return
-	}
+	}`).join('')}
 	
-	// Set expiration time
-	expirationTime := time.Now().Add(30 * time.Minute)
-	
-	// Create claims
-	claims := &Claims{
-		Username: creds.Username,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: expirationTime.Unix(),
+	// Return sample response
+	response := Response{
+		Success: true,
+		Data: map[string]interface{}{
+			"resourceId": "${path}",${pathParams.length ? `
+			"params": map[string]string{
+				${pathParams.map(param => `"${param}": ${param}`).join(',\n\t\t\t\t')}
+			},` : ''}
+			// TODO: Add your resource data here
 		},
 	}
 	
-	// Create token
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(secretKey)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+	respondWithJSON(w, http.StatusOK, response)
+}
+`}).join('\n')}
+
+// Tool handlers
+${config.endpoints
+  .filter(endpoint => endpoint.mcpType === 'tool' && endpoint.selected !== false)
+  .map(endpoint => {
+    const path = endpoint.path;
+    const funcName = 'handle' + camelize(path.replace(/\//g, '_'));
+    const pathParams = extractPathParams(path);
+    
+    return `
+// ${endpoint.description || 'Handler for ' + path}
+func ${funcName}(w http.ResponseWriter, r *http.Request) {
+	// Get path parameters
+	vars := mux.Vars(r)
+${pathParams.map(param => `	${param} := vars["${param}"]`).join('\n')}
+	
+	// Parse request body
+	var requestData map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil && r.ContentLength > 0 {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 	
-	// Return token
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
-}
-`;
-}
-
-/**
- * Generates auth middleware
- */
-function generateAuthMiddleware(config: ServerConfig): string {
-  return `
-package middleware
-
-import (
-	"context"
-	"fmt"
-	"net/http"
-	"strings
-	
-	"github.com/dgrijalva/jwt-go"
-)
-
-// JWT secret key
-var secretKey = []byte("${config.authSecret || 'your_secret_key'}")
-
-// JWT Claims
-type Claims struct {
-	Username string \`json:"username"\`
-	jwt.StandardClaims
-}
-
-// Authentication middleware
-func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Get Authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			http.Error(w, "Authorization header required", http.StatusUnauthorized)
-			return
-		}
-		
-		// Extract token
-		tokenParts := strings.Split(authHeader, " ")
-		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-			http.Error(w, "Invalid authorization format", http.StatusUnauthorized)
-			return
-		}
-		
-		tokenString := tokenParts[1]
-		
-		// Parse and validate token
-		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return secretKey, nil
-		})
-		
-		if err != nil || !token.Valid {
-			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
-			return
-		}
-		
-		// Add user context
-		ctx := context.WithValue(r.Context(), "user", claims.Username)
-		next(w, r.WithContext(ctx))
+	// Return sample response
+	response := Response{
+		Success: true,
+		Data: map[string]interface{}{
+			"toolId": "${path}",${pathParams.length ? `
+			"params": map[string]string{
+				${pathParams.map(param => `"${param}": ${param}`).join(',\n\t\t\t\t')}
+			},` : ''}
+			"requestData": requestData,
+			// TODO: Add your tool result data here
+		},
 	}
+	
+	respondWithJSON(w, http.StatusOK, response)
 }
-`;
+`}).join('\n')}
+
+// Helper function to camelize a string
+func camelize(s string) string {
+	parts := strings.Split(s, "_")
+	for i, part := range parts {
+		if len(part) > 0 {
+			parts[i] = strings.ToUpper(part[:1]) + part[1:]
+		}
+	}
+	return strings.Join(parts, "")
 }
+`,
+    type: 'code',
+    language: 'go'
+  });
 
-/**
- * Generates model files
- */
-function generateModelFiles(config: ServerConfig): ServerFile[] {
-  return []; // Simplified for this example
-}
+  // Generate .env file
+  serverFiles.push({
+    name: '.env',
+    path: '/',
+    content: `# MCP Server Configuration
+PORT=8080
+${authentication.type !== 'None' ? `API_KEY=${config.authSecret || 'your-api-key-here'}` : ''}
+`,
+    type: 'config',
+    language: 'plaintext'
+  });
 
-/**
- * Generates README.md
- */
-function generateReadmeFile(config: ServerConfig): string {
-  return `# ${config.name || 'API Server'}
+  // Generate README.md
+  serverFiles.push({
+    name: 'README.md',
+    path: '/',
+    content: `# ${config.name}
 
-${config.description || 'Generated API Server'}
+This is a Model Context Protocol (MCP) server generated by MCP Server Generator.
 
 ## Getting Started
 
-### Prerequisites
+1. Install Go 1.21 or later if not already installed:
+   https://golang.org/doc/install
 
-- Go 1.18+
+2. Install dependencies:
+   \`\`\`
+   go mod download
+   \`\`\`
 
-### Installation
+3. Start the server:
+   \`\`\`
+   go run .
+   \`\`\`
 
-1. Clone the repository
-2. Download dependencies:
+## Available Endpoints
 
-\`\`\`bash
-go mod download
-\`\`\`
-
-### Running the Server
-
-\`\`\`bash
-go run main.go
-\`\`\`
-
-The API will be available at http://localhost:8000
-
-## API Endpoints
-
-${config.endpoints.map(endpoint => `### ${endpoint.operationId}
-- Path: ${endpoint.path}
-- Method: ${endpoint.method}
-- Description: ${endpoint.summary || endpoint.description || ''}
-`).join('\n')}
+${config.endpoints.map(endpoint => `- \`${endpoint.method} ${endpoint.path}\`: ${endpoint.description}`).join('\n')}
 
 ## Authentication
 
-${config.authentication ? 'This API uses JWT authentication. To get a token, send a POST request to /login with username and password.' : 'Authentication is not enabled for this API.'}
-`;
-}
+${authentication.type === 'None' 
+  ? 'This server does not require authentication.' 
+  : `This server uses ${authentication.type} authentication.`}
 
-/**
- * Converts a string to PascalCase
- */
-function pascalCase(str: string): string {
-  return str
-    .replace(/[-_/{}]/g, ' ')
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join('');
-}
+## Building for Production
+
+To build a production binary:
+
+\`\`\`
+go build -o mcp-server .
+\`\`\`
+
+## Docker Support
+
+To build and run with Docker:
+
+\`\`\`
+docker build -t ${config.name.toLowerCase().replace(/\s+/g, '-')} .
+docker run -p 8080:8080 --env-file .env ${config.name.toLowerCase().replace(/\s+/g, '-')}
+\`\`\`
+
+## Environment Variables
+
+- \`PORT\`: The port to run the server on (default: 8080)
+${authentication.type !== 'None' ? '- `API_KEY`: Authentication key for securing your MCP server' : ''}
+`,
+    type: 'documentation',
+    language: 'markdown'
+  });
+
+  // Generate Dockerfile
+  serverFiles.push({
+    name: 'Dockerfile',
+    path: '/',
+    content: `FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+
+# Copy go.mod and go.sum files
+COPY go.mod ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY *.go ./
+
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -o mcp-server .
+
+# Use a minimal image for the final stage
+FROM alpine:latest
+
+WORKDIR /app
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/mcp-server .
+
+# Copy .env file if it exists
+COPY .env* ./
+
+# Expose port
+EXPOSE 8080
+
+# Start the application
+CMD ["./mcp-server"]
+`,
+    type: 'config',
+    language: 'docker'
+  });
+
+  // Helper function to extract path parameters
+  function extractPathParams(path: string): string[] {
+    const params: string[] = [];
+    const regex = /\{([^}]+)\}/g;
+    let match;
+    
+    while ((match = regex.exec(path)) !== null) {
+      params.push(match[1]);
+    }
+    
+    return params;
+  }
+
+  // Helper function to camelize a string
+  function camelize(str: string): string {
+    return str
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .replace(/(?:^\w|[A-Z]|\b\w)/g, function(word, index) {
+        return index === 0 ? word.toUpperCase() : word.toUpperCase();
+      })
+      .replace(/\s+/g, '');
+  }
+
+  return {
+    success: true,
+    files: serverFiles
+  };
+};

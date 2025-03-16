@@ -1,0 +1,32 @@
+# Project Guidelines
+
+## Documentation Requirements
+
+-   Update relevant documentation in /docs when modifying features
+-   Keep README.md in sync with new capabilities
+-   Maintain changelog entries in CHANGELOG.md
+
+## Architecture Decision Records
+
+Create ADRs in /docs/adr for:
+
+-   Major dependency changes
+-   Architectural pattern changes
+-   New integration patterns
+-   Database schema changes
+    Follow template in /docs/adr/template.md cerate it if it doesn't exist
+
+## Code Style & Patterns
+
+-   Generate API clients using OpenAPI Generator if we need to generate api clients
+-   Use TypeScript axios template if the we neeed that
+-   Prefer composition over inheritance
+-   Use repository pattern for data access
+-   Follow error handling pattern in /src/utils/errors.ts
+    Always make commits when updates are made and that you have human feedback that the app is still working perfectly
+
+## Testing Standards
+
+-   Unit tests required for business logic
+-   Integration tests for API endpoints
+-   E2E tests for critical user flows

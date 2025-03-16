@@ -82,6 +82,13 @@ const Header = () => {
                 Dashboard
               </Button>
               <Button
+                variant="ghost"
+                className="rounded-full px-4"
+                onClick={() => navigate('/referrals')}
+              >
+                Referral Program
+              </Button>
+              <Button
                 variant="outline"
                 className="rounded-full px-4"
                 onClick={handleSignOut}
@@ -164,6 +171,13 @@ const Header = () => {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Dashboard
+              </Link>
+              <Link
+                to="/referrals"
+                className="text-foreground/80 hover:text-primary text-sm font-medium py-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Referral Program
               </Link>
               <Button
                 variant="outline"

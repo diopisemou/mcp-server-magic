@@ -1,0 +1,96 @@
+
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>MCP Server Generation Test</title>
+      </head>
+      <body>
+        <h1>MCP Server Generation Test</h1>
+        <h2>TypeScript-Test</h2>
+        <pre id="result"></pre>
+        
+        <script type="module">
+          // Import the server generator
+          import { generateTypeScriptServer } from '/src/utils/serverTemplates/typescriptServer.ts';
+          
+          // Test config
+          const config = {
+  "name": "TypeScript-Test",
+  "language": "TypeScript",
+  "description": "Test TypeScript MCP Server",
+  "authentication": {
+    "type": "API Key",
+    "location": "header",
+    "name": "X-API-Key"
+  },
+  "endpoints": [
+    {
+      "id": "get-weather",
+      "path": "/weather",
+      "method": "GET",
+      "description": "Get current weather data",
+      "parameters": [
+        {
+          "name": "city",
+          "type": "string",
+          "required": true,
+          "description": "City name"
+        },
+        {
+          "name": "units",
+          "type": "string",
+          "required": false,
+          "description": "Units (metric or imperial)"
+        }
+      ],
+      "responses": [],
+      "mcpType": "resource",
+      "selected": true
+    },
+    {
+      "id": "post-forecast",
+      "path": "/forecast",
+      "method": "POST",
+      "description": "Get weather forecast",
+      "parameters": [
+        {
+          "name": "city",
+          "type": "string",
+          "required": true,
+          "description": "City name"
+        },
+        {
+          "name": "days",
+          "type": "number",
+          "required": true,
+          "description": "Number of days"
+        }
+      ],
+      "responses": [],
+      "mcpType": "tool",
+      "selected": true
+    }
+  ],
+  "hosting": {
+    "provider": "Self-hosted",
+    "type": "Container"
+  },
+  "authSecret": "test-api-key-12345"
+};
+          
+          // Run the generator
+          const result = generateTypeScriptServer(config);
+          
+          // Display result
+          document.getElementById('result').textContent = 
+            JSON.stringify(result, null, 2);
+          
+          // If successful, write files to disk
+          if (result.success && result.files) {
+            // This would normally save files, but we can't do that in the browser
+            console.log(`Generated ${result.files.length} files for TypeScript server`);
+          }
+        </script>
+      </body>
+      </html>
+    

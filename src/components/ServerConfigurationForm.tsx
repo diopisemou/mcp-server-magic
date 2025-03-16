@@ -28,7 +28,7 @@ interface ServerConfigurationFormProps {
 const ServerConfigurationForm = ({ serverConfig, onConfigChange }: ServerConfigurationFormProps) => {
   const [activeTab, setActiveTab] = useState('basic');
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: string | boolean) => {
     onConfigChange({
       ...serverConfig,
       [field]: value
@@ -101,8 +101,72 @@ const ServerConfigurationForm = ({ serverConfig, onConfigChange }: ServerConfigu
                 <RadioGroupItem value="TypeScript" id="typescript" />
                 <Label htmlFor="typescript">TypeScript</Label>
               </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="Go" id="golang" />
+                <Label htmlFor="golang">Go</Label>
+              </div>
             </RadioGroup>
           </div>
+          
+          <div className="space-y-2">
+            <Label>Server Mode</Label>
+            <RadioGroup
+              value={serverConfig.mode || 'direct'}
+              onValueChange={(value) => handleInputChange('mode', value)}
+              className="flex flex-col space-y-1"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="direct" id="direct" />
+                <Label htmlFor="direct">Direct Implementation</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="proxy" id="proxy" />
+                <Label htmlFor="proxy">API Proxy</Label>
+              </div>
+            </RadioGroup>
+            <p className="text-xs text-muted-foreground mt-1">
+              Direct implementation creates a standalone server. API Proxy creates a lightweight proxy to an existing API.
+            </p>
+          </div>
+          
+          {serverConfig.mode === 'proxy' && (
+            <div className="space-y-2">
+              <Label htmlFor="target-url">Target API Base URL</Label>
+              <Input
+                id="target-url"
+                value={serverConfig.targetBaseUrl || ''}
+                onChange={(e) => handleInputChange('targetBaseUrl', e.target.value)}
+                placeholder="https://api.example.com/v1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                The base URL of the API that this server will proxy to.
+              </p>
+              
+              <div className="flex items-center space-x-6 mt-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="cache-enabled"
+                    checked={serverConfig.cacheEnabled || false}
+                    onChange={(e) => handleInputChange('cacheEnabled', e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <Label htmlFor="cache-enabled" className="text-sm">Enable caching</Label>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="rate-limiting"
+                    checked={serverConfig.rateLimitingEnabled || false}
+                    onChange={(e) => handleInputChange('rateLimitingEnabled', e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <Label htmlFor="rate-limiting" className="text-sm">Enable rate limiting</Label>
+                </div>
+              </div>
+            </div>
+          )}
         </TabsContent>
         
         <TabsContent value="authentication" className="space-y-4 pt-4">

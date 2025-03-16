@@ -15,12 +15,15 @@ import GenerateServerV1 from "./pages/GenerateServerV1";
 import Status from "./pages/Status"; // New Status page
 import Marketplace from "./pages/Marketplace"; // New Marketplace page
 import MarketplaceDetail from "./pages/MarketplaceDetail"; // New Marketplace Detail page
+import { RefereeDashboard } from "./pages/RefereeDashboard"; // Referral Dashboard
+import { RefereeAdminDashboard } from "./pages/RefereeAdminDashboard"; // Admin Dashboard for Referral System
 import { AuthProvider } from "./contexts/AuthContext";
 import { LogProvider } from "@/contexts/LogContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { useEffect, useState } from "react";
 import LandingPage from "./pages/LandingPage";
 import LandingPageAlt from "./pages/LandingPageAlt";
+import GoDemo from "./pages/GoDemo"; // Import the GoDemo page
 import {
   getUserVariant,
   trackPageView,
@@ -124,6 +127,16 @@ const App = () => (
                     </HeaderLayout>
                   }
                 />
+                
+                {/* Go Demo Route */}
+                <Route
+                  path="/go-demo"
+                  element={
+                    <HeaderLayout>
+                      <GoDemo />
+                    </HeaderLayout>
+                  }
+                />
 
                 {/* New routes */}
                 <Route path="/status" element={<Status />} />
@@ -131,6 +144,24 @@ const App = () => (
                 <Route
                   path="/marketplace/:id"
                   element={<MarketplaceDetail />}
+                />
+                
+                {/* Referral System Routes */}
+                <Route
+                  path="/referrals"
+                  element={
+                    <HeaderLayout>
+                      <RefereeDashboard />
+                    </HeaderLayout>
+                  }
+                />
+                <Route
+                  path="/admin/referrals"
+                  element={
+                    <HeaderLayout>
+                      <RefereeAdminDashboard />
+                    </HeaderLayout>
+                  }
                 />
 
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

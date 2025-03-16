@@ -34,10 +34,23 @@ import {
   XCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { generateServer } from "@/utils/serverGenerator";
 import ServerFiles from "@/components/ServerFiles";
+import PublishToMarketplace from "@/components/PublishToMarketplace";
 
-export default function GenerateServer() {
+// Define database response types for type safety
+interface DbDeployment {
+  id: string;
+  project_id: string;
+  configuration_id: string;
+  status: string;
+  server_url?: string;
+  logs?: string;
+  files?: unknown; // Could be ServerFile[] or string or undefined
+  created_at: string;
+  updated_at: string;
+}
+
+export default function GenerateServerV1() {
   const { projectId, configId } = useParams<
     { projectId: string; configId: string }
   >();
@@ -62,6 +75,7 @@ export default function GenerateServer() {
     "pending" | "processing" | "success" | "failed"
   >("pending");
   const [deploymentFiles, setDeploymentFiles] = useState<ServerFile[]>([]);
+  const [generationProgress, setGenerationProgress] = useState(0);
 
   useEffect(() => {
     if (projectId && configId) {
@@ -132,19 +146,39 @@ export default function GenerateServer() {
           throw apiError;
         }
       } else {
-        setApiDefinition(apiData);
+        // Cast the API data to the right type
+        setApiDefinition(apiData as unknown as ApiDefinition);
 
-        if (apiData.parsedDefinition) {
+        if ('parsedDefinition' in apiData && apiData.parsedDefinition) {
           // If parsed definition exists in the database, use it
           parseEndpoints(apiData.parsedDefinition);
-        } else if (apiData.content) {
-          // Try to parse the content
+        } else if (apiData.endpoint_definition) {
+          // Try to use endpoint_definition if available
           try {
-            parseEndpoints(apiData.endpoint_definition);
-            // const contentObj = JSON.parse(apiData.content);
-            // if (contentObj.parsedDefinition) {
-            //   parseEndpoints(contentObj.parsedDefinition);
-            // }
+            // Safe cast with runtime validation
+            if (Array.isArray(apiData.endpoint_definition)) {
+              const safeEndpoints = apiData.endpoint_definition.map((e: any) => ({
+                id: e.id || '',
+                path: e.path || '',
+                method: e.method || 'GET',
+                description: e.description || '',
+                parameters: Array.isArray(e.parameters) ? e.parameters : [],
+                responses: Array.isArray(e.responses) ? e.responses : [],
+                mcpType: e.mcpType || 'resource',
+                selected: e.selected !== false
+              }));
+              parseEndpoints(safeEndpoints);
+            }
+          } catch (error) {
+            console.error("Error parsing API definition endpoints:", error);
+          }
+        } else if (apiData.content) {
+          // Try to parse the content if needed
+          try {
+            const contentObj = JSON.parse(apiData.content as string);
+            if (contentObj.endpoint_definition) {
+              parseEndpoints(contentObj.endpoint_definition);
+            }
           } catch (error) {
             console.error("Error parsing API definition content:", error);
           }
@@ -164,20 +198,29 @@ export default function GenerateServer() {
       }
 
       if (deploymentData && deploymentData.length > 0) {
-        const latestDeployment = deploymentData[0];
-        setDeployment(latestDeployment);
-        setDeploymentId(latestDeployment.id);
-        setDeploymentStatus(latestDeployment.status as any);
-        setServerUrl(latestDeployment.server_url || null);
+        // Process the latest deployment data
+        const latestDeployment = deploymentData[0] as DbDeployment;
+        
+        // Make sure the deployment has the right type
+        const typedDeployment: Deployment = {
+          ...latestDeployment,
+          files: processDeploymentFiles(latestDeployment.files),
+          status: (latestDeployment.status as "pending" | "processing" | "success" | "failed") || "pending"
+        };
+        
+        setDeployment(typedDeployment);
+        setDeploymentId(typedDeployment.id);
+        setDeploymentStatus(typedDeployment.status);
+        setServerUrl(typedDeployment.server_url || null);
 
-        if (latestDeployment.files) {
-          setDeploymentFiles(latestDeployment.files);
+        if (typedDeployment.files && typedDeployment.files.length > 0) {
+          setDeploymentFiles(typedDeployment.files);
 
-          if (latestDeployment.status === "success") {
+          if (typedDeployment.status === "success") {
             setGenerationResult({
               success: true,
-              serverUrl: latestDeployment.server_url,
-              files: latestDeployment.files,
+              serverUrl: typedDeployment.server_url,
+              files: typedDeployment.files,
             });
           }
         }
@@ -188,6 +231,26 @@ export default function GenerateServer() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Helper function to process deployment files from different formats
+  const processDeploymentFiles = (files: unknown): ServerFile[] => {
+    if (!files) return [];
+    
+    if (Array.isArray(files)) {
+      return files as ServerFile[];
+    }
+    
+    if (typeof files === 'string') {
+      try {
+        return JSON.parse(files) as ServerFile[];
+      } catch (e) {
+        console.error("Failed to parse deployment files string:", e);
+        return [];
+      }
+    }
+    
+    return [];
   };
 
   const checkDeploymentStatus = async () => {
@@ -204,27 +267,35 @@ export default function GenerateServer() {
         throw error;
       }
 
-      setDeployment(data);
-      setDeploymentStatus(data.status as any);
+      // Cast the data to the right type with safety checks
+      const dbData = data as DbDeployment;
+      const typedData: Deployment = {
+        ...dbData,
+        files: processDeploymentFiles(dbData.files),
+        status: (dbData.status as "pending" | "processing" | "success" | "failed") || "pending"
+      };
+      
+      setDeployment(typedData);
+      setDeploymentStatus(typedData.status);
 
-      if (data.server_url) {
-        setServerUrl(data.server_url);
+      if (typedData.server_url) {
+        setServerUrl(typedData.server_url);
       }
 
-      if (data.files) {
-        setDeploymentFiles(data.files);
+      if (typedData.files && typedData.files.length > 0) {
+        setDeploymentFiles(typedData.files);
       }
 
-      if (data.status === "success") {
+      if (typedData.status === "success") {
         setGenerationResult({
           success: true,
-          serverUrl: data.server_url,
-          files: data.files,
+          serverUrl: typedData.server_url,
+          files: typedData.files || [],
         });
 
         setIsGenerating(false);
         toast.success("Server generated successfully!");
-      } else if (data.status === "failed") {
+      } else if (dbData.status === "failed") {
         setGenerationError("Failed to generate server");
         setIsGenerating(false);
         toast.error("Server generation failed");
@@ -234,7 +305,7 @@ export default function GenerateServer() {
     }
   };
 
-  const parseEndpoints = (parsedDefinition: any) => {
+  const parseEndpoints = (parsedDefinition: unknown): void => {
     // This would be replaced with actual logic to extract endpoints from parsed definition
     // For now, let's assume we have some example endpoints
     const exampleEndpoints: Endpoint[] = [
@@ -314,7 +385,7 @@ export default function GenerateServer() {
     ];
 
     //setEndpoints(exampleEndpoints);
-    setEndpoints(parsedDefinition);
+    setEndpoints(Array.isArray(parsedDefinition) ? parsedDefinition as Endpoint[] : exampleEndpoints);
   };
 
   const generateServerCode = async () => {
@@ -351,38 +422,33 @@ export default function GenerateServer() {
       const serverConfig: ServerConfig = {
         name: config.name,
         description: config.description || "",
-        language: config.language as "TypeScript" | "Python",
+        language: config.language as "TypeScript" | "Python" | "Go",
         authentication: {
-          type: config.authentication_type as any,
+          type: config.authentication_type as "None" | "API Key" | "Bearer Token" | "Basic Auth",
           location: config.authentication_details?.location,
           name: config.authentication_details?.name,
           value: config.authentication_details?.value,
         },
         hosting: {
-          provider: config.hosting_provider as any,
-          type: config.hosting_type as any,
+          provider: config.hosting_provider as "AWS" | "GCP" | "Azure" | "Self-hosted",
+          type: config.hosting_type as "Serverless" | "Container" | "VM",
           region: config.hosting_region,
         },
         endpoints: endpoints,
       };
 
-      // Call the edge function for server generation (heavy work)
-      const { data, error } = await supabase.functions.invoke(
-        "generate-server",
-        {
-          body: {
-            deploymentId: deploymentData.id,
-            config: serverConfig,
-          },
-        },
-      );
+      // Use the common utility function to generate the server
+      // This version still uses the edge function by default
+      await import('@/utils/generateServerForUI').then(async ({ generateServerForUI }) => {
+        await generateServerForUI({
+          deploymentId: deploymentData.id,
+          config: serverConfig,
+          useEdgeFunction: false, // Use edge function for heavy processing
+        });
+      });
 
-      if (error) {
-        throw new Error(`Edge function error: ${error.message}`);
-      }
-
-      // The edge function should update the deployment record
-      // We'll poll for updates to get the result
+      // The edge function updates the deployment record
+      // We'll poll for updates to get the result (handled by the useEffect)
     } catch (error) {
       console.error("Error generating server:", error);
       setGenerationError(
@@ -458,8 +524,15 @@ export default function GenerateServer() {
         throw deploymentError;
       }
 
-      setDeployment(newDeployment as Deployment);
-      setDeploymentId(newDeployment.id);
+      // Apply proper typing to the new deployment
+      const typedDeployment: Deployment = {
+        ...(newDeployment as DbDeployment),
+        files: [],
+        status: "processing"
+      };
+      
+      setDeployment(typedDeployment);
+      setDeploymentId(typedDeployment.id);
       setDeploymentStatus("processing");
 
       // Start checking for status updates
@@ -471,8 +544,6 @@ export default function GenerateServer() {
       toast.error("Failed to start server generation");
     }
   };
-
-  const [generationProgress, setGenerationProgress] = useState(0);
 
   if (isLoading) {
     return (
@@ -646,7 +717,7 @@ export default function GenerateServer() {
           </Card>
 
           {/* Generation Section */}
-          <Card>
+          <Card className="mt-6">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Server className="mr-2 h-5 w-5" />
@@ -780,6 +851,26 @@ export default function GenerateServer() {
               {generationResult
                 ? (
                   <>
+
+<div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => startServerGeneration()}
+                      >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Regenerate Server
+                      </Button>
+
+                      {deployment && generationResult.success && (
+                        <PublishToMarketplace
+                          deployment={deployment}
+                          projectName={project.name}
+                          onPublished={(listing) => {
+                            toast.success("Server published to marketplace!");
+                          }}
+                        />
+                      )}
+                    </div>
                     <Button
                       variant="outline"
                       onClick={() => startServerGeneration()}
@@ -821,7 +912,7 @@ export default function GenerateServer() {
 
           {deploymentFiles.length > 0 && (
             <div className="mt-6">
-              <ServerFiles files={deploymentFiles} projectName={project.name} />
+              <ServerFiles files={deploymentFiles} />
             </div>
           )}
         </div>

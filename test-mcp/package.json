@@ -1,0 +1,30 @@
+{
+  "name": "mcp-server-tests",
+  "version": "1.0.0",
+  "description": "Tests for MCP server generation",
+  "main": "run-tests.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc",
+    "test": "ts-node run-tests.ts",
+    "test:full": "npm run build && node run-tests.js",
+    "test:mcp": "node run-test.mjs",
+    "test:simple": "node run-simple-test.js",
+    "test:standalone": "node standalone-tester.js",
+    "test:browser": "cd .. && vite --open test-mcp/browser-tester.html",
+    "demo": "ts-node demo.ts",
+    "validate": "ts-node mcp-validator.ts"
+  },
+  "dependencies": {
+    "fs-extra": "^11.2.0",
+    "node-fetch": "^2.6.7",
+    "chalk": "^4.1.2"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.11.24",
+    "@types/node-fetch": "^2.6.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}

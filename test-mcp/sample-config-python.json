@@ -1,0 +1,182 @@
+{
+  "name": "Weather API Server Python",
+  "description": "An MCP server for accessing weather data written in Python with FastAPI",
+  "language": "Python",
+  "authentication": {
+    "type": "API Key",
+    "location": "header",
+    "name": "x-api-key",
+    "value": "your-api-key-here"
+  },
+  "hosting": {
+    "provider": "GCP",
+    "type": "Serverless",
+    "region": "us-central1"
+  },
+  "endpoints": [
+    {
+      "id": "current-weather",
+      "path": "/weather/current",
+      "method": "GET",
+      "description": "Get current weather for a location",
+      "parameters": [
+        {
+          "name": "city",
+          "type": "string",
+          "required": true,
+          "description": "City name"
+        },
+        {
+          "name": "units",
+          "type": "string",
+          "required": false,
+          "description": "Units (metric or imperial)"
+        }
+      ],
+      "responses": [
+        {
+          "statusCode": 200,
+          "description": "Success",
+          "schema": {
+            "temperature": "number",
+            "humidity": "number",
+            "wind_speed": "number",
+            "conditions": "string"
+          }
+        },
+        {
+          "statusCode": 400,
+          "description": "Bad Request",
+          "schema": {
+            "error": "string"
+          }
+        }
+      ],
+      "mcpType": "resource",
+      "selected": true
+    },
+    {
+      "id": "forecast",
+      "path": "/weather/forecast",
+      "method": "GET",
+      "description": "Get weather forecast for a location",
+      "parameters": [
+        {
+          "name": "city",
+          "type": "string",
+          "required": true,
+          "description": "City name"
+        },
+        {
+          "name": "days",
+          "type": "number",
+          "required": false,
+          "description": "Number of days (1-7)"
+        },
+        {
+          "name": "units",
+          "type": "string",
+          "required": false,
+          "description": "Units (metric or imperial)"
+        }
+      ],
+      "responses": [
+        {
+          "statusCode": 200,
+          "description": "Success",
+          "schema": {
+            "forecast": "array",
+            "city": "string",
+            "country": "string"
+          }
+        },
+        {
+          "statusCode": 400,
+          "description": "Bad Request",
+          "schema": {
+            "error": "string"
+          }
+        }
+      ],
+      "mcpType": "resource",
+      "selected": true
+    },
+    {
+      "id": "add-location",
+      "path": "/locations",
+      "method": "POST",
+      "description": "Add a location to track",
+      "parameters": [
+        {
+          "name": "city",
+          "type": "string",
+          "required": true,
+          "description": "City name"
+        },
+        {
+          "name": "country",
+          "type": "string",
+          "required": true,
+          "description": "Country code"
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "required": false,
+          "description": "Custom label"
+        }
+      ],
+      "responses": [
+        {
+          "statusCode": 201,
+          "description": "Created",
+          "schema": {
+            "id": "string",
+            "city": "string",
+            "country": "string",
+            "label": "string"
+          }
+        },
+        {
+          "statusCode": 400,
+          "description": "Bad Request",
+          "schema": {
+            "error": "string"
+          }
+        }
+      ],
+      "mcpType": "tool",
+      "selected": true
+    },
+    {
+      "id": "delete-location",
+      "path": "/locations/{id}",
+      "method": "DELETE",
+      "description": "Delete a tracked location",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "description": "Location ID"
+        }
+      ],
+      "responses": [
+        {
+          "statusCode": 204,
+          "description": "No Content",
+          "schema": {}
+        },
+        {
+          "statusCode": 404,
+          "description": "Not Found",
+          "schema": {
+            "error": "string"
+          }
+        }
+      ],
+      "mcpType": "tool",
+      "selected": true
+    }
+  ]
+}

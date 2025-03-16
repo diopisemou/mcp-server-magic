@@ -14,10 +14,9 @@ export const generatePythonServer = (
   // Generate requirements.txt
   serverFiles.push({
     name: 'requirements.txt',
-    path: 'requirements.txt',
+    path: '/',
     content: `fastapi==0.103.1
 uvicorn==0.23.2
-anthropic==0.6.0
 python-dotenv==1.0.0
 pydantic==2.3.0
 `,
@@ -28,7 +27,7 @@ pydantic==2.3.0
   // Generate .env file
   serverFiles.push({
     name: '.env',
-    path: '.env',
+    path: '/',
     content: `# MCP Server Configuration
 PORT=3000
 ${authentication.type !== 'None' ? `API_KEY=${config.authSecret || 'your-api-key'}` : ''}
@@ -40,7 +39,7 @@ ${authentication.type !== 'None' ? `API_KEY=${config.authSecret || 'your-api-key
   // Generate README.md
   serverFiles.push({
     name: 'README.md',
-    path: 'README.md',
+    path: '/',
     content: generateReadme(
       config.name,
       config.description,
@@ -55,7 +54,7 @@ ${authentication.type !== 'None' ? `API_KEY=${config.authSecret || 'your-api-key
   // Generate main.py
   serverFiles.push({
     name: 'main.py',
-    path: 'main.py',
+    path: '/',
     content: `from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -90,6 +89,7 @@ async def root():
     """Return information about the MCP server"""
     return {
         "name": "${config.name}",
+        "version": "1.0.0",
         "description": "${config.description || 'MCP Server'}",
         "capabilities": {
             "resources": [${config.endpoints.filter(e => e.mcpType === 'resource').map(e => `"${e.path}"`).join(', ')}],
@@ -118,7 +118,7 @@ if __name__ == "__main__":
   if (authentication.type !== 'None') {
     serverFiles.push({
       name: 'auth.py',
-      path: 'middleware/auth.py',
+      path: '/middleware/',
       content: `from fastapi import Header, HTTPException, Request, Depends
 import os
 from typing import Optional
@@ -145,7 +145,7 @@ async def api_key_auth(${authentication.location === 'header'
   // Create __init__.py files for Python modules
   serverFiles.push({
     name: '__init__.py',
-    path: 'middleware/__init__.py',
+    path: '/middleware/',
     content: '',
     type: 'code',
     language: 'python'
@@ -153,7 +153,7 @@ async def api_key_auth(${authentication.location === 'header'
 
   serverFiles.push({
     name: '__init__.py',
-    path: 'routes/__init__.py',
+    path: '/routes/',
     content: '',
     type: 'code',
     language: 'python'
@@ -162,7 +162,7 @@ async def api_key_auth(${authentication.location === 'header'
   // Generate resource routes
   serverFiles.push({
     name: 'resources.py',
-    path: 'routes/resources.py',
+    path: '/routes/',
     content: `from fastapi import APIRouter, Query, HTTPException
 from typing import Dict, Any, Optional, List
 
@@ -185,13 +185,20 @@ ${config.endpoints
 async def ${endpoint.path.replace(/\//g, '_').replace(/-/g, '_').replace(/[{}]/g, '').trim() || 'get_resource'}(${params}):
     """${endpoint.description || endpoint.path}"""
     try:
-        # TODO: Implement the resource handling logic
+        # Process resource request
         
+        # Return in MCP-compliant format
         return {
+            "success": True,
             "data": {
-                "resourceId": "${endpoint.path}",
+                "id": "${endpoint.path}",
                 ${params ? `"params": {${endpoint.parameters.filter(p => p.required).map(p => `"${p.name}": ${p.name}`).join(', ')}},` : ''}
-                # Add your resource data here
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Sample resource data for ${endpoint.path}"
+                    }
+                ]
             }
         }
     except Exception as e:
@@ -205,7 +212,7 @@ async def ${endpoint.path.replace(/\//g, '_').replace(/-/g, '_').replace(/[{}]/g
   // Generate tool routes
   serverFiles.push({
     name: 'tools.py',
-    path: 'routes/tools.py',
+    path: '/routes/',
     content: `from fastapi import APIRouter, Body, HTTPException
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel
@@ -237,14 +244,21 @@ class ${endpoint.path.replace(/\//g, '_').replace(/-/g, '_').replace(/[{}]/g, ''
 async def ${endpoint.path.replace(/\//g, '_').replace(/-/g, '_').replace(/[{}]/g, '').trim() || 'execute_tool'}(${hasParams ? `data: ${endpoint.path.replace(/\//g, '_').replace(/-/g, '_').replace(/[{}]/g, '').trim() || 'ToolParams'} = Body(...)` : ''}):
     """${endpoint.description || endpoint.path}"""
     try:
-        # TODO: Implement the tool handling logic
+        # Process tool request
         ${hasParams ? '# Access parameters with data.param_name' : ''}
         
+        # Return in MCP-compliant format
         return {
+            "success": True,
             "result": {
-                "toolId": "${endpoint.path}",
+                "id": "${endpoint.path}",
                 ${hasParams ? `"params": {${requiredParams.map(p => `"${p.name}": data.${p.name}`).join(', ')}},` : ''}
-                # Add your tool result data here
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Sample tool response for ${endpoint.path}"
+                    }
+                ]
             }
         }
     except Exception as e:

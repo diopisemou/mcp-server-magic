@@ -1,7 +1,7 @@
 
-import { generateNodeServer } from './serverTemplates/nodeServer';
-import { generatePythonServer } from './serverTemplates/pythonServer';
-import { ServerConfig, GenerationResult, ServerFile, ZipPackage } from '@/types';
+import { ServerConfig, GenerationResult, ServerFile, ZipPackage, ArchiveFile } from '@/types';
+import { ExtendedServerConfig, DirectServerConfig, ProxyServerConfig } from '@/types/serverConfig';
+import { GeneratorFactory } from './generators/generatorFactory';
 import JSZip from 'jszip';
 
 /**
@@ -14,29 +14,25 @@ export const generateServer = async (config: ServerConfig): Promise<GenerationRe
     // Normalize the server configuration
     const normalizedConfig = normalizeServerConfig(config);
     
-    // Generate the server files based on the language
-    let result: GenerationResult;
+    // Get the appropriate generator using the factory
+    const generator = GeneratorFactory.createGenerator(normalizedConfig);
     
-    switch (normalizedConfig.language) {
-      case 'TypeScript':
-        result = generateNodeServer(normalizedConfig);
-        break;
-      case 'Python':
-        result = generatePythonServer(normalizedConfig);
-        break;
-      default:
-        return {
-          success: false,
-          error: `Unsupported language: ${normalizedConfig.language}`
-        };
+    // Validate the configuration
+    if (!generator.validateConfig(normalizedConfig)) {
+      return {
+        success: false,
+        error: 'Invalid server configuration'
+      };
     }
     
-    return result;
-  } catch (error: any) {
+    // Generate the server files
+    return generator.generateServer(normalizedConfig);
+  } catch (error) {
     console.error('Error generating server:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An error occurred while generating the server';
     return {
       success: false,
-      error: error.message || 'An error occurred while generating the server'
+      error: errorMessage
     };
   }
 };
@@ -51,6 +47,13 @@ export const createServerZip = async (files: ServerFile[], serverName: string): 
   try {
     const zip = new JSZip();
     const rootFolder = zip.folder(serverName.toLowerCase().replace(/\s+/g, '-')) || zip;
+    
+    // Convert ServerFiles to ArchiveFiles
+    const archiveFiles: ArchiveFile[] = files.map(file => ({
+      name: file.name,
+      path: file.path,
+      content: file.content
+    }));
     
     // Add each file to the zip
     for (const file of files) {
@@ -73,11 +76,13 @@ export const createServerZip = async (files: ServerFile[], serverName: string): 
       fileName: `${serverName.toLowerCase().replace(/\s+/g, '-')}.zip`,
       blob,
       name: serverName,
-      files
+      files,
+      archivefiles: archiveFiles
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating zip:', error);
-    throw new Error(error.message || 'Failed to create zip file');
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create zip file';
+    throw new Error(errorMessage);
   }
 };
 
@@ -86,8 +91,12 @@ export const createServerZip = async (files: ServerFile[], serverName: string): 
  * @param config Input server configuration
  * @returns Normalized server configuration
  */
-function normalizeServerConfig(config: ServerConfig): ServerConfig {
-  return {
+function normalizeServerConfig(config: ServerConfig): ExtendedServerConfig {
+  // Determine the mode
+  const mode = (config as ExtendedServerConfig).mode || 'direct';
+  
+  // Base normalized config
+  const baseConfig = {
     ...config,
     name: config.name || 'MCP Server',
     description: config.description || 'Generated MCP Server',
@@ -106,4 +115,20 @@ function normalizeServerConfig(config: ServerConfig): ServerConfig {
       mcpType: endpoint.mcpType || (endpoint.method === 'GET' ? 'resource' : 'tool')
     }))
   };
+  
+  // Create mode-specific config
+  if (mode === 'proxy') {
+    return {
+      ...baseConfig,
+      mode: 'proxy',
+      targetBaseUrl: (config as ProxyServerConfig).targetBaseUrl || 'https://api.example.com',
+      cacheEnabled: (config as ProxyServerConfig).cacheEnabled || false,
+      rateLimitingEnabled: (config as ProxyServerConfig).rateLimitingEnabled || false
+    } as ProxyServerConfig;
+  } else {
+    return {
+      ...baseConfig,
+      mode: 'direct'
+    } as DirectServerConfig;
+  }
 }

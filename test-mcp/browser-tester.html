@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MCP Server Generation Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .test-card {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .result {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 400px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>MCP Server Generation Test</h1>
+    <p>This page tests the generation of MCP servers for different languages and configurations.</p>
+    
+    <div class="test-card">
+        <h2>TypeScript MCP Server</h2>
+        <button onclick="testTypeScriptServer()">Run Test</button>
+        <div id="typescript-result" class="result">Click "Run Test" to begin...</div>
+    </div>
+    
+    <div class="test-card">
+        <h2>Python MCP Server</h2>
+        <button onclick="testPythonServer()">Run Test</button>
+        <div id="python-result" class="result">Click "Run Test" to begin...</div>
+    </div>
+    
+    <div class="test-card">
+        <h2>Go MCP Server</h2>
+        <button onclick="testGoServer()">Run Test</button>
+        <div id="go-result" class="result">Click "Run Test" to begin...</div>
+    </div>
+    
+    <script type="module">
+        // Sample endpoints for testing
+        const sampleEndpoints = [
+            {
+                id: 'get-weather',
+                path: '/weather',
+                method: 'GET',
+                description: 'Get current weather data',
+                parameters: [
+                    {
+                        name: 'city',
+                        type: 'string',
+                        required: true,
+                        description: 'City name'
+                    },
+                    {
+                        name: 'units',
+                        type: 'string',
+                        required: false,
+                        description: 'Units (metric or imperial)'
+                    }
+                ],
+                responses: [],
+                mcpType: 'resource',
+                selected: true
+            },
+            {
+                id: 'post-forecast',
+                path: '/forecast',
+                method: 'POST',
+                description: 'Get weather forecast',
+                parameters: [
+                    {
+                        name: 'city',
+                        type: 'string',
+                        required: true,
+                        description: 'City name'
+                    },
+                    {
+                        name: 'days',
+                        type: 'number',
+                        required: true,
+                        description: 'Number of days'
+                    }
+                ],
+                responses: [],
+                mcpType: 'tool',
+                selected: true
+            }
+        ];
+
+        // Test TypeScript server generation
+        window.testTypeScriptServer = async () => {
+            const resultElement = document.getElementById('typescript-result');
+            resultElement.innerHTML = "Loading TypeScript server generator...";
+            
+            try {
+                // Import the TypeScript server generator
+                const { generateNodeServer } = await import('../src/utils/serverTemplates/nodeServer.ts');
+                
+                // Create test config
+                const config = {
+                    name: 'TypeScript-Test',
+                    language: 'TypeScript',
+                    description: 'Test TypeScript MCP Server',
+                    authentication: {
+                        type: 'API Key',
+                        location: 'header',
+                        name: 'X-API-Key'
+                    },
+                    endpoints: sampleEndpoints,
+                    hosting: {
+                        provider: 'Self-hosted',
+                        type: 'Container'
+                    },
+                    authSecret: 'test-api-key-12345'
+                };
+                
+                // Run the generator
+                const result = generateNodeServer(config);
+                
+                // Display result
+                resultElement.innerHTML = `<span class="success">✅ Success!</span><br>Generated ${result.files.length} files<br><br>`;
+                resultElement.innerHTML += JSON.stringify(result, null, 2);
+                
+                // Log files
+                console.log('TypeScript Server Files:', result.files);
+            } catch (error) {
+                resultElement.innerHTML = `<span class="error">❌ Error:</span><br>${error.message}`;
+                console.error('TypeScript server generation error:', error);
+            }
+        };
+        
+        // Test Python server generation
+        window.testPythonServer = async () => {
+            const resultElement = document.getElementById('python-result');
+            resultElement.innerHTML = "Loading Python server generator...";
+            
+            try {
+                // Import the Python server generator
+                const { generatePythonServer } = await import('../src/utils/serverTemplates/pythonServer.ts');
+                
+                // Create test config
+                const config = {
+                    name: 'Python-Test',
+                    language: 'Python',
+                    description: 'Test Python MCP Server',
+                    authentication: {
+                        type: 'Bearer Token',
+                        location: 'header',
+                        name: 'Authorization'
+                    },
+                    endpoints: sampleEndpoints,
+                    hosting: {
+                        provider: 'Self-hosted',
+                        type: 'Container'
+                    },
+                    authSecret: 'test-api-key-12345'
+                };
+                
+                // Run the generator
+                const result = generatePythonServer(config);
+                
+                // Display result
+                resultElement.innerHTML = `<span class="success">✅ Success!</span><br>Generated ${result.files.length} files<br><br>`;
+                resultElement.innerHTML += JSON.stringify(result, null, 2);
+                
+                // Log files
+                console.log('Python Server Files:', result.files);
+            } catch (error) {
+                resultElement.innerHTML = `<span class="error">❌ Error:</span><br>${error.message}`;
+                console.error('Python server generation error:', error);
+            }
+        };
+        
+        // Test Go server generation
+        window.testGoServer = async () => {
+            const resultElement = document.getElementById('go-result');
+            resultElement.innerHTML = "Loading Go server generator...";
+            
+            try {
+                // Import the Go server generator
+                const { generateGoServer } = await import('../src/utils/serverTemplates/goServer.ts');
+                
+                // Create test config
+                const config = {
+                    name: 'Go-Test',
+                    language: 'Go',
+                    description: 'Test Go MCP Server',
+                    authentication: {
+                        type: 'None',
+                        location: 'header',
+                        name: ''
+                    },
+                    endpoints: sampleEndpoints,
+                    hosting: {
+                        provider: 'Self-hosted',
+                        type: 'Container'
+                    },
+                    authSecret: ''
+                };
+                
+                // Run the generator
+                const result = generateGoServer(config);
+                
+                // Display result
+                resultElement.innerHTML = `<span class="success">✅ Success!</span><br>Generated ${result.files.length} files<br><br>`;
+                resultElement.innerHTML += JSON.stringify(result, null, 2);
+                
+                // Log files
+                console.log('Go Server Files:', result.files);
+            } catch (error) {
+                resultElement.innerHTML = `<span class="error">❌ Error:</span><br>${error.message}`;
+                console.error('Go server generation error:', error);
+            }
+        };
+    </script>
+</body>
+</html>

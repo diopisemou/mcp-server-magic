@@ -2,7 +2,8 @@
 import type { ApiDefinition } from './api';
 
 export interface ServerConfig {
-  language: 'TypeScript' | 'Python';
+  language: 'TypeScript' | 'Python' | 'Go';
+  mode?: 'direct' | 'proxy'; // Type of server: direct implementation or API proxy
   framework: 'express' | 'fastapi';
   database: 'none' | 'mongodb' | 'postgres';
   authentication: AuthConfig;
@@ -12,6 +13,10 @@ export interface ServerConfig {
   description?: string;
   authSecret?: string;
   endpoints?: any[];
+  // Proxy-specific fields
+  targetBaseUrl?: string; // Base URL of the API to proxy to
+  cacheEnabled?: boolean; // Enable response caching (placeholder)
+  rateLimitingEnabled?: boolean; // Enable rate limiting (placeholder)
 }
 
 export interface AuthConfig {

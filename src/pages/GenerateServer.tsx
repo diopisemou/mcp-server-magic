@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import PublishToMarketplace from "@/components/PublishToMarketplace";
 import {
   Card,
   CardContent,
@@ -660,13 +661,25 @@ export default function GenerateServer() {
               {generationResult
                 ? (
                   <>
-                    <Button
-                      variant="outline"
-                      onClick={() => startServerGeneration()}
-                    >
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Regenerate Server
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => startServerGeneration()}
+                      >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Regenerate Server
+                      </Button>
+
+                      {deployment && generationResult.success && (
+                        <PublishToMarketplace
+                          deployment={deployment}
+                          projectName={project.name}
+                          onPublished={(listing) => {
+                            toast.success("Server published to marketplace!");
+                          }}
+                        />
+                      )}
+                    </div>
 
                     {generationResult.success && serverUrl && (
                       <Button

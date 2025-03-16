@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  AlertCircle,
   ArrowLeft,
   Check,
   Clock,
@@ -27,77 +28,49 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { MCPServer } from "@/types";
+import { MarketplaceListing, InstallationInstructions } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
+import { 
+  fetchMarketplaceListing, 
+  trackDownload, 
+  toggleStar,
+  generateInstallationInstructions
+} from "@/utils/marketplaceService";
 
 function MarketplaceDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [server, setServer] = useState<MCPServer | null>(null);
+  const [listing, setListing] = useState<MarketplaceListing | null>(null);
+  const { user } = useAuth();
+  const [userHasStarred, setUserHasStarred] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [copiedText, setCopiedText] = useState("");
 
   useEffect(() => {
-    const fetchServer = async () => {
+    const fetchListingDetails = async () => {
+      if (!id) return;
+      
       try {
         setIsLoading(true);
-        const mockServer: MCPServer = {
-          id: id || "1",
-          name: "Google Drive MCP Server",
-          description:
-            "Access and manage Google Drive files and folders through Claude AI",
-          author: "Anthropic",
-          version: "1.2.0",
-          stars: 4356,
-          downloads: 12890,
-          capabilities: [
-            {
-              type: "resource",
-              name: "files",
-              description:
-                "List, search, and get information about files in Google Drive",
-            },
-            {
-              type: "resource",
-              name: "folders",
-              description:
-                "List, search, and get information about folders in Google Drive",
-            },
-            {
-              type: "tool",
-              name: "createFile",
-              description: "Create a new file in Google Drive",
-            },
-            {
-              type: "tool",
-              name: "uploadFile",
-              description: "Upload a file to Google Drive",
-            },
-            {
-              type: "tool",
-              name: "downloadFile",
-              description: "Download a file from Google Drive",
-            },
-            {
-              type: "tool",
-              name: "deleteFile",
-              description: "Delete a file from Google Drive",
-            },
-          ],
-          tags: ["google", "drive", "files", "storage", "cloud"],
-          updatedAt: "2024-05-15T10:30:00Z",
-        };
-        setServer(mockServer);
+        const data = await fetchMarketplaceListing(id);
+        setListing(data);
+        
+        // Check if user has starred this listing (from local storage)
+        if (user) {
+          const starredListings = JSON.parse(localStorage.getItem('starredListings') || '[]');
+          setUserHasStarred(starredListings.includes(id));
+        }
       } catch (error) {
-        console.error("Error fetching server details:", error);
+        console.error("Error fetching listing details:", error);
         toast.error("Failed to load server details");
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchServer();
-  }, [id]);
+    fetchListingDetails();
+  }, [id, user]);
 
   const handleCopyCode = (text: string, type: string) => {
     navigator.clipboard.writeText(text);
@@ -116,12 +89,70 @@ function MarketplaceDetail() {
     );
   }
 
-  if (!server) {
+  const handleDownload = useCallback(async () => {
+    if (!listing) return;
+    
+    try {
+      await trackDownload(listing.id);
+      // Update the local download count for immediate feedback
+      setListing(prev => prev ? {
+        ...prev,
+        downloads: prev.downloads + 1
+      } : null);
+      toast.success("Download tracked successfully");
+    } catch (error) {
+      console.error("Error tracking download:", error);
+    }
+  }, [listing]);
+
+  const handleToggleStar = useCallback(async () => {
+    if (!listing || !user) {
+      toast.info("Please sign in to star this server", {
+        action: {
+          label: "Sign In",
+          onClick: () => navigate("/auth"),
+        },
+      });
+      return;
+    }
+    
+    try {
+      await toggleStar(listing.id, !userHasStarred);
+      
+      // Update the star count for immediate feedback
+      setListing(prev => prev ? {
+        ...prev,
+        stars: userHasStarred ? prev.stars - 1 : prev.stars + 1
+      } : null);
+      
+      // Toggle the user's star status
+      setUserHasStarred(!userHasStarred);
+      
+      // Update localStorage
+      const starredListings = JSON.parse(localStorage.getItem('starredListings') || '[]');
+      if (userHasStarred) {
+        localStorage.setItem('starredListings', JSON.stringify(
+          starredListings.filter((id: string) => id !== listing.id)
+        ));
+      } else {
+        starredListings.push(listing.id);
+        localStorage.setItem('starredListings', JSON.stringify(starredListings));
+      }
+      
+      toast.success(userHasStarred ? "Server unstarred" : "Server starred");
+    } catch (error) {
+      console.error("Error toggling star:", error);
+      toast.error("Failed to update star status");
+    }
+  }, [listing, user, userHasStarred, navigate]);
+  
+  if (!listing && !isLoading) {
     return (
       <div className="container py-8">
-        <div className="flex justify-center items-center h-64">
-          <p>Server not found</p>
-          <Button onClick={() => navigate("/marketplace")} className="mt-4">
+        <div className="flex flex-col justify-center items-center h-64">
+          <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+          <p className="mb-4 text-lg">Server not found</p>
+          <Button onClick={() => navigate("/marketplace")}>
             Back to Marketplace
           </Button>
         </div>
@@ -129,92 +160,76 @@ function MarketplaceDetail() {
     );
   }
 
-  const claudeCode = `
-Here is how to use the Google Drive MCP server with Claude:
-
-\`\`\`
-{
-  "tools": [
-    {
-      "name": "google_drive",
-      "url": "https://mcp-servers.example.com/google-drive",
-      "auth": {
-        "type": "bearer",
-        "token": "YOUR_API_KEY"
-      }
+  // Generate installation instructions if they don't exist yet
+  const getInstallationInstructions = useCallback((): InstallationInstructions => {
+    if (!listing) return {};
+    
+    if (listing.installation_instructions) {
+      return listing.installation_instructions;
     }
-  ]
-}
-\`\`\`
-
-In your prompt to Claude, you can ask about Google Drive files and folders or perform actions on them:
-
-"Can you list my recent files from Google Drive?"
-"Upload this document to my Google Drive"
-"Search for any spreadsheets in my Google Drive"
-  `;
-
+    
+    // Generate from server URL
+    const serverUrl = "https://mcp-servers.example.com/" + listing.title.toLowerCase().replace(/\s+/g, '-');
+    return generateInstallationInstructions(listing, serverUrl);
+  }, [listing]);
+  
+  const instructions = getInstallationInstructions();
+  
+  const claudeCode = instructions.claude?.configContent || '';
   const pythonCode = `
-# Python example for integrating with Google Drive MCP Server
-
+# Python example for using this MCP Server
 import requests
 
 API_KEY = "your_api_key_here"
-MCP_SERVER_URL = "https://mcp-servers.example.com/google-drive"
+MCP_SERVER_URL = "${listing?.title ? 'https://mcp-servers.example.com/' + listing.title.toLowerCase().replace(/\s+/g, '-') : ''}"
 
 headers = {
     "Authorization": f"Bearer {API_KEY}",
     "Content-Type": "application/json"
 }
 
-# List files example
+# Example request
 response = requests.get(
-    f"{MCP_SERVER_URL}/files",
+    f"{MCP_SERVER_URL}/endpoint",
     headers=headers
 )
 
 if response.status_code == 200:
-    files = response.json()
-    for file in files:
-        print(f"File: {file['name']}, ID: {file['id']}")
+    data = response.json()
+    print(data)
 else:
     print(f"Error: {response.status_code}")
     print(response.text)
-  `;
+`;
 
   const nodejsCode = `
-// Node.js example for integrating with Google Drive MCP Server
-
+// Node.js example for using this MCP Server
 const axios = require('axios');
 
 const API_KEY = 'your_api_key_here';
-const MCP_SERVER_URL = 'https://mcp-servers.example.com/google-drive';
+const MCP_SERVER_URL = '${listing?.title ? 'https://mcp-servers.example.com/' + listing.title.toLowerCase().replace(/\s+/g, '-') : ''}';
 
 const headers = {
   'Authorization': \`Bearer \${API_KEY}\`,
   'Content-Type': 'application/json'
 };
 
-// List files example
-async function listFiles() {
+// Example request
+async function callMcpServer() {
   try {
     const response = await axios.get(
-      \`\${MCP_SERVER_URL}/files\`,
+      \`\${MCP_SERVER_URL}/endpoint\`,
       { headers }
     );
-
-    const files = response.data;
-    files.forEach(file => {
-      console.log(\`File: \${file.name}, ID: \${file.id}\`);
-    });
+    console.log(response.data);
   } catch (error) {
     console.error('Error:', error.response?.status);
     console.error(error.response?.data);
   }
 }
 
-listFiles();
-  `;
+callMcpServer();
+`;
 
   return (
     <div className="container py-8">
@@ -233,13 +248,13 @@ listFiles();
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-2xl">{server.name}</CardTitle>
+                  <CardTitle className="text-2xl">{listing?.title}</CardTitle>
                   <CardDescription className="mt-1">
-                    {server.description}
+                    {listing?.description}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-1">
-                  {server.tags.map((tag) => (
+                  {listing?.tags?.map((tag) => (
                     <Badge key={tag} variant="secondary" className="mr-1">
                       {tag}
                     </Badge>
@@ -261,25 +276,25 @@ listFiles();
                         <h3 className="text-sm font-medium text-muted-foreground">
                           Author
                         </h3>
-                        <p>{server.author}</p>
+                        <p>{listing?.author}</p>
                       </div>
                       <div>
                         <h3 className="text-sm font-medium text-muted-foreground">
                           Version
                         </h3>
-                        <p>{server.version}</p>
+                        <p>{listing?.version}</p>
                       </div>
                       <div>
                         <h3 className="text-sm font-medium text-muted-foreground">
                           Stars
                         </h3>
-                        <p>{server.stars.toLocaleString()}</p>
+                        <p>{listing?.stars.toLocaleString()}</p>
                       </div>
                       <div>
                         <h3 className="text-sm font-medium text-muted-foreground">
                           Downloads
                         </h3>
-                        <p>{server.downloads.toLocaleString()}</p>
+                        <p>{listing?.downloads.toLocaleString()}</p>
                       </div>
                     </div>
 
@@ -290,12 +305,7 @@ listFiles();
                         About this MCP Server
                       </h3>
                       <p className="text-muted-foreground">
-                        This MCP server allows AI models like Claude to interact
-                        with Google Drive, providing a seamless way to access,
-                        manage, and manipulate files and folders. With this
-                        integration, users can have Claude search for files,
-                        upload new content, organize folders, and more - all
-                        through natural language commands.
+                        {listing?.description || "No description available."}
                       </p>
                       <div className="mt-4 flex gap-2">
                         <Button variant="outline" size="sm" className="gap-1">
@@ -315,8 +325,8 @@ listFiles();
                     <div>
                       <h3 className="font-medium mb-3">Resources</h3>
                       <div className="space-y-3">
-                        {server.capabilities
-                          .filter((cap) => cap.type === "resource")
+                        {listing?.capabilities
+                          ?.filter((cap) => cap.type === "resource")
                           .map((capability) => (
                             <div
                               key={capability.name}
@@ -341,8 +351,8 @@ listFiles();
                     <div>
                       <h3 className="font-medium mb-3">Tools</h3>
                       <div className="space-y-3">
-                        {server.capabilities
-                          .filter((cap) => cap.type === "tool")
+                        {listing?.capabilities
+                          ?.filter((cap) => cap.type === "tool")
                           .map((capability) => (
                             <div
                               key={capability.name}
@@ -444,7 +454,7 @@ listFiles();
                 <div className="flex items-center">
                   <input
                     type="text"
-                    value="https://mcp-servers.example.com/google-drive"
+                    value={`https://mcp-servers.example.com/${listing?.title.toLowerCase().replace(/\s+/g, '-')}`}
                     readOnly
                     className="w-full rounded-md border px-3 py-2 text-sm bg-muted"
                   />
@@ -474,10 +484,19 @@ listFiles();
                 </div>
               </div>
 
-              <div className="pt-4">
-                <Button className="w-full">
+              <div className="pt-4 space-y-2">
+                <Button className="w-full" onClick={handleDownload}>
                   <Download className="h-4 w-4 mr-2" />
                   Download Server Package
+                </Button>
+                
+                <Button 
+                  variant={userHasStarred ? "default" : "outline"} 
+                  className="w-full"
+                  onClick={handleToggleStar}
+                >
+                  <Star className={`h-4 w-4 mr-2 ${userHasStarred ? 'text-yellow-300 fill-yellow-300' : ''}`} />
+                  {userHasStarred ? 'Starred' : 'Star This Server'}
                 </Button>
               </div>
             </CardContent>
